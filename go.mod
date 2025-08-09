@@ -3,7 +3,7 @@ module gotomerge
 go 1.23.1
 
 // https://github.com/jcalabro/leb128/pull/1
-replace github.com/jcalabro/leb128 => github.com/MichaelMure/leb128 v0.0.0-20250808222252-16529393fc20
+replace github.com/jcalabro/leb128 => github.com/MichaelMure/leb128 v0.0.0-20250809082817-dd087cd8bcba
 
 require (
 	github.com/jcalabro/leb128 v1.0.2

@@ -113,6 +113,7 @@ func readChangeHashes(r io.Reader) ([]changeHash, error) {
 	}
 	// limit pre-allocation to avoid DOS
 	allocate := n
+	// TODO: adjust with reasonable value
 	if n > 128 {
 		allocate = 128
 	}
