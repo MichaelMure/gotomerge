@@ -27,6 +27,9 @@ type specification uint32
 
 func newSpecification(id uint32, _type Type, deflate bool) specification {
 	s := id << 4
+	if s != id {
+		panic("overflow of specification ID")
+	}
 	if deflate {
 		s |= 0b1000
 	}
