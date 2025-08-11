@@ -3,8 +3,10 @@ package gotomerge
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/jcalabro/leb128"
 )
@@ -27,6 +29,15 @@ type DocumentChunk struct {
 	Heads  []changeHash
 }
 
+func (d DocumentChunk) String() string {
+	var res strings.Builder
+	res.WriteString("DocumentChunk {\n")
+	res.WriteString(fmt.Sprintf("  Actors: %v\n", d.Actors))
+	res.WriteString(fmt.Sprintf("  Heads: %v\n", d.Heads))
+	res.WriteString("}\n")
+	return res.String()
+}
+
 func readChunk(r io.Reader) (chunk, error) {
 	// reading buffer of 16 bytes, but sized to read magic+checksum
 	buf := make([]byte, 4+4, 16)
@@ -37,16 +48,17 @@ func readChunk(r io.Reader) (chunk, error) {
 	if n != (4 + 4) {
 		return nil, fmt.Errorf("unexpected end of chunk")
 	}
-	if !bytes.Equal(buf[0:3], magicBytes) {
+	if !bytes.Equal(buf[0:4], magicBytes) {
 		return nil, fmt.Errorf("invalid magic bytes")
 	}
-	checksum := buf[4:7]
+	checksum := buf[4:8]
 
 	// run the remaining reads through SHA256 to compute the checksum
 	h := sha256.New()
 	r = io.TeeReader(r, h)
 
-	buf = buf[0:0]
+	// reuse the allocated buffer to read a single byte
+	buf = buf[0:1]
 	n, err = r.Read(buf)
 	if err != nil {
 		return nil, fmt.Errorf("error reading chunk type: %w", err)
@@ -78,7 +90,14 @@ func readChunk(r io.Reader) (chunk, error) {
 		return nil, fmt.Errorf("error reading chunk: %w", err)
 	}
 
-	if !bytes.Equal(checksum, h.Sum(nil)[0:3]) {
+	// TODO: remove
+	rest, err := io.ReadAll(r)
+	if err != nil {
+		panic("")
+	}
+	fmt.Printf("REST READ: %v\n", len(rest))
+
+	if !bytes.Equal(checksum, h.Sum(nil)[0:4]) {
 		return nil, fmt.Errorf("invalid checksum")
 	}
 
@@ -105,6 +124,10 @@ func readDocumentChunk(r io.Reader, length uint64) (*DocumentChunk, error) {
 }
 
 type changeHash [32]byte
+
+func (ch changeHash) String() string {
+	return hex.EncodeToString(ch[:])
+}
 
 func readChangeHashes(r io.Reader) ([]changeHash, error) {
 	n, err := leb128.DecodeU64(r)

@@ -26,10 +26,10 @@ const (
 type specification uint32
 
 func newSpecification(id uint32, _type Type, deflate bool) specification {
-	s := id << 4
-	if s != id {
+	if id > maxSpecificationId {
 		panic("overflow of specification ID")
 	}
+	s := id << 4
 	if deflate {
 		s |= 0b1000
 	}
