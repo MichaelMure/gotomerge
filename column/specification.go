@@ -49,6 +49,21 @@ func (s specification) Deflate() bool {
 	return (s & 0b1000) != 0
 }
 
+var typeNames = [...]string{
+	TypeGroup:         "group",
+	TypeActor:         "actor",
+	TypeULEB128:       "uleb128",
+	TypeDelta:         "delta",
+	TypeBool:          "bool",
+	TypeString:        "string",
+	TypeValueMetadata: "value_metadata",
+	TypeValue:         "value",
+}
+
+func (s specification) String() string {
+	return fmt.Sprintf("spec(%d: id=%d, type=%s, deflate=%t)", uint64(s), s.ID(), typeNames[s.Type()], s.Deflate())
+}
+
 func readSpecification(r io.Reader) (specification, error) {
 	u, err := leb128.DecodeU32(r)
 	if err != nil {

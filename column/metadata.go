@@ -12,7 +12,7 @@ type Metadata []struct {
 	Length uint64
 }
 
-func readMetadata(r io.Reader) (Metadata, error) {
+func ReadMetadata(r io.Reader) (Metadata, error) {
 	n, err := leb128.DecodeU64(r)
 	if err != nil {
 		return nil, fmt.Errorf("error reading column metadata length: %w", err)
@@ -38,7 +38,7 @@ func readMetadata(r io.Reader) (Metadata, error) {
 		if uint32(spec) <= prevSpec {
 			return nil, fmt.Errorf("column metadata IDs must be sorted and unique")
 		}
-		if uint32(spec)&0b1000 == prevSpec&0b1000 {
+		if i != 0 && uint32(spec)|0b1000 == prevSpec|0b1000 {
 			return nil, fmt.Errorf("both uncompressed and compressed columns present with the same ID")
 		}
 		prevSpec = uint32(spec)
@@ -55,7 +55,7 @@ func readMetadata(r io.Reader) (Metadata, error) {
 	return res, nil
 }
 
-func writeMetadata(w io.Writer, metadata Metadata) error {
+func WriteMetadata(w io.Writer, metadata Metadata) error {
 	_, err := w.Write(leb128.EncodeU64(uint64(len(metadata))))
 	if err != nil {
 		return err

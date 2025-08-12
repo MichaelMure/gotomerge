@@ -4,11 +4,17 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"math"
 
 	"github.com/jcalabro/leb128"
 
 	"gotomerge/column/rle"
 )
+
+func ReadUlebColumn(r io.Reader, length uint64) iter.Seq2[rle.NullableUint64, error] {
+	// TODO: does that really return null values?
+	return rle.ReadUint64RLE(io.LimitReader(r, int64(length)))
+}
 
 // ReadDeltaColumn reads the values of a delta column of length bytes
 // TODO: is that returning int64 or uint64 ?
@@ -24,12 +30,15 @@ func ReadDeltaColumn(r io.Reader, length uint64) iter.Seq2[int64, error] {
 			val, valid := signed.Value()
 			// automerge in rust consider null values as "stay the same"
 			if valid {
-				res = prev + val
-				if (res > prev) == (val < 0) {
-					yield(0, fmt.Errorf("overflow or underflow in delta column"))
+				if val > 0 && prev > math.MaxInt64-val {
+					yield(0, fmt.Errorf("overflow in delta column"))
 					return
 				}
-				prev = res
+				if val < 0 && prev < math.MinInt64-val {
+					yield(0, fmt.Errorf("underflow in delta column"))
+					return
+				}
+				res = prev + val
 			}
 
 			if !yield(res, nil) {
@@ -41,6 +50,7 @@ func ReadDeltaColumn(r io.Reader, length uint64) iter.Seq2[int64, error] {
 
 // ReadStringColumn reads the values of a string column of length bytes
 func ReadStringColumn(r io.Reader, length uint64) iter.Seq2[rle.NullableString, error] {
+	// TODO: does that really return null values?
 	return rle.ReadStringRLE(io.LimitReader(r, int64(length)))
 }
 

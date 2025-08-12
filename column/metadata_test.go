@@ -15,10 +15,10 @@ func TestMetadata(t *testing.T) {
 	}
 
 	buf := bytes.Buffer{}
-	err := writeMetadata(&buf, meta)
+	err := WriteMetadata(&buf, meta)
 	require.NoError(t, err)
 
-	read, err := readMetadata(&buf)
+	read, err := ReadMetadata(&buf)
 	require.NoError(t, err)
 
 	require.Equal(t, meta, read)
@@ -30,14 +30,14 @@ func BenchmarkReadMetadata(b *testing.B) {
 		{Spec: newSpecification(1, TypeString, true), Length: 1},
 		{Spec: newSpecification(2, TypeString, false), Length: 2},
 	}
-	err := writeMetadata(&buf, meta)
+	err := WriteMetadata(&buf, meta)
 	require.NoError(b, err)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		_, _ = readMetadata(bytes.NewReader(buf.Bytes()))
+		_, _ = ReadMetadata(bytes.NewReader(buf.Bytes()))
 	}
 }
 
@@ -49,6 +49,6 @@ func BenchmarkWriteMetadata(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_ = writeMetadata(io.Discard, meta)
+		_ = WriteMetadata(io.Discard, meta)
 	}
 }

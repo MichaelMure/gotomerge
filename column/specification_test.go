@@ -52,6 +52,13 @@ func TestSpecification(t *testing.T) {
 	}
 }
 
+// TODO: remove
+// func TestFoo(t *testing.T) {
+// 	for i := 0; i < 180; i++ {
+// 		fmt.Println(i, specification(i).String())
+// 	}
+// }
+
 func BenchmarkReadSpecification(b *testing.B) {
 	buf := bytes.Buffer{}
 	spec := newSpecification(maxSpecificationId, TypeString, true)
