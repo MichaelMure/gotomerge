@@ -18,6 +18,7 @@ func ReadMetadata(r io.Reader) (Metadata, error) {
 		return nil, fmt.Errorf("error reading column metadata length: %w", err)
 	}
 	if n == 0 {
+		// special case for empty metadata
 		return nil, nil
 	}
 
@@ -28,20 +29,34 @@ func ReadMetadata(r io.Reader) (Metadata, error) {
 		allocate = 128
 	}
 
-	var prevSpec uint32
+	var prevSpec specification
 	res := make(Metadata, 0, allocate)
 	for i := uint64(0); i < n; i++ {
 		spec, err := readSpecification(r)
 		if err != nil {
 			return nil, fmt.Errorf("error reading column metadata spec: %w", err)
 		}
-		if uint32(spec) <= prevSpec {
+		if spec <= prevSpec {
 			return nil, fmt.Errorf("column metadata IDs must be sorted and unique")
 		}
-		if i != 0 && uint32(spec)|0b1000 == prevSpec|0b1000 {
+		if i != 0 && uint32(spec)|0b1000 == uint32(prevSpec)|0b1000 {
 			return nil, fmt.Errorf("both uncompressed and compressed columns present with the same ID")
 		}
-		prevSpec = uint32(spec)
+		if spec.Type() == TypeValue &&
+			((prevSpec.Type() != TypeValueMetadata) || spec.ID() != prevSpec.ID()) {
+			return nil, fmt.Errorf("value column must be preceded by a value metadata column with the same ID")
+		}
+
+		// Bellow test is in the spec, but it's actually already impossible with the constraints above
+		// if spec.Type() == TypeValueMetadata {
+		// 	for j := uint64(0); j < i-1; j++ {
+		// 		if res[j].Spec.ID() == spec.ID() {
+		// 			return nil, fmt.Errorf("value metadata ID must be unique")
+		// 		}
+		// 	}
+		// }
+
+		prevSpec = spec
 		length, err := leb128.DecodeU64(r)
 		if err != nil {
 			return nil, fmt.Errorf("error reading column metadata length: %w", err)

@@ -10,10 +10,10 @@ import (
 func TestReadDeltaColumn(t *testing.T) {
 	buf := []byte{0x7f, 0x03, 0x03, 0x01, 0x7d, 0x03, 0x7e, 0x01}
 
-	expected := []int64{3, 4, 5, 6, 9, 7, 8}
-	var res []int64
+	expected := []uint64{3, 4, 5, 6, 9, 7, 8}
+	var res []uint64
 
-	for i, err := range ReadDeltaColumn(bytes.NewReader(buf), uint64(len(buf))) {
+	for i, err := range ReadDeltaColumn(bytes.NewReader(buf)) {
 		require.NoError(t, err)
 		res = append(res, i)
 	}
@@ -27,7 +27,7 @@ func TestReadBooleanColumn(t *testing.T) {
 	expected := []bool{true, true, false, false, false}
 	var res []bool
 
-	for b, err := range ReadBooleanColumn(bytes.NewReader(buf), uint64(len(buf))) {
+	for b, err := range ReadBooleanColumn(bytes.NewReader(buf)) {
 		require.NoError(t, err)
 		res = append(res, b)
 	}

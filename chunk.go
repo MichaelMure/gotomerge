@@ -2,8 +2,8 @@ package gotomerge
 
 import (
 	"bytes"
+	"compress/flate"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"iter"
@@ -12,6 +12,8 @@ import (
 	"github.com/jcalabro/leb128"
 
 	"gotomerge/column"
+	"gotomerge/column/rle"
+	"gotomerge/types"
 )
 
 type ChunkType byte
@@ -28,8 +30,9 @@ type chunk interface {
 }
 
 type DocumentChunk struct {
-	Actors []ActorId
-	Heads  []changeHash
+	Actors      []types.ActorId
+	Heads       []types.ChangeHash
+	HeadIndexes []uint64
 
 	// TODO: should that stays?
 	ChangeMetadata column.Metadata
@@ -44,6 +47,7 @@ func (d DocumentChunk) String() string {
 	res.WriteString("DocumentChunk {\n")
 	res.WriteString(fmt.Sprintf("  Actors: %v\n", d.Actors))
 	res.WriteString(fmt.Sprintf("  Heads: %v\n", d.Heads))
+	res.WriteString(fmt.Sprintf("  HeadIndexes: %v\n", d.HeadIndexes))
 	for i, metadatum := range d.ChangeMetadata {
 		res.WriteString(fmt.Sprintf("  ChangeMetadata[%d]: %v\n", i, metadatum))
 		res.WriteString(fmt.Sprintf("    Values: %v\n", d.Changes[i]))
@@ -96,11 +100,12 @@ func readChunk(r io.Reader) (chunk, error) {
 
 	switch chunkType {
 	case ChunkTypeDocument:
-		res, err = readDocumentChunk(r, length)
+		res, err = readDocumentChunk(r)
 	case ChunkTypeChange:
 		panic("not implemented")
 	case ChunkTypeCompressedChange:
-		panic("not implemented")
+		r = flate.NewReader(r)
+		res, err = readDocumentChunk(r)
 	default:
 		return nil, fmt.Errorf("invalid chunk type: %d", chunkType)
 	}
@@ -109,11 +114,11 @@ func readChunk(r io.Reader) (chunk, error) {
 	}
 
 	// TODO: remove
-	rest, err := io.ReadAll(r)
-	if err != nil {
-		panic("")
-	}
-	fmt.Printf("REST READ: %v\n", len(rest))
+	// rest, err := io.ReadAll(r)
+	// if err != nil {
+	// 	panic("")
+	// }
+	// fmt.Printf("REST READ: %v\n", len(rest))
 
 	if !bytes.Equal(checksum, h.Sum(nil)[0:4]) {
 		return nil, fmt.Errorf("invalid checksum")
@@ -122,9 +127,7 @@ func readChunk(r io.Reader) (chunk, error) {
 	return res, nil
 }
 
-func readDocumentChunk(r io.Reader, length uint64) (*DocumentChunk, error) {
-	r = io.LimitReader(r, int64(length))
-
+func readDocumentChunk(r io.Reader) (*DocumentChunk, error) {
 	var res DocumentChunk
 	var err error
 
@@ -148,7 +151,8 @@ func readDocumentChunk(r io.Reader, length uint64) (*DocumentChunk, error) {
 		return nil, fmt.Errorf("error reading operation metadata: %w", err)
 	}
 
-	skip := func(t any, l uint64) {
+	// TODO: remove
+	skip := func(r io.Reader, t any, l uint64) {
 		fmt.Printf("SKIP: %s %v\n", t, l)
 		_, err := io.CopyN(io.Discard, r, int64(l))
 		if err != nil {
@@ -158,46 +162,76 @@ func readDocumentChunk(r io.Reader, length uint64) (*DocumentChunk, error) {
 
 	res.Changes = make([][]any, len(res.ChangeMetadata))
 	for i, metadatum := range res.ChangeMetadata {
+		rCol := io.LimitReader(r, int64(metadatum.Length))
+		if metadatum.Spec.Deflate() {
+			rCol = flate.NewReader(rCol)
+		}
+
 		switch metadatum.Spec.Type() {
 		case column.TypeGroup:
-			skip(metadatum.Spec, metadatum.Length)
+			res.Changes[i] = acc(rle.ReadUint64RLE(rCol))
 		case column.TypeActor:
-			skip(metadatum.Spec, metadatum.Length)
+			res.Changes[i] = acc(rle.ReadUint64RLE(rCol))
 		case column.TypeULEB128:
-			res.Changes[i] = acc(column.ReadUlebColumn(r, metadatum.Length))
+			res.Changes[i] = acc(column.ReadUlebColumn(rCol))
 		case column.TypeDelta:
-			res.Changes[i] = acc(column.ReadDeltaColumn(r, metadatum.Length))
+			res.Changes[i] = acc(column.ReadDeltaColumn(rCol))
 		case column.TypeBool:
-			res.Changes[i] = acc(column.ReadBooleanColumn(r, metadatum.Length))
+			res.Changes[i] = acc(column.ReadBooleanColumn(rCol))
 		case column.TypeString:
-			res.Changes[i] = acc(column.ReadStringColumn(r, metadatum.Length))
+			res.Changes[i] = acc(column.ReadStringColumn(rCol))
 		case column.TypeValueMetadata:
-			res.Changes[i] = acc(column.ReadValueMetadataColumn(r, metadatum.Length))
+			res.Changes[i] = acc(column.ReadValueMetadataColumn(rCol))
 		case column.TypeValue:
-			skip(metadatum.Spec, metadatum.Length)
+			skip(rCol, metadatum.Spec, metadatum.Length)
 		}
 	}
 
+	var prevValueMetadata []column.ValueMetadata
+
 	res.Operations = make([][]any, len(res.OperationMetadata))
 	for i, metadatum := range res.OperationMetadata {
+		rCol := io.LimitReader(r, int64(metadatum.Length))
+		if metadatum.Spec.Deflate() {
+			rCol = flate.NewReader(rCol)
+		}
+
 		switch metadatum.Spec.Type() {
 		case column.TypeGroup:
-			skip(metadatum.Spec, metadatum.Length)
+			res.Operations[i] = acc(rle.ReadUint64RLE(rCol))
 		case column.TypeActor:
-			skip(metadatum.Spec, metadatum.Length)
+			res.Operations[i] = acc(rle.ReadUint64RLE(rCol))
 		case column.TypeULEB128:
-			res.Operations[i] = acc(column.ReadUlebColumn(r, metadatum.Length))
+			res.Operations[i] = acc(column.ReadUlebColumn(rCol))
 		case column.TypeDelta:
-			res.Operations[i] = acc(column.ReadDeltaColumn(r, metadatum.Length))
+			res.Operations[i] = acc(column.ReadDeltaColumn(rCol))
 		case column.TypeBool:
-			res.Operations[i] = acc(column.ReadBooleanColumn(r, metadatum.Length))
+			res.Operations[i] = acc(column.ReadBooleanColumn(rCol))
 		case column.TypeString:
-			res.Operations[i] = acc(column.ReadStringColumn(r, metadatum.Length))
+			res.Operations[i] = acc(column.ReadStringColumn(rCol))
 		case column.TypeValueMetadata:
-			res.Operations[i] = acc(column.ReadValueMetadataColumn(r, metadatum.Length))
+			// TODO: HACK just for early visualisation
+			buf := &bytes.Buffer{}
+			tee := io.TeeReader(rCol, buf)
+			res.Operations[i] = acc(column.ReadValueMetadataColumn(tee))
+			prevValueMetadata = nil
+			for vm, err := range column.ReadValueMetadataColumn(buf) {
+				if err != nil {
+					panic(err)
+				}
+				prevValueMetadata = append(prevValueMetadata, vm)
+			}
 		case column.TypeValue:
-			skip(metadatum.Spec, metadatum.Length)
+			// skip(rCol, metadatum.Spec, metadatum.Length)
+
+			// TODO: HACK just for early visualisation
+			res.Operations[i] = acc(column.ReadValueColumn(r, prevValueMetadata))
 		}
+	}
+
+	res.HeadIndexes, err = readHeadIndexes(r, len(res.Heads))
+	if err != nil {
+		return nil, fmt.Errorf("error reading head indexes: %w", err)
 	}
 
 	return &res, nil
@@ -215,13 +249,7 @@ func acc[T any](it iter.Seq2[T, error]) []any {
 	return res
 }
 
-type changeHash [32]byte
-
-func (ch changeHash) String() string {
-	return hex.EncodeToString(ch[:])
-}
-
-func readChangeHashes(r io.Reader) ([]changeHash, error) {
+func readChangeHashes(r io.Reader) ([]types.ChangeHash, error) {
 	n, err := leb128.DecodeU64(r)
 	if err != nil {
 		return nil, fmt.Errorf("error reading change hash length: %w", err)
@@ -232,10 +260,10 @@ func readChangeHashes(r io.Reader) ([]changeHash, error) {
 	if n > 128 {
 		allocate = 128
 	}
-	res := make([]changeHash, 0, allocate)
+	res := make([]types.ChangeHash, 0, allocate)
 
 	for i := uint64(0); i < n; i++ {
-		var h changeHash
+		var h types.ChangeHash
 		_, err = io.ReadFull(r, h[:])
 		if err != nil {
 			return nil, fmt.Errorf("error reading change hash: %w", err)
@@ -245,13 +273,88 @@ func readChangeHashes(r io.Reader) ([]changeHash, error) {
 	return res, nil
 }
 
-func writeChangeHashes(w io.Writer, hashes []changeHash) error {
+func writeChangeHashes(w io.Writer, hashes []types.ChangeHash) error {
 	_, err := w.Write(leb128.EncodeU64(uint64(len(hashes))))
 	if err != nil {
 		return err
 	}
 	for _, h := range hashes {
 		_, err = w.Write(h[:])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func readActorIds(r io.Reader) ([]types.ActorId, error) {
+	n, err := leb128.DecodeU64(r)
+	if err != nil {
+		return nil, fmt.Errorf("error reading actor ids length: %w", err)
+	}
+	// limit pre-allocation to avoid DOS
+	allocate := n
+	if n > 128 {
+		allocate = 128
+	}
+	res := make([]types.ActorId, 0, allocate)
+
+	for i := uint64(0); i < n; i++ {
+		l, err := leb128.DecodeU64(r)
+		if err != nil {
+			return nil, fmt.Errorf("error reading actor id length: %w", err)
+		}
+		if l > 32 {
+			return nil, fmt.Errorf("unexpectedly large actor id length")
+		}
+		id := make([]byte, l)
+		_, err = io.ReadFull(r, id[:])
+		if err != nil {
+			return nil, fmt.Errorf("error reading actor id: %w", err)
+		}
+		res = append(res, id)
+	}
+	return res, nil
+}
+
+func writeActorIds(w io.Writer, ids []types.ActorId) error {
+	_, err := w.Write(leb128.EncodeU64(uint64(len(ids))))
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		_, err = w.Write(leb128.EncodeU64(uint64(len(id))))
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(id)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func readHeadIndexes(r io.Reader, count int) ([]uint64, error) {
+	res := make([]uint64, count)
+	for i := 0; i < count; i++ {
+		index, err := leb128.DecodeU64(r)
+		if err != nil {
+			if i == 0 && err == io.EOF {
+				res = nil
+				// old document may not have this
+				break
+			}
+			return nil, err
+		}
+		res[i] = index
+	}
+	return res, nil
+}
+
+func writeHeadIndexes(w io.Writer, indexes []uint64) error {
+	for _, index := range indexes {
+		_, err := w.Write(leb128.EncodeU64(index))
 		if err != nil {
 			return err
 		}

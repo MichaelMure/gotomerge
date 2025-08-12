@@ -3,6 +3,7 @@ package rle
 import (
 	"io"
 	"iter"
+	"strconv"
 
 	"github.com/jcalabro/leb128"
 )
@@ -19,10 +20,14 @@ type nullableUint64 struct {
 }
 
 func (n nullableUint64) Value() (uint64, bool) {
+	return n.val, !n.null
+}
+
+func (n nullableUint64) String() string {
 	if n.null {
-		return 0, false
+		return "null"
 	}
-	return n.val, true
+	return strconv.FormatUint(n.val, 10)
 }
 
 var uint64Rig = nullableRig[uint64]{
@@ -35,8 +40,8 @@ var uint64Rig = nullableRig[uint64]{
 	read: func(r io.Reader) (NullableUint64, error) {
 		val, err := leb128.DecodeU64(r)
 		if err != nil {
-			return nullableUint64{}, err
+			return nullableUint64{null: true}, err
 		}
-		return nullableUint64{val: val}, nil
+		return nullableUint64{val: val, null: false}, nil
 	},
 }

@@ -46,8 +46,24 @@ func (vm ValueMetadata) Length() uint64 {
 	return uint64(vm >> 4)
 }
 
-func ReadValueMetadataColumn(r io.Reader, length uint64) iter.Seq2[ValueMetadata, error] {
-	r = io.LimitReader(r, int64(length))
+var valueTypeNames = [...]string{
+	ValueTypeNull:      "null",
+	ValueTypeFalse:     "false",
+	ValueTypeTrue:      "true",
+	ValueTypeUInt:      "uint",
+	ValueTypeInt:       "int",
+	ValueTypeFloat:     "float",
+	ValueTypeString:    "string",
+	ValueTypeBytes:     "bytes",
+	ValueTypeCounter:   "counter",
+	ValueTypeTimestamp: "timestamp",
+}
+
+func (vm ValueMetadata) String() string {
+	return fmt.Sprintf("(%s %d)", valueTypeNames[vm.Type()], vm.Length())
+}
+
+func ReadValueMetadataColumn(r io.Reader) iter.Seq2[ValueMetadata, error] {
 	return func(yield func(ValueMetadata, error) bool) {
 		for nullableUint64, err := range rle.ReadUint64RLE(r) {
 			if err != nil {

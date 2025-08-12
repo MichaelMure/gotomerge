@@ -3,6 +3,7 @@ package rle
 import (
 	"io"
 	"iter"
+	"strconv"
 
 	"github.com/jcalabro/leb128"
 )
@@ -19,10 +20,14 @@ type nullableInt64 struct {
 }
 
 func (n nullableInt64) Value() (int64, bool) {
+	return n.val, !n.null
+}
+
+func (n nullableInt64) String() string {
 	if n.null {
-		return 0, false
+		return "null"
 	}
-	return n.val, true
+	return strconv.FormatInt(n.val, 10)
 }
 
 var int64Rig = nullableRig[int64]{
