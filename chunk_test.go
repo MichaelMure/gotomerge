@@ -2,28 +2,80 @@ package gotomerge
 
 import (
 	"bytes"
-	_ "embed"
+	"embed"
 	"encoding/hex"
 	"fmt"
 	"testing"
 
+	"github.com/DmitriyVTitov/size"
 	"github.com/stretchr/testify/require"
 
 	"gotomerge/types"
 )
 
-// from https://github.com/automerge/automerge/blob/main/interop/exemplar
-//
-//go:embed testdata/exemplar
-var examplar []byte
+// Sources:
+// - https://github.com/automerge/automerge/blob/main/interop/exemplar
+// - https://github.com/automerge/automerge-perf
 
-func TestExemplarRead(t *testing.T) {
-	r := bytes.NewReader(examplar)
-	c, err := readChunk(r)
+//go:embed testdata
+var testdata embed.FS
+
+func TestReadDocument(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+	}{
+		{name: "64bit_obj_id_change.automerge"},
+		{name: "64bit_obj_id_doc.automerge"},
+		{name: "counter_value_is_ok.automerge"},
+		{name: "exemplar"},
+		{name: "two_change_chunks.automerge"},
+		{name: "text-edits.amrg"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			buf, err := testdata.ReadFile("testdata/" + tc.name)
+			require.NoError(t, err)
+			r := bytes.NewReader(buf)
+
+			for r.Len() > 0 {
+				c, err := readChunk(r)
+				require.NoError(t, err)
+				fmt.Println(c)
+				fmt.Println()
+				fmt.Println()
+			}
+
+			require.Zero(t, r.Len()) // we should consume everything
+		})
+	}
+}
+
+func TestLarge(t *testing.T) {
+	buf, err := testdata.ReadFile("testdata/text-edits.amrg")
 	require.NoError(t, err)
-	fmt.Println(c)
+	r := bytes.NewReader(buf)
+	var chunks []chunk
+	for r.Len() > 0 {
+		c, err := readChunk(r)
+		require.NoError(t, err)
+		chunks = append(chunks, c)
+	}
+	fmt.Println(size.Of(chunks))
+}
 
-	require.Zero(t, r.Len()) // we should consume everything
+func BenchmarkReadLarge(b *testing.B) {
+	buf, _ := testdata.ReadFile("testdata/text-edits.amrg")
+	b.SetBytes(int64(len(buf)))
+
+	b.ReportAllocs()
+	var chunkCount int
+	for i := 0; i < b.N; i++ {
+		r := bytes.NewReader(buf)
+		for r.Len() > 0 {
+			_, _ = readChunk(r)
+			chunkCount++
+		}
+	}
+	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
 }
 
 func TestEmptyDocumentRead(t *testing.T) {

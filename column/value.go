@@ -36,12 +36,12 @@ func ReadValueColumn(r io.Reader, meta []ValueMetadata) iter.Seq2[any, error] {
 				err = binary.Read(r, binary.LittleEndian, &f)
 				val = f
 			case ValueTypeString:
-				strBytes, err := readWithLimitedPrealloc(r, metadata.Length())
+				str, err := ReadStringWithLimitedPrealloc(r, metadata.Length())
 				if err != nil {
 					yield(nil, err)
 					return
 				}
-				if !utf8.Valid(strBytes) {
+				if !utf8.ValidString(str) {
 					// special case: if it's not valid utf8, we replace the value by
 					// the unicode replacement character
 					if !yield(string(utf8.RuneError), nil) {
@@ -49,10 +49,9 @@ func ReadValueColumn(r io.Reader, meta []ValueMetadata) iter.Seq2[any, error] {
 					}
 					continue
 				}
-				// zero-copy cast to string
-				val = unsafe.String(unsafe.SliceData(strBytes), len(strBytes))
+				val = str
 			case ValueTypeBytes:
-				val, err = readWithLimitedPrealloc(r, metadata.Length())
+				val, err = ReadBytesWithLimitedPrealloc(r, metadata.Length())
 			case ValueTypeCounter:
 				var ctr int64
 				ctr, err = leb128.DecodeS64(r)
@@ -77,16 +76,32 @@ func ReadValueColumn(r io.Reader, meta []ValueMetadata) iter.Seq2[any, error] {
 	}
 }
 
-func readWithLimitedPrealloc(r io.Reader, hintSize uint64) ([]byte, error) {
-	prealloc := hintSize
+func ReadStringWithLimitedPrealloc(r io.Reader, size uint64) (string, error) {
+	strBytes, err := ReadBytesWithLimitedPrealloc(r, size)
+	if err != nil {
+		return "", err
+	}
+	// zero-copy cast to string
+	return unsafe.String(unsafe.SliceData(strBytes), len(strBytes)), nil
+}
+
+func ReadBytesWithLimitedPrealloc(r io.Reader, size uint64) ([]byte, error) {
+	if size <= bytes.MinRead {
+		// reading with this size would force the buffer to grow and realloc
+		buf := make([]byte, size)
+		_, err := io.ReadFull(r, buf)
+		return buf, err
+	}
+
+	prealloc := size
 	if prealloc > 10_000 {
 		// limit the pre-allocation to 10kB to avoid DOS
 		// the buffer will grow if there is actually more data to read
 		// the downside is that it can create reallocation and copy for larger value.
 		prealloc = 10_000
 	}
-	buf := bytes.NewBuffer(make([]byte, prealloc))
-	_, err := buf.ReadFrom(io.LimitReader(r, int64(hintSize)))
+	buf := bytes.NewBuffer(make([]byte, 0, prealloc))
+	_, err := buf.ReadFrom(io.LimitReader(r, int64(size)))
 	if err != nil {
 		return nil, err
 	}
