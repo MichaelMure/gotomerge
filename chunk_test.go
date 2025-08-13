@@ -2,9 +2,11 @@ package gotomerge
 
 import (
 	"bytes"
-	"embed"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/DmitriyVTitov/size"
@@ -17,8 +19,8 @@ import (
 // - https://github.com/automerge/automerge/blob/main/interop/exemplar
 // - https://github.com/automerge/automerge-perf
 
-//go:embed testdata
-var testdata embed.FS
+// //go:embed testdata
+// var testdata embed.FS
 
 func TestReadDocument(t *testing.T) {
 	for _, tc := range []struct {
@@ -32,48 +34,78 @@ func TestReadDocument(t *testing.T) {
 		{name: "text-edits.amrg"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			buf, err := testdata.ReadFile("testdata/" + tc.name)
+			f, err := os.Open("testdata/" + tc.name)
 			require.NoError(t, err)
-			r := bytes.NewReader(buf)
+			defer f.Close()
 
-			for r.Len() > 0 {
-				c, err := readChunk(r)
+			for {
+				c, err := readChunk(f)
+				if errors.Is(err, io.EOF) {
+					break
+				}
 				require.NoError(t, err)
 				fmt.Println(c)
 				fmt.Println()
 				fmt.Println()
 			}
 
-			require.Zero(t, r.Len()) // we should consume everything
+			_, err = f.Read(make([]byte, 1))
+			require.ErrorIs(t, err, io.EOF) // we should consume everything
 		})
 	}
 }
 
 func TestLarge(t *testing.T) {
-	buf, err := testdata.ReadFile("testdata/text-edits.amrg")
+	f, err := os.Open("testdata/text-edits.amrg")
 	require.NoError(t, err)
-	r := bytes.NewReader(buf)
 	var chunks []chunk
-	for r.Len() > 0 {
-		c, err := readChunk(r)
-		require.NoError(t, err)
+	for {
+		c, err := readChunk(f)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
 		chunks = append(chunks, c)
 	}
 	fmt.Println(size.Of(chunks))
 }
 
-func BenchmarkReadLarge(b *testing.B) {
-	buf, _ := testdata.ReadFile("testdata/text-edits.amrg")
-	b.SetBytes(int64(len(buf)))
+func BenchmarkReadExamplar(b *testing.B) {
+	b.SetBytes(406)
 
 	b.ReportAllocs()
 	var chunkCount int
 	for i := 0; i < b.N; i++ {
-		r := bytes.NewReader(buf)
-		for r.Len() > 0 {
-			_, _ = readChunk(r)
+		f, _ := os.Open("testdata/exemplar")
+		for {
+			_, err := readChunk(f)
+			if errors.Is(err, io.EOF) {
+				break
+			}
 			chunkCount++
 		}
+		_ = f.Close()
+	}
+	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
+}
+
+func BenchmarkReadLarge(b *testing.B) {
+	b.SetBytes(29249554)
+
+	b.ReportAllocs()
+	var chunkCount int
+	for i := 0; i < b.N; i++ {
+		f, _ := os.Open("testdata/text-edits.amrg")
+		for {
+			_, err := readChunk(f)
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			chunkCount++
+		}
+		_ = f.Close()
 	}
 	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
 }

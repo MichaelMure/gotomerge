@@ -1,8 +1,6 @@
 package gotomerge
 
 import (
-	"bytes"
-	"compress/flate"
 	"fmt"
 	"io"
 	"strings"
@@ -97,9 +95,9 @@ func readChangeChunk(r io.Reader) (*ChangeChunk, error) {
 	res.Operations = make([][]any, len(res.OperationMetadata))
 	for i, metadatum := range res.OperationMetadata {
 		rCol := io.LimitReader(r, int64(metadatum.Length))
-		if metadatum.Spec.Deflate() {
-			rCol = flate.NewReader(rCol)
-		}
+		// if metadatum.Spec.Deflate() {
+		// 	rCol = flate.NewReader(rCol)
+		// }
 
 		switch metadatum.Spec.Type() {
 		case column.TypeGroup:
@@ -116,14 +114,12 @@ func readChangeChunk(r io.Reader) (*ChangeChunk, error) {
 			res.Operations[i] = acc(column.ReadStringColumn(rCol))
 		case column.TypeValueMetadata:
 			// TODO: HACK just for early visualisation
-			buf := &bytes.Buffer{}
-			tee := io.TeeReader(rCol, buf)
-			res.Operations[i] = acc(column.ReadValueMetadataColumn(tee))
-			prevValueMetadata = nil
-			for vm, err := range column.ReadValueMetadataColumn(buf) {
+			it := column.ReadValueMetadataColumn(rCol)
+			for vm, err := range it {
 				if err != nil {
 					panic(err)
 				}
+				res.Operations[i] = append(res.Operations[i], vm)
 				prevValueMetadata = append(prevValueMetadata, vm)
 			}
 		case column.TypeValue:
