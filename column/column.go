@@ -12,44 +12,43 @@ import (
 	"gotomerge/lbuf"
 )
 
-func ReadUlebColumn(r *lbuf.Reader) iter.Seq2[rle.NullableUint64, error] {
+func ReadUlebColumn(r *lbuf.Reader) iter.Seq2[rle.NullableValue[uint64], error] {
 	return rle.ReadUint64RLE(r)
 }
 
 // ReadDeltaColumn reads the values of a delta column of length bytes
-func ReadDeltaColumn(r *lbuf.Reader) iter.Seq2[uint64, error] {
-	return func(yield func(uint64, error) bool) {
+func ReadDeltaColumn(r *lbuf.Reader) iter.Seq2[rle.NullableValue[uint64], error] {
+	return func(yield func(rle.NullableValue[uint64], error) bool) {
 		var prev, res uint64
 		for signed, err := range rle.ReadInt64RLE(r) {
 			if err != nil {
-				yield(0, err)
+				yield(nil, err)
 				return
 			}
 			val, valid := signed.Value()
 
-			// automerge in rust consider null values as "stay the same"
-			if !valid {
-				if !yield(res, nil) {
+			switch {
+			case !valid:
+				// automerge in rust consider null values as "stay the same" and yield null
+				if !yield(rle.NewNullUint64(), nil) {
 					return
 				}
-			}
-
-			switch {
+				continue
 			case val > 0:
 				if prev > math.MaxUint64-uint64(val) {
-					yield(0, fmt.Errorf("overflow in delta column"))
+					yield(nil, fmt.Errorf("overflow in delta column"))
 					return
 				}
 				res = prev + uint64(val)
 			case val < 0:
 				if prev < uint64(-val) {
-					yield(0, fmt.Errorf("underflow in delta column"))
+					yield(nil, fmt.Errorf("underflow in delta column"))
 					return
 				}
 				res = prev - uint64(-val)
 			}
 			prev = res
-			if !yield(res, nil) {
+			if !yield(rle.NewNullableUint64(res), nil) {
 				return
 			}
 		}
@@ -57,7 +56,7 @@ func ReadDeltaColumn(r *lbuf.Reader) iter.Seq2[uint64, error] {
 }
 
 // ReadStringColumn reads the values of a string column of length bytes
-func ReadStringColumn(r *lbuf.Reader) iter.Seq2[rle.NullableString, error] {
+func ReadStringColumn(r *lbuf.Reader) iter.Seq2[rle.NullableValue[string], error] {
 	return rle.ReadStringRLE(r)
 }
 

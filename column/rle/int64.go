@@ -9,22 +9,28 @@ import (
 	"gotomerge/lbuf"
 )
 
-type NullableInt64 = NullableValue[int64]
-
-func ReadInt64RLE(r *lbuf.Reader) iter.Seq2[NullableInt64, error] {
+func ReadInt64RLE(r *lbuf.Reader) iter.Seq2[NullableValue[int64], error] {
 	return rle(r, int64Rig)
 }
 
-type nullableInt64 struct {
+type NullableInt64 struct {
 	val  int64
 	null bool
 }
 
-func (n nullableInt64) Value() (int64, bool) {
+func NewNullableInt64(val int64) NullableInt64 {
+	return NullableInt64{val: val}
+}
+
+func NewNullInt64() NullableInt64 {
+	return NullableInt64{null: true}
+}
+
+func (n NullableInt64) Value() (int64, bool) {
 	return n.val, !n.null
 }
 
-func (n nullableInt64) String() string {
+func (n NullableInt64) String() string {
 	if n.null {
 		return "null"
 	}
@@ -35,14 +41,14 @@ var int64Rig = nullableRig[int64]{
 	valid: func(v int64) bool {
 		return true
 	},
-	null: func() NullableInt64 {
-		return nullableInt64{null: true}
+	null: func() NullableValue[int64] {
+		return NullableInt64{null: true}
 	},
-	read: func(r *lbuf.Reader) (NullableInt64, error) {
+	read: func(r *lbuf.Reader) (NullableValue[int64], error) {
 		val, err := leb128.DecodeS64(r)
 		if err != nil {
-			return nullableInt64{}, err
+			return NullableInt64{}, err
 		}
-		return nullableInt64{val: val}, nil
+		return NullableInt64{val: val}, nil
 	},
 }
