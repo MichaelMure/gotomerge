@@ -2,10 +2,10 @@ package column
 
 import (
 	"fmt"
-	"io"
 	"iter"
 
 	"gotomerge/column/rle"
+	"gotomerge/lbuf"
 )
 
 const maxValueMetadataLength = 0x0fffffff
@@ -63,7 +63,7 @@ func (vm ValueMetadata) String() string {
 	return fmt.Sprintf("(%s %d)", valueTypeNames[vm.Type()], vm.Length())
 }
 
-func ReadValueMetadataColumn(r io.Reader) iter.Seq2[ValueMetadata, error] {
+func ReadValueMetadataColumn(r *lbuf.Reader) iter.Seq2[ValueMetadata, error] {
 	return func(yield func(ValueMetadata, error) bool) {
 		for nullableUint64, err := range rle.ReadUint64RLE(r) {
 			if err != nil {

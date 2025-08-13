@@ -7,6 +7,7 @@ import (
 
 	"gotomerge/column"
 	"gotomerge/column/rle"
+	"gotomerge/lbuf"
 	"gotomerge/types"
 )
 
@@ -41,7 +42,7 @@ func (d DocumentChunk) String() string {
 	return res.String()
 }
 
-func readDocumentChunk(r io.Reader) (*DocumentChunk, error) {
+func readDocumentChunk(r *lbuf.Reader) (*DocumentChunk, error) {
 	var res DocumentChunk
 	var err error
 
@@ -76,7 +77,7 @@ func readDocumentChunk(r io.Reader) (*DocumentChunk, error) {
 
 	res.Changes = make([][]any, len(res.ChangeMetadata))
 	for i, metadatum := range res.ChangeMetadata {
-		rCol := io.LimitReader(r, int64(metadatum.Length))
+		rCol := r.Limit(int64(metadatum.Length))
 		// if metadatum.Spec.Deflate() {
 		// 	rCol = flate.NewReader(rCol)
 		// }
@@ -105,7 +106,7 @@ func readDocumentChunk(r io.Reader) (*DocumentChunk, error) {
 
 	res.Operations = make([][]any, len(res.OperationMetadata))
 	for i, metadatum := range res.OperationMetadata {
-		rCol := io.LimitReader(r, int64(metadatum.Length))
+		rCol := r.Limit(int64(metadatum.Length))
 		// if metadatum.Spec.Deflate() {
 		// 	rCol = flate.NewReader(rCol)
 		// }

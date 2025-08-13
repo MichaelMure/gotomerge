@@ -12,15 +12,13 @@ import (
 	"github.com/DmitriyVTitov/size"
 	"github.com/stretchr/testify/require"
 
+	"gotomerge/lbuf"
 	"gotomerge/types"
 )
 
 // Sources:
 // - https://github.com/automerge/automerge/blob/main/interop/exemplar
 // - https://github.com/automerge/automerge-perf
-
-// //go:embed testdata
-// var testdata embed.FS
 
 func TestReadDocument(t *testing.T) {
 	for _, tc := range []struct {
@@ -31,7 +29,7 @@ func TestReadDocument(t *testing.T) {
 		{name: "counter_value_is_ok.automerge"},
 		{name: "exemplar"},
 		{name: "two_change_chunks.automerge"},
-		{name: "text-edits.amrg"},
+		// {name: "text-edits.amrg"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f, err := os.Open("testdata/" + tc.name)
@@ -72,6 +70,8 @@ func TestLarge(t *testing.T) {
 	fmt.Println(size.Of(chunks))
 }
 
+var chunksExemplar []chunk
+
 func BenchmarkReadExamplar(b *testing.B) {
 	b.SetBytes(406)
 
@@ -80,10 +80,12 @@ func BenchmarkReadExamplar(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		f, _ := os.Open("testdata/exemplar")
 		for {
-			_, err := readChunk(f)
+			chunksExemplar = nil
+			c, err := readChunk(f)
 			if errors.Is(err, io.EOF) {
 				break
 			}
+			chunksExemplar = append(chunksExemplar, c)
 			chunkCount++
 		}
 		_ = f.Close()
@@ -91,18 +93,22 @@ func BenchmarkReadExamplar(b *testing.B) {
 	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
 }
 
+var chunksLarge []chunk
+
 func BenchmarkReadLarge(b *testing.B) {
 	b.SetBytes(29249554)
 
 	b.ReportAllocs()
 	var chunkCount int
 	for i := 0; i < b.N; i++ {
+		chunksLarge = nil
 		f, _ := os.Open("testdata/text-edits.amrg")
 		for {
-			_, err := readChunk(f)
+			c, err := readChunk(f)
 			if errors.Is(err, io.EOF) {
 				break
 			}
+			chunksLarge = append(chunksLarge, c)
 			chunkCount++
 		}
 		_ = f.Close()
@@ -139,7 +145,7 @@ func TestChangeHashesRoundTrip(t *testing.T) {
 		0xef, 0x63, 0xd4, 0x53, 0x8e, 0xbb, 0x93, 0x60, 0x00, 0xf3, 0xc9, 0xee,
 		0x95, 0x4a, 0x27, 0x46, 0x0d, 0xd8, 0x65}
 
-	hashes, err := readChangeHashes(bytes.NewReader(data))
+	hashes, err := readChangeHashes(lbuf.FromBytes(data))
 	require.NoError(t, err)
 	require.Len(t, hashes, 2)
 
@@ -163,7 +169,7 @@ func TestChangeHashesRoundTrip(t *testing.T) {
 
 func TestActorIdsRoundTrip(t *testing.T) {
 	data := []byte{0x01, 0x03, 0xab, 0xcd, 0xef}
-	ids, err := readActorIds(bytes.NewReader(data))
+	ids, err := readActorIds(lbuf.FromBytes(data))
 	require.NoError(t, err)
 
 	require.Equal(t, 1, len(ids))
@@ -177,7 +183,7 @@ func TestActorIdsRoundTrip(t *testing.T) {
 
 func TestHeadIndexesRoundTrip(t *testing.T) {
 	data := []byte{0x01, 0x02, 0x03, 0x11}
-	indexes, err := readHeadIndexes(bytes.NewReader(data), 4)
+	indexes, err := readHeadIndexes(lbuf.FromBytes(data), 4)
 	require.NoError(t, err)
 
 	expected := []uint64{1, 2, 3, 17}

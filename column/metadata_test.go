@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"gotomerge/lbuf"
 )
 
 func TestMetadataRoundTrip(t *testing.T) {
@@ -14,11 +16,11 @@ func TestMetadataRoundTrip(t *testing.T) {
 		{Spec: newSpecification(2, TypeString, false), Length: 2},
 	}
 
-	buf := bytes.Buffer{}
-	err := WriteMetadata(&buf, meta)
+	buf := &bytes.Buffer{}
+	err := WriteMetadata(buf, meta)
 	require.NoError(t, err)
 
-	read, err := ReadMetadata(&buf)
+	read, err := ReadMetadata(lbuf.FromReader(buf))
 	require.NoError(t, err)
 
 	require.Equal(t, meta, read)
@@ -68,11 +70,11 @@ func TestMetadataErrors(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			buf := bytes.Buffer{}
-			err := WriteMetadata(&buf, tc.bad)
+			buf := &bytes.Buffer{}
+			err := WriteMetadata(buf, tc.bad)
 			require.NoError(t, err)
 
-			_, err = ReadMetadata(&buf)
+			_, err = ReadMetadata(lbuf.FromReader(buf))
 			require.Error(t, err)
 		})
 	}
@@ -81,25 +83,25 @@ func TestMetadataErrors(t *testing.T) {
 func TestEmptyMetadata(t *testing.T) {
 	data := []byte{0x00}
 	buf := bytes.NewBuffer(data)
-	meta, err := ReadMetadata(buf)
+	meta, err := ReadMetadata(lbuf.FromReader(buf))
 	require.NoError(t, err)
 	require.Empty(t, meta)
 }
 
 func BenchmarkReadMetadata(b *testing.B) {
-	buf := bytes.Buffer{}
+	buf := &bytes.Buffer{}
 	meta := Metadata{
 		{Spec: newSpecification(1, TypeString, true), Length: 1},
 		{Spec: newSpecification(2, TypeString, false), Length: 2},
 	}
-	err := WriteMetadata(&buf, meta)
+	err := WriteMetadata(buf, meta)
 	require.NoError(b, err)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		_, _ = ReadMetadata(bytes.NewReader(buf.Bytes()))
+		_, _ = ReadMetadata(lbuf.FromReader(buf))
 	}
 }
 

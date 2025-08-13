@@ -9,14 +9,15 @@ import (
 	"github.com/jcalabro/leb128"
 
 	"gotomerge/column/rle"
+	"gotomerge/lbuf"
 )
 
-func ReadUlebColumn(r io.Reader) iter.Seq2[rle.NullableUint64, error] {
+func ReadUlebColumn(r *lbuf.Reader) iter.Seq2[rle.NullableUint64, error] {
 	return rle.ReadUint64RLE(r)
 }
 
 // ReadDeltaColumn reads the values of a delta column of length bytes
-func ReadDeltaColumn(r io.Reader) iter.Seq2[uint64, error] {
+func ReadDeltaColumn(r *lbuf.Reader) iter.Seq2[uint64, error] {
 	return func(yield func(uint64, error) bool) {
 		var prev, res uint64
 		for signed, err := range rle.ReadInt64RLE(r) {
@@ -56,11 +57,11 @@ func ReadDeltaColumn(r io.Reader) iter.Seq2[uint64, error] {
 }
 
 // ReadStringColumn reads the values of a string column of length bytes
-func ReadStringColumn(r io.Reader) iter.Seq2[rle.NullableString, error] {
+func ReadStringColumn(r *lbuf.Reader) iter.Seq2[rle.NullableString, error] {
 	return rle.ReadStringRLE(r)
 }
 
-func ReadBooleanColumn(r io.Reader) iter.Seq2[bool, error] {
+func ReadBooleanColumn(r *lbuf.Reader) iter.Seq2[bool, error] {
 	return func(yield func(bool, error) bool) {
 		var val bool
 		for {

@@ -1,16 +1,17 @@
 package rle
 
 import (
-	"io"
 	"iter"
 	"strconv"
 
 	"github.com/jcalabro/leb128"
+
+	"gotomerge/lbuf"
 )
 
 type NullableUint64 = NullableValue[uint64]
 
-func ReadUint64RLE(r io.Reader) iter.Seq2[NullableUint64, error] {
+func ReadUint64RLE(r *lbuf.Reader) iter.Seq2[NullableUint64, error] {
 	return rle(r, uint64Rig)
 }
 
@@ -37,7 +38,7 @@ var uint64Rig = nullableRig[uint64]{
 	null: func() NullableUint64 {
 		return nullableUint64{null: true}
 	},
-	read: func(r io.Reader) (NullableUint64, error) {
+	read: func(r *lbuf.Reader) (NullableUint64, error) {
 		val, err := leb128.DecodeU64(r)
 		if err != nil {
 			return nullableUint64{null: true}, err

@@ -1,10 +1,11 @@
 package column
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"gotomerge/lbuf"
 )
 
 func TestReadDeltaColumn(t *testing.T) {
@@ -13,7 +14,7 @@ func TestReadDeltaColumn(t *testing.T) {
 	expected := []uint64{3, 4, 5, 6, 9, 7, 8}
 	var res []uint64
 
-	for i, err := range ReadDeltaColumn(bytes.NewReader(buf)) {
+	for i, err := range ReadDeltaColumn(lbuf.FromBytes(buf)) {
 		require.NoError(t, err)
 		res = append(res, i)
 	}
@@ -27,7 +28,7 @@ func TestReadBooleanColumn(t *testing.T) {
 	expected := []bool{true, true, false, false, false}
 	var res []bool
 
-	for b, err := range ReadBooleanColumn(bytes.NewReader(buf)) {
+	for b, err := range ReadBooleanColumn(lbuf.FromBytes(buf)) {
 		require.NoError(t, err)
 		res = append(res, b)
 	}

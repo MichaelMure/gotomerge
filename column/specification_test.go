@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"gotomerge/lbuf"
 )
 
 func TestSpecification(t *testing.T) {
@@ -41,7 +43,7 @@ func TestSpecification(t *testing.T) {
 			err := writeSpecification(buf, spec)
 			require.NoError(t, err)
 
-			read, err := readSpecification(buf)
+			read, err := readSpecification(lbuf.FromReader(buf))
 			require.NoError(t, err)
 
 			require.Equal(t, spec, read)
@@ -52,24 +54,17 @@ func TestSpecification(t *testing.T) {
 	}
 }
 
-// TODO: remove
-// func TestFoo(t *testing.T) {
-// 	for i := 0; i < 180; i++ {
-// 		fmt.Println(i, specification(i).String())
-// 	}
-// }
-
 func BenchmarkReadSpecification(b *testing.B) {
-	buf := bytes.Buffer{}
+	buf := &bytes.Buffer{}
 	spec := newSpecification(maxSpecificationId, TypeString, true)
-	err := writeSpecification(&buf, spec)
+	err := writeSpecification(buf, spec)
 	require.NoError(b, err)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		_, _ = readSpecification(bytes.NewReader(buf.Bytes()))
+		_, _ = readSpecification(lbuf.FromReader(buf))
 	}
 }
 
@@ -84,12 +79,12 @@ func BenchmarkWriteSpecification(b *testing.B) {
 
 func FuzzSpecificationRoundTrip(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
-		r := bytes.NewBuffer(data)
+		r := lbuf.FromBytes(data)
 		spec, err := readSpecification(r)
 		if err != nil {
 			return // ignore invalid input
 		}
-		if r.Len() > 0 {
+		if !r.Empty() {
 			return // ignore input with extra bytes
 		}
 		buf := new(bytes.Buffer)

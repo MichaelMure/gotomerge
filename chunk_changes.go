@@ -9,6 +9,7 @@ import (
 
 	"gotomerge/column"
 	"gotomerge/column/rle"
+	"gotomerge/lbuf"
 	"gotomerge/types"
 )
 
@@ -46,7 +47,7 @@ func (c ChangeChunk) String() string {
 	return res.String()
 }
 
-func readChangeChunk(r io.Reader) (*ChangeChunk, error) {
+func readChangeChunk(r *lbuf.Reader) (*ChangeChunk, error) {
 	var res ChangeChunk
 	var err error
 
@@ -80,7 +81,7 @@ func readChangeChunk(r io.Reader) (*ChangeChunk, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error reading message length: %w", err)
 	}
-	res.Message, err = column.ReadStringWithLimitedPrealloc(r, msgLen)
+	res.Message, err = r.ReadStringLimitedPrealloc(msgLen)
 	if err != nil {
 		return nil, fmt.Errorf("error reading message: %w", err)
 	}
@@ -94,7 +95,7 @@ func readChangeChunk(r io.Reader) (*ChangeChunk, error) {
 
 	res.Operations = make([][]any, len(res.OperationMetadata))
 	for i, metadatum := range res.OperationMetadata {
-		rCol := io.LimitReader(r, int64(metadatum.Length))
+		rCol := r.Limit(int64(metadatum.Length))
 		// if metadatum.Spec.Deflate() {
 		// 	rCol = flate.NewReader(rCol)
 		// }
@@ -130,13 +131,11 @@ func readChangeChunk(r io.Reader) (*ChangeChunk, error) {
 		}
 	}
 
-	if lr, ok := r.(*io.LimitedReader); ok {
+	if r.Empty() {
 		// Don't try to read the extra bytes if we know there is none.
 		// This avoids an allocation in io.ReadAll(), as we know that virtually
 		// all the changes we read don't have those extra bytes.
-		if lr.N == 0 {
-			return &res, nil
-		}
+		return &res, nil
 	}
 
 	res.ExtraBytes, err = io.ReadAll(r)

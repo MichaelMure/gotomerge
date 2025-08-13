@@ -10,6 +10,7 @@ import (
 
 	"github.com/jcalabro/leb128"
 
+	"gotomerge/lbuf"
 	"gotomerge/types"
 )
 
@@ -66,12 +67,18 @@ func readChunk(r io.Reader) (chunk, error) {
 
 	switch chunkType {
 	case ChunkTypeDocument:
-		res, err = readDocumentChunk(r)
+		rr := lbuf.FromReader(r)
+		defer func() { rr.Release() }()
+		res, err = readDocumentChunk(rr)
 	case ChunkTypeChange:
-		res, err = readChangeChunk(r)
+		rr := lbuf.FromReader(r)
+		defer func() { rr.Release() }()
+		res, err = readChangeChunk(rr)
 	case ChunkTypeCompressedChange:
 		r = flate.NewReader(r)
-		res, err = readDocumentChunk(r)
+		rr := lbuf.FromReader(r)
+		defer func() { rr.Release() }()
+		res, err = readDocumentChunk(rr)
 	default:
 		return nil, fmt.Errorf("invalid chunk type: %d", chunkType)
 	}
@@ -105,7 +112,7 @@ func acc[T any](it iter.Seq2[T, error]) []any {
 	return res
 }
 
-func readChangeHashes(r io.Reader) ([]types.ChangeHash, error) {
+func readChangeHashes(r *lbuf.Reader) ([]types.ChangeHash, error) {
 	n, err := leb128.DecodeU64(r)
 	if err != nil {
 		return nil, fmt.Errorf("error reading change hash length: %w", err)
@@ -143,7 +150,7 @@ func writeChangeHashes(w io.Writer, hashes []types.ChangeHash) error {
 	return nil
 }
 
-func readActorIds(r io.Reader) ([]types.ActorId, error) {
+func readActorIds(r *lbuf.Reader) ([]types.ActorId, error) {
 	n, err := leb128.DecodeU64(r)
 	if err != nil {
 		return nil, fmt.Errorf("error reading actor ids length: %w", err)
@@ -184,7 +191,7 @@ func writeActorIds(w io.Writer, ids []types.ActorId) error {
 	return nil
 }
 
-func readHeadIndexes(r io.Reader, count int) ([]uint64, error) {
+func readHeadIndexes(r *lbuf.Reader, count int) ([]uint64, error) {
 	res := make([]uint64, count)
 	for i := 0; i < count; i++ {
 		index, err := leb128.DecodeU64(r)
