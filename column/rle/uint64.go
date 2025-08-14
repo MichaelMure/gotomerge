@@ -32,7 +32,7 @@ func (n NullableUint64) Value() (uint64, bool) {
 
 func (n NullableUint64) String() string {
 	if n.null {
-		return "null"
+		return "<null>"
 	}
 	return strconv.FormatUint(n.val, 10)
 }

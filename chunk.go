@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"crypto/sha256"
 	"fmt"
+	"hash"
 	"io"
 	"iter"
 
@@ -25,12 +26,23 @@ const (
 var magicBytes = []byte{0x85, 0x6f, 0x4a, 0x83}
 
 type chunk interface {
+	// TODO?
 }
 
-func readChunk(r io.Reader) (chunk, error) {
+type hWriter struct {
+	hash.Hash
+}
+
+func (w hWriter) Write(p []byte) (n int, err error) {
+	n, err = w.Hash.Write(p)
+	fmt.Printf("WROTE %x\n", p)
+	return n, err
+}
+
+func readChunk(r *lbuf.Reader) (chunk, error) {
 	// reading buffer of 16 bytes, but sized to read magic+checksum
 	buf := make([]byte, 4+4, 16)
-	n, err := r.Read(buf)
+	n, err := io.ReadFull(r, buf)
 	if err != nil {
 		return nil, fmt.Errorf("error reading chunk header: %w", err)
 	}
@@ -42,13 +54,15 @@ func readChunk(r io.Reader) (chunk, error) {
 	}
 	checksum := buf[4:8]
 
-	// run the remaining reads through SHA256 to compute the checksum
+	// Run the remaining reads through SHA256 to compute the checksum
 	h := sha256.New()
-	r = io.TeeReader(r, h)
+	r = r.AddProcessor(func(reader io.Reader) io.Reader {
+		return io.TeeReader(reader, h)
+	})
 
 	// reuse the allocated buffer to read a single byte
 	buf = buf[0:1]
-	n, err = r.Read(buf)
+	n, err = io.ReadFull(r, buf)
 	if err != nil {
 		return nil, fmt.Errorf("error reading chunk type: %w", err)
 	}
@@ -61,24 +75,42 @@ func readChunk(r io.Reader) (chunk, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error reading chunk length: %w", err)
 	}
-	r = io.LimitReader(r, int64(length))
 
 	var res chunk
 
 	switch chunkType {
 	case ChunkTypeDocument:
-		rr := lbuf.FromReader(r)
-		defer func() { rr.Release() }()
-		res, err = readDocumentChunk(rr)
+		r = r.Limit(int64(length))
+		res, err = readDocumentChunk(r)
 	case ChunkTypeChange:
-		rr := lbuf.FromReader(r)
-		defer func() { rr.Release() }()
-		res, err = readChangeChunk(rr)
+		r = r.Limit(int64(length))
+		res, err = readChangeChunk(r)
 	case ChunkTypeCompressedChange:
-		r = flate.NewReader(r)
-		rr := lbuf.FromReader(r)
-		defer func() { rr.Release() }()
-		res, err = readDocumentChunk(rr)
+		// Special case below: for compressed changes, the checksum needs to be
+		// computed, not only on the **decompressed** bytes, but also with the type
+		// so we'll need to replace the
+		// TeeReader at the right place.
+		decompressed, err := io.ReadAll(flate.NewReader(r))
+		if err != nil {
+			return nil, fmt.Errorf("error reading compressed change: %w", err)
+		}
+
+		h = hWriter{sha256.New()}
+		_, err = h.Write([]byte{byte(ChunkTypeChange)})
+		if err != nil {
+			return nil, err
+		}
+		_, err = h.Write(leb128.EncodeU64(uint64(len(decompressed))))
+		if err != nil {
+			return nil, err
+		}
+
+		r = lbuf.FromBytes(decompressed)
+		r = r.AddProcessor(func(reader io.Reader) io.Reader {
+			return io.TeeReader(reader, h)
+		})
+		r = r.Limit(int64(length))
+		res, err = readChangeChunk(r)
 	default:
 		return nil, fmt.Errorf("invalid chunk type: %d", chunkType)
 	}
@@ -117,6 +149,9 @@ func readChangeHashes(r *lbuf.Reader) ([]types.ChangeHash, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error reading change hash length: %w", err)
 	}
+	if n == 0 {
+		return nil, nil
+	}
 	// limit pre-allocation to avoid DOS
 	allocate := n
 	// TODO: adjust with reasonable value
@@ -154,6 +189,9 @@ func readActorIds(r *lbuf.Reader) ([]types.ActorId, error) {
 	n, err := leb128.DecodeU64(r)
 	if err != nil {
 		return nil, fmt.Errorf("error reading actor ids length: %w", err)
+	}
+	if n == 0 {
+		return nil, nil
 	}
 	// limit pre-allocation to avoid DOS
 	allocate := n

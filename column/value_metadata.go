@@ -60,7 +60,7 @@ var valueTypeNames = [...]string{
 }
 
 func (vm ValueMetadata) String() string {
-	return fmt.Sprintf("(%s %d)", valueTypeNames[vm.Type()], vm.Length())
+	return fmt.Sprintf("(t=%s l=%d)", valueTypeNames[vm.Type()], vm.Length())
 }
 
 func ReadValueMetadataColumn(r *lbuf.Reader) iter.Seq2[ValueMetadata, error] {

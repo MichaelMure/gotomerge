@@ -77,9 +77,17 @@ func readDocumentChunk(r *lbuf.Reader) (*DocumentChunk, error) {
 
 	res.Changes = make([][]any, len(res.ChangeMetadata))
 	for i, metadatum := range res.ChangeMetadata {
-		rCol := r.Limit(int64(metadatum.Length))
+		rCol := r
+		if metadatum.Spec.Deflate() {
+			rCol = rCol.Deflate()
+		}
+		rCol = r.Limit(int64(metadatum.Length))
+
+		// rCol := r.Limit(int64(metadatum.Length))
 		// if metadatum.Spec.Deflate() {
-		// 	rCol = flate.NewReader(rCol)
+		// 	rCol = rCol.AddProcessor(func(reader io.Reader) io.Reader {
+		// 		return flate.NewReader(reader)
+		// 	})
 		// }
 
 		switch metadatum.Spec.Type() {
@@ -106,9 +114,17 @@ func readDocumentChunk(r *lbuf.Reader) (*DocumentChunk, error) {
 
 	res.Operations = make([][]any, len(res.OperationMetadata))
 	for i, metadatum := range res.OperationMetadata {
-		rCol := r.Limit(int64(metadatum.Length))
+		rCol := r
+		if metadatum.Spec.Deflate() {
+			rCol = rCol.Deflate()
+		}
+		rCol = rCol.Limit(int64(metadatum.Length))
+
+		// rCol := r.Limit(int64(metadatum.Length))
 		// if metadatum.Spec.Deflate() {
-		// 	rCol = flate.NewReader(rCol)
+		// 	rCol = rCol.AddProcessor(func(reader io.Reader) io.Reader {
+		// 		return flate.NewReader(reader)
+		// 	})
 		// }
 
 		switch metadatum.Spec.Type() {
@@ -138,7 +154,7 @@ func readDocumentChunk(r *lbuf.Reader) (*DocumentChunk, error) {
 			// skip(rCol, metadatum.Spec, metadatum.Length)
 
 			// TODO: HACK just for early visualisation
-			res.Operations[i] = acc(column.ReadValueColumn(r, prevValueMetadata))
+			res.Operations[i] = acc(column.ReadValueColumn(rCol, prevValueMetadata))
 		}
 	}
 

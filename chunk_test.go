@@ -29,22 +29,28 @@ func TestReadDocument(t *testing.T) {
 		{name: "counter_value_is_ok.automerge"},
 		{name: "exemplar"},
 		{name: "two_change_chunks.automerge"},
-		// {name: "text-edits.amrg"},
+		{name: "two_change_chunks_compressed.automerge"},
+		{name: "two_change_chunks_out_of_order.automerge"},
+		{name: "text-edits.amrg"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f, err := os.Open("testdata/" + tc.name)
 			require.NoError(t, err)
 			defer f.Close()
 
+			r := lbuf.FromReader(f)
+			defer r.Release()
+
 			for {
-				c, err := readChunk(f)
-				if errors.Is(err, io.EOF) {
+				_, err := readChunk(r)
+				require.NoError(t, err)
+				// fmt.Println(c)
+				// fmt.Println()
+				// fmt.Println()
+
+				if r.Empty() {
 					break
 				}
-				require.NoError(t, err)
-				fmt.Println(c)
-				fmt.Println()
-				fmt.Println()
 			}
 
 			_, err = f.Read(make([]byte, 1))
@@ -56,16 +62,17 @@ func TestReadDocument(t *testing.T) {
 func TestLarge(t *testing.T) {
 	f, err := os.Open("testdata/text-edits.amrg")
 	require.NoError(t, err)
+	r := lbuf.FromReader(f)
+	defer r.Release()
+
 	var chunks []chunk
 	for {
-		c, err := readChunk(f)
-		if errors.Is(err, io.EOF) {
+		c, err := readChunk(r)
+		require.NoError(t, err)
+		chunks = append(chunks, c)
+		if r.Empty() {
 			break
 		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		chunks = append(chunks, c)
 	}
 	fmt.Println(size.Of(chunks))
 }
@@ -79,15 +86,17 @@ func BenchmarkReadExamplar(b *testing.B) {
 	var chunkCount int
 	for i := 0; i < b.N; i++ {
 		f, _ := os.Open("testdata/exemplar")
+		r := lbuf.FromReader(f)
 		for {
 			chunksExemplar = nil
-			c, err := readChunk(f)
+			c, err := readChunk(r)
 			if errors.Is(err, io.EOF) {
 				break
 			}
 			chunksExemplar = append(chunksExemplar, c)
 			chunkCount++
 		}
+		r.Release()
 		_ = f.Close()
 	}
 	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
@@ -103,14 +112,16 @@ func BenchmarkReadLarge(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		chunksLarge = nil
 		f, _ := os.Open("testdata/text-edits.amrg")
+		r := lbuf.FromReader(f)
 		for {
-			c, err := readChunk(f)
+			c, err := readChunk(r)
 			if errors.Is(err, io.EOF) {
 				break
 			}
 			chunksLarge = append(chunksLarge, c)
 			chunkCount++
 		}
+		r.Release()
 		_ = f.Close()
 	}
 	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
@@ -118,10 +129,10 @@ func BenchmarkReadLarge(b *testing.B) {
 
 func TestEmptyDocumentRead(t *testing.T) {
 	buf := []byte{0x85, 0x6f, 0x4a, 0x83, 0xb8, 0x1a, 0x95, 0x44, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00}
-	r := bytes.NewReader(buf)
+	r := lbuf.FromBytes(buf)
 	c, err := readChunk(r)
 	require.NoError(t, err)
-	require.Zero(t, r.Len()) // we should consume everything
+	require.True(t, r.Empty()) // we should consume everything
 	// TODO: add assertions once the struct is stable
 	fmt.Println(c)
 }

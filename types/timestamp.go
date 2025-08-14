@@ -16,3 +16,7 @@ func FromTime(t time.Time) Timestamp {
 func (t Timestamp) Time() time.Time {
 	return time.Unix(int64(t/1000), int64(t%1000)*1_000_000)
 }
+
+func (t Timestamp) String() string {
+	return t.Time().String()
+}

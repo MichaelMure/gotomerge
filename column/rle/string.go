@@ -36,6 +36,13 @@ func (s NullableString) Value() (string, bool) {
 	return string(s), true
 }
 
+func (s NullableString) String() string {
+	if s == nullString {
+		return "<null>"
+	}
+	return string(s)
+}
+
 var stringRig = nullableRig[string]{
 	valid: func(s string) bool {
 		return s != nullString

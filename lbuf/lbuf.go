@@ -3,90 +3,89 @@ package lbuf
 import (
 	"bufio"
 	"bytes"
+	"compress/flate"
 	"io"
-	"math"
 	"sync"
 	"unsafe"
 )
 
 var _ io.Reader = &Reader{}
-var _ io.ByteReader = &Reader{}
 
 // Reader is a specialized stream reader combining multiple capabilities:
 // - buffered (through bufio.Reader) to batch and reduce the number of reading syscall
 // - support recursively limiting the number of bytes available (similar as io.LimitedReader)
 // - support efficient reads of size-delimited []byte or string, while limiting the pre-allocation to avoid DOS
+// - support chaining a "processor" on the output, like flate.Reader
 // - use a sync.Pool to reuse reading buffers
 type Reader struct {
-	buf *bufio.Reader // buffered reader
-	N   int64         // max bytes remaining
+	r       io.Reader
+	buf     *bufio.Reader // buffered reader
+	limiter *io.LimitedReader
 }
 
 func FromReader(r io.Reader) *Reader {
 	rr := pool.Get().(*bufio.Reader)
 	rr.Reset(r)
-	return &Reader{buf: rr, N: math.MaxInt64}
+	return &Reader{r: rr, buf: rr}
 }
 
 func FromBytes(b []byte) *Reader {
-	rr := pool.Get().(*bufio.Reader)
-	rr.Reset(bytes.NewReader(b))
-	return &Reader{buf: rr, N: int64(len(b))}
+	// we add a limiter so that Empty() can work ok
+	l := io.LimitReader(bytes.NewReader(b), int64(len(b))).(*io.LimitedReader)
+	return &Reader{r: l, limiter: l}
 }
 
 func (r *Reader) Release() {
+	if r.buf == nil {
+		return
+	}
 	pool.Put(r.buf)
 	r.buf = nil
+	r.r = nil
+	r.limiter = nil
 }
 
 // Limit returns a Reader with the same underlying buffered reader,
 // but limited to reading only n bytes. After those, io.EOF is returned.
 func (r *Reader) Limit(n int64) *Reader {
-	return &Reader{buf: r.buf, N: n}
+	l := io.LimitReader(r.r, n).(*io.LimitedReader)
+	return &Reader{r: l, limiter: l}
+}
+
+// AddProcessor adds an io.Reader wrapper (like flate.NewReader) on the output of Reader.
+func (r *Reader) AddProcessor(fn func(io.Reader) io.Reader) *Reader {
+	return &Reader{r: fn(r.r), limiter: r.limiter}
+}
+
+func (r *Reader) Deflate() *Reader {
+	return &Reader{r: flate.NewReader(r.r), limiter: r.limiter}
 }
 
 func (r *Reader) Read(p []byte) (n int, err error) {
-	if r.N <= 0 {
-		return 0, io.EOF
-	}
-	if int64(len(p)) > r.N {
-		p = p[0:r.N]
-	}
-	n, err = r.buf.Read(p)
-	r.N -= int64(n)
-	return
-}
-
-func (r *Reader) ReadByte() (byte, error) {
-	if r.N <= 0 {
-		return 0, io.EOF
-	}
-	b, err := r.buf.ReadByte()
-	if err != nil {
-		return 0, err
-	}
-	r.N--
-	return b, nil
+	return r.r.Read(p)
 }
 
 func (r *Reader) Empty() bool {
-	if r.N <= 0 {
-		return true
+	if r.limiter != nil {
+		return r.limiter.N <= 0
 	}
-	_, err := r.buf.Peek(1)
-	return err == io.EOF
+	if rr, ok := r.r.(*bytes.Reader); ok {
+		return rr.Len() <= 0
+	}
+	if r.buf != nil {
+		_, err := r.buf.Peek(1)
+		return err == io.EOF
+	}
+	// Note: this is not entirely correct, in particular with deflate that may or
+	// may not have buffered data, but we have no way to check that.
+	return false
 }
 
 func (r *Reader) ReadBytesLimitedPrealloc(size uint64) ([]byte, error) {
-	if size > math.MaxInt64 || int64(size) > r.N {
-		return nil, io.EOF
-	}
-
 	if size <= bytes.MinRead {
 		// reading with this size would force the buffer to grow and realloc with bytes.Buffer.ReadFrom()
 		buf := make([]byte, size)
-		n, err := io.ReadFull(r, buf)
-		r.N -= int64(n)
+		_, err := io.ReadFull(r, buf)
 		return buf, err
 	}
 
@@ -98,11 +97,10 @@ func (r *Reader) ReadBytesLimitedPrealloc(size uint64) ([]byte, error) {
 		prealloc = 10_000
 	}
 	buf := bytes.NewBuffer(make([]byte, 0, prealloc))
-	n, err := buf.ReadFrom(io.LimitReader(r, int64(size)))
+	_, err := buf.ReadFrom(io.LimitReader(r, int64(size)))
 	if err != nil {
 		return nil, err
 	}
-	r.N -= n
 	return buf.Bytes(), nil
 }
 

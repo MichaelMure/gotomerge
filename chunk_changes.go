@@ -91,14 +91,19 @@ func readChangeChunk(r *lbuf.Reader) (*ChangeChunk, error) {
 		return nil, fmt.Errorf("error reading other actors: %w", err)
 	}
 
+	res.OperationMetadata, err = column.ReadMetadata(r)
+	if err != nil {
+		return nil, fmt.Errorf("error reading operation metadata: %w", err)
+	}
+
 	var prevValueMetadata []column.ValueMetadata
 
 	res.Operations = make([][]any, len(res.OperationMetadata))
 	for i, metadatum := range res.OperationMetadata {
 		rCol := r.Limit(int64(metadatum.Length))
-		// if metadatum.Spec.Deflate() {
-		// 	rCol = flate.NewReader(rCol)
-		// }
+		if metadatum.Spec.Deflate() {
+			return nil, fmt.Errorf("deflate not supported in change chunk column")
+		}
 
 		switch metadatum.Spec.Type() {
 		case column.TypeGroup:
@@ -127,7 +132,7 @@ func readChangeChunk(r *lbuf.Reader) (*ChangeChunk, error) {
 			// skip(rCol, metadatum.Spec, metadatum.Length)
 
 			// TODO: HACK just for early visualisation
-			res.Operations[i] = acc(column.ReadValueColumn(r, prevValueMetadata))
+			res.Operations[i] = acc(column.ReadValueColumn(rCol, prevValueMetadata))
 		}
 	}
 
