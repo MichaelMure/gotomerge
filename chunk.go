@@ -5,7 +5,6 @@ import (
 	"compress/flate"
 	"crypto/sha256"
 	"fmt"
-	"hash"
 	"io"
 	"iter"
 
@@ -27,16 +26,6 @@ var magicBytes = []byte{0x85, 0x6f, 0x4a, 0x83}
 
 type chunk interface {
 	// TODO?
-}
-
-type hWriter struct {
-	hash.Hash
-}
-
-func (w hWriter) Write(p []byte) (n int, err error) {
-	n, err = w.Hash.Write(p)
-	fmt.Printf("WROTE %x\n", p)
-	return n, err
 }
 
 func readChunk(r *lbuf.Reader) (chunk, error) {
@@ -75,27 +64,31 @@ func readChunk(r *lbuf.Reader) (chunk, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error reading chunk length: %w", err)
 	}
+	r = r.Limit(int64(length))
 
 	var res chunk
 
 	switch chunkType {
 	case ChunkTypeDocument:
-		r = r.Limit(int64(length))
 		res, err = readDocumentChunk(r)
 	case ChunkTypeChange:
-		r = r.Limit(int64(length))
 		res, err = readChangeChunk(r)
 	case ChunkTypeCompressedChange:
-		// Special case below: for compressed changes, the checksum needs to be
-		// computed, not only on the **decompressed** bytes, but also with the type
-		// so we'll need to replace the
-		// TeeReader at the right place.
+		// The compressed change format required that we hash:
+		// - the normal change chunk type (0x01)
+		// - the length of the *decompressed* bytes
+		// - the decompressed bytes
+		// As we can't know the decompressed size before fully decompressing it, it's not possible to stream decode the
+		// chunk like with the other types. A small format change would allow that.
+		// Instead, we have to fully decompress in memory and re-do the hashing.
+		//
+		// Some benchmarking shows that this cost +11% speed, +7% allocation count, +2% allocation size.
 		decompressed, err := io.ReadAll(flate.NewReader(r))
 		if err != nil {
 			return nil, fmt.Errorf("error reading compressed change: %w", err)
 		}
 
-		h = hWriter{sha256.New()}
+		h = sha256.New()
 		_, err = h.Write([]byte{byte(ChunkTypeChange)})
 		if err != nil {
 			return nil, err
@@ -109,7 +102,6 @@ func readChunk(r *lbuf.Reader) (chunk, error) {
 		r = r.AddProcessor(func(reader io.Reader) io.Reader {
 			return io.TeeReader(reader, h)
 		})
-		r = r.Limit(int64(length))
 		res, err = readChangeChunk(r)
 	default:
 		return nil, fmt.Errorf("invalid chunk type: %d", chunkType)

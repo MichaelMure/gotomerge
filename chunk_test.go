@@ -22,16 +22,17 @@ import (
 
 func TestReadDocument(t *testing.T) {
 	for _, tc := range []struct {
-		name string
+		name   string
+		chunks int
 	}{
-		{name: "64bit_obj_id_change.automerge"},
-		{name: "64bit_obj_id_doc.automerge"},
-		{name: "counter_value_is_ok.automerge"},
-		{name: "exemplar"},
-		{name: "two_change_chunks.automerge"},
-		{name: "two_change_chunks_compressed.automerge"},
-		{name: "two_change_chunks_out_of_order.automerge"},
-		{name: "text-edits.amrg"},
+		{name: "64bit_obj_id_change.automerge", chunks: 1},
+		{name: "64bit_obj_id_doc.automerge", chunks: 1},
+		{name: "counter_value_is_ok.automerge", chunks: 1},
+		{name: "exemplar", chunks: 1},
+		{name: "two_change_chunks.automerge", chunks: 2},
+		{name: "two_change_chunks_compressed.automerge", chunks: 2},
+		{name: "two_change_chunks_out_of_order.automerge", chunks: 2},
+		{name: "text-edits.amrg", chunks: 259779},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f, err := os.Open("testdata/" + tc.name)
@@ -41,6 +42,7 @@ func TestReadDocument(t *testing.T) {
 			r := lbuf.FromReader(f)
 			defer r.Release()
 
+			var chunks int
 			for {
 				_, err := readChunk(r)
 				require.NoError(t, err)
@@ -48,12 +50,14 @@ func TestReadDocument(t *testing.T) {
 				// fmt.Println()
 				// fmt.Println()
 
+				chunks++
 				if r.Empty() {
 					break
 				}
 			}
 
-			_, err = f.Read(make([]byte, 1))
+			require.Equal(t, tc.chunks, chunks)
+			_, err = io.ReadFull(r, make([]byte, 1))
 			require.ErrorIs(t, err, io.EOF) // we should consume everything
 		})
 	}
@@ -127,6 +131,31 @@ func BenchmarkReadLarge(b *testing.B) {
 	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
 }
 
+var chunkCompressed []chunk
+
+func BenchmarkCompressed(b *testing.B) {
+	b.SetBytes(192)
+
+	b.ReportAllocs()
+	var chunkCount int
+	for i := 0; i < b.N; i++ {
+		chunkCompressed = nil
+		f, _ := os.Open("testdata/two_change_chunks_compressed.automerge")
+		r := lbuf.FromReader(f)
+		for {
+			c, err := readChunk(r)
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			chunkCompressed = append(chunkCompressed, c)
+			chunkCount++
+		}
+		r.Release()
+		_ = f.Close()
+	}
+	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
+}
+
 func TestEmptyDocumentRead(t *testing.T) {
 	buf := []byte{0x85, 0x6f, 0x4a, 0x83, 0xb8, 0x1a, 0x95, 0x44, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00}
 	r := lbuf.FromBytes(buf)
@@ -139,13 +168,12 @@ func TestEmptyDocumentRead(t *testing.T) {
 
 // TODO: I only have a header for compressed chunk, I need the whole thing to test
 // func TestCompressedChunkRead(t *testing.T) {
-// 	buf := []byte{0x85, 0x6f, 0x4a, 0x83, 0x80, 0xb7, 0x5d, 0x54, 0x02, 0xc3, 0x02}
-// 	r := bytes.NewReader(buf)
+// 	buf := []byte{0x85, 0x6f, 0x4a, 0x83, 0x80, 0xb7, 0x5d, 0x54, 0x01, 0xf4, 0x02}
+// 	// buf := []byte{0x85, 0x6f, 0x4a, 0x83, 0x80, 0xb7, 0x5d, 0x54, 0x02, 0xc3, 0x02}
+// 	r := lbuf.FromBytes(buf)
 // 	c, err := readChunk(r)
 // 	require.NoError(t, err)
 // 	fmt.Println(c)
-//
-// 	require.Zero(t, r.Len()) // we should consume everything
 // }
 
 func TestChangeHashesRoundTrip(t *testing.T) {
