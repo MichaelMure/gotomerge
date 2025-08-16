@@ -1,4 +1,4 @@
-package gotomerge
+package docproxy
 
 type BoolView struct {
 	doc    *Document

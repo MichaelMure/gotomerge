@@ -1,4 +1,4 @@
-package gotomerge
+package docproxy
 
 import (
 	"fmt"

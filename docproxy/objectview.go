@@ -1,4 +1,4 @@
-package gotomerge
+package docproxy
 
 var _ parentView = MapView{}
 
