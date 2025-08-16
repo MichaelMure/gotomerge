@@ -5,8 +5,6 @@ import (
 	"iter"
 
 	"github.com/jcalabro/leb128"
-
-	"gotomerge/lbuf"
 )
 
 type NullableValue[T any] interface {
@@ -19,10 +17,10 @@ type NullableValue[T any] interface {
 type nullableRig[T any] struct {
 	valid func(T) bool
 	null  func() NullableValue[T]
-	read  func(*lbuf.Reader) (NullableValue[T], error)
+	read  func(r io.Reader) (NullableValue[T], error)
 }
 
-func rle[T any](r *lbuf.Reader, rig nullableRig[T]) iter.Seq2[NullableValue[T], error] {
+func rle[T any](r io.Reader, rig nullableRig[T]) iter.Seq2[NullableValue[T], error] {
 	return func(yield func(NullableValue[T], error) bool) {
 		for {
 			L, err := leb128.DecodeS64(r)

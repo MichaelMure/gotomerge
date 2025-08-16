@@ -6,11 +6,9 @@ import (
 	"iter"
 
 	"github.com/jcalabro/leb128"
-
-	"gotomerge/lbuf"
 )
 
-func ReadStringRLE(r *lbuf.Reader) iter.Seq2[NullableValue[string], error] {
+func ReadStringRLE(r io.Reader) iter.Seq2[NullableValue[string], error] {
 	return rle(r, stringRig)
 }
 
@@ -50,7 +48,7 @@ var stringRig = nullableRig[string]{
 	null: func() NullableValue[string] {
 		return NullableString(nullString)
 	},
-	read: func(r *lbuf.Reader) (NullableValue[string], error) {
+	read: func(r io.Reader) (NullableValue[string], error) {
 		strLen, err := leb128.DecodeU64(r)
 		if err != nil {
 			return NullableString(""), err

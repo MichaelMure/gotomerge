@@ -62,8 +62,12 @@ var typeNames = [...]string{
 	TypeValue:         "value",
 }
 
+func (t Type) String() string {
+	return typeNames[t]
+}
+
 func (s specification) String() string {
-	return fmt.Sprintf("spec(%d: id=%d, type=%s, deflate=%t)", uint64(s), s.ID(), typeNames[s.Type()], s.Deflate())
+	return fmt.Sprintf("spec(%d: id=%d, type=%s, deflate=%t)", uint64(s), s.ID(), s.Type(), s.Deflate())
 }
 
 func readSpecification(r *lbuf.Reader) (specification, error) {
