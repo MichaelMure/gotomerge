@@ -1,26 +1,19 @@
 package column
 
 import (
-	"bytes"
 	"io"
 	"iter"
 
 	"github.com/jcalabro/leb128"
 )
 
-type BooleanColumn []byte
-
 type BooleanColumnIter = iter.Seq2[bool, error]
 
-func BooleanColumnFromBytes(b []byte) BooleanColumn {
-	return BooleanColumn(b)
-}
-
-func (bc BooleanColumn) Iter() BooleanColumnIter {
+func ReadBooleanColumn(r io.Reader) BooleanColumnIter {
 	return func(yield func(bool, error) bool) {
 		var val bool
 		for {
-			count, err := leb128.DecodeU64(bytes.NewReader(bc))
+			count, err := leb128.DecodeU64(r)
 			if err == io.EOF {
 				return
 			}

@@ -14,6 +14,7 @@ import (
 
 	"gotomerge/lbuf"
 	"gotomerge/types"
+	ioutil "gotomerge/utils/io"
 )
 
 // Sources:
@@ -39,8 +40,7 @@ func TestReadDocument(t *testing.T) {
 			require.NoError(t, err)
 			defer f.Close()
 
-			r := lbuf.FromReader(f)
-			defer r.Release()
+			r := ioutil.NewPagedReader(f)
 
 			var chunks int
 			for {
@@ -66,8 +66,7 @@ func TestReadDocument(t *testing.T) {
 func TestLarge(t *testing.T) {
 	f, err := os.Open("testdata/text-edits.amrg")
 	require.NoError(t, err)
-	r := lbuf.FromReader(f)
-	defer r.Release()
+	r := ioutil.NewPagedReader(f)
 
 	var chunks []chunk
 	for {
@@ -90,7 +89,7 @@ func BenchmarkReadExamplar(b *testing.B) {
 	var chunkCount int
 	for i := 0; i < b.N; i++ {
 		f, _ := os.Open("testdata/exemplar")
-		r := lbuf.FromReader(f)
+		r := ioutil.NewPagedReader(f)
 		for {
 			chunksExemplar = nil
 			c, err := readChunk(r)
@@ -100,7 +99,6 @@ func BenchmarkReadExamplar(b *testing.B) {
 			chunksExemplar = append(chunksExemplar, c)
 			chunkCount++
 		}
-		r.Release()
 		_ = f.Close()
 	}
 	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
@@ -116,7 +114,7 @@ func BenchmarkReadLarge(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		chunksLarge = nil
 		f, _ := os.Open("testdata/text-edits.amrg")
-		r := lbuf.FromReader(f)
+		r := ioutil.NewPagedReader(f)
 		for {
 			c, err := readChunk(r)
 			if errors.Is(err, io.EOF) {
@@ -125,7 +123,6 @@ func BenchmarkReadLarge(b *testing.B) {
 			chunksLarge = append(chunksLarge, c)
 			chunkCount++
 		}
-		r.Release()
 		_ = f.Close()
 	}
 	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
@@ -141,7 +138,7 @@ func BenchmarkCompressed(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		chunkCompressed = nil
 		f, _ := os.Open("testdata/two_change_chunks_compressed.automerge")
-		r := lbuf.FromReader(f)
+		r := ioutil.NewPagedReader(f)
 		for {
 			c, err := readChunk(r)
 			if errors.Is(err, io.EOF) {
@@ -150,7 +147,6 @@ func BenchmarkCompressed(b *testing.B) {
 			chunkCompressed = append(chunkCompressed, c)
 			chunkCount++
 		}
-		r.Release()
 		_ = f.Close()
 	}
 	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
@@ -158,7 +154,7 @@ func BenchmarkCompressed(b *testing.B) {
 
 func TestEmptyDocumentRead(t *testing.T) {
 	buf := []byte{0x85, 0x6f, 0x4a, 0x83, 0xb8, 0x1a, 0x95, 0x44, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00}
-	r := lbuf.FromBytes(buf)
+	r := ioutil.NewBytesReader(buf)
 	c, err := readChunk(r)
 	require.NoError(t, err)
 	require.True(t, r.Empty()) // we should consume everything

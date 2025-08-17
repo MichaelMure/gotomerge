@@ -3,14 +3,14 @@ package gotomerge
 import (
 	"fmt"
 	"io"
+	"iter"
 	"strings"
 
 	"github.com/jcalabro/leb128"
 
 	"gotomerge/column"
-	"gotomerge/column/rle"
-	"gotomerge/lbuf"
 	"gotomerge/types"
+	ioutil "gotomerge/utils/io"
 )
 
 type ChangeChunk struct {
@@ -23,31 +23,61 @@ type ChangeChunk struct {
 	OtherActors  []types.ActorId
 
 	OperationMetadata column.Metadata
-	Operations        [][]any
+	OperationColumns  OperationColumns
 
 	ExtraBytes []byte
 }
 
-func (c ChangeChunk) String() string {
+type OperationColumns struct {
+	ObjectActorId column.ActorColumnIter
+	ObjectCounter column.UlebColumnIter
+
+	KeyActorId column.ActorColumnIter
+	KeyCounter column.DeltaColumnIter
+	KeyString  column.StringColumnIter
+
+	ActorId column.ActorColumnIter
+	Counter column.DeltaColumnIter
+	Insert  column.BooleanColumnIter
+	Action  column.UlebColumnIter
+
+	ValueMetadata column.ValueMetadataColumnIter
+	Value         column.ValueColumn
+
+	PredecessorGroup   column.GroupColumnIter
+	PredecessorActorId column.ActorColumnIter
+	PredecessorCounter column.DeltaColumnIter
+
+	SuccessorGroup   column.GroupColumnIter
+	SuccessorActorId column.ActorColumnIter
+	SuccessorCounter column.DeltaColumnIter
+
+	ExpandControl column.BooleanColumnIter
+	Mark          column.StringColumnIter
+}
+
+func (cc ChangeChunk) String() string {
 	var res strings.Builder
 	res.WriteString("ChangeChunk {\n")
-	res.WriteString(fmt.Sprintf("  Dependencies: %v\n", c.Dependencies))
-	res.WriteString(fmt.Sprintf("  Actor: %v\n", c.Actor))
-	res.WriteString(fmt.Sprintf("  SeqNum: %v\n", c.SeqNum))
-	res.WriteString(fmt.Sprintf("  StartOp: %v\n", c.StartOp))
-	res.WriteString(fmt.Sprintf("  Time: %v\n", c.Time))
-	res.WriteString(fmt.Sprintf("  Message: %v\n", c.Message))
-	res.WriteString(fmt.Sprintf("  OtherActors: %v\n", c.OtherActors))
-	for i, metadatum := range c.OperationMetadata {
+	res.WriteString(fmt.Sprintf("  Dependencies: %v\n", cc.Dependencies))
+	res.WriteString(fmt.Sprintf("  Actor: %v\n", cc.Actor))
+	res.WriteString(fmt.Sprintf("  SeqNum: %v\n", cc.SeqNum))
+	res.WriteString(fmt.Sprintf("  StartOp: %v\n", cc.StartOp))
+	res.WriteString(fmt.Sprintf("  Time: %v\n", cc.Time))
+	res.WriteString(fmt.Sprintf("  Message: %v\n", cc.Message))
+	res.WriteString(fmt.Sprintf("  OtherActors: %v\n", cc.OtherActors))
+	for i, metadatum := range cc.OperationMetadata {
 		res.WriteString(fmt.Sprintf("  OperationMetadata[%d]: %v\n", i, metadatum))
-		res.WriteString(fmt.Sprintf("    Values: %v\n", c.Operations[i]))
 	}
-	res.WriteString(fmt.Sprintf("  ExtraBytes: %v\n", c.ExtraBytes))
+	// for operation, _ := range cc.Operations() {
+	// 	res.WriteString(fmt.Sprintf("  Operations: %v\n", operation))
+	// }
+	res.WriteString(fmt.Sprintf("  ExtraBytes: %v\n", cc.ExtraBytes))
 	res.WriteString("}\n")
 	return res.String()
 }
 
-func readChangeChunk(r *lbuf.Reader) (*ChangeChunk, error) {
+func readChangeChunk(r ioutil.SubReader) (*ChangeChunk, error) {
 	var res ChangeChunk
 	var err error
 
@@ -81,7 +111,7 @@ func readChangeChunk(r *lbuf.Reader) (*ChangeChunk, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error reading message length: %w", err)
 	}
-	res.Message, err = r.ReadStringLimitedPrealloc(msgLen)
+	res.Message, err = ioutil.ReadStringLimitedPrealloc(r, msgLen)
 	if err != nil {
 		return nil, fmt.Errorf("error reading message: %w", err)
 	}
@@ -96,45 +126,101 @@ func readChangeChunk(r *lbuf.Reader) (*ChangeChunk, error) {
 		return nil, fmt.Errorf("error reading operation metadata: %w", err)
 	}
 
-	var prevValueMetadata []column.ValueMetadata
-
-	res.Operations = make([][]any, len(res.OperationMetadata))
-	for i, metadatum := range res.OperationMetadata {
-		rCol := r.Limit(int64(metadatum.Length))
+	var offset uint64
+	for _, metadatum := range res.OperationMetadata {
+		rCol, err := r.SubReader(offset, metadatum.Length)
+		if err != nil {
+			return nil, fmt.Errorf("error reading operation column: %w", err)
+		}
+		offset += metadatum.Length
 		if metadatum.Spec.Deflate() {
 			return nil, fmt.Errorf("deflate not supported in change chunk column")
 		}
 
-		switch metadatum.Spec.Type() {
-		case column.TypeGroup:
-			res.Operations[i] = acc(rle.ReadUint64RLE(rCol))
-		case column.TypeActor:
-			res.Operations[i] = acc(rle.ReadUint64RLE(rCol))
-		case column.TypeULEB128:
-			res.Operations[i] = acc(column.ReadUlebColumn(rCol))
-		case column.TypeDelta:
-			res.Operations[i] = acc(column.ReadDeltaColumn(rCol))
-		case column.TypeBool:
-			res.Operations[i] = acc(column.ReadBooleanColumn(rCol))
-		case column.TypeString:
-			res.Operations[i] = acc(column.ReadStringColumn(rCol))
-		case column.TypeValueMetadata:
-			// TODO: HACK just for early visualisation
-			it := column.ReadValueMetadataColumn(rCol)
-			for vm, err := range it {
-				if err != nil {
-					panic(err)
-				}
-				res.Operations[i] = append(res.Operations[i], vm)
-				prevValueMetadata = append(prevValueMetadata, vm)
-			}
-		case column.TypeValue:
-			// skip(rCol, metadatum.Spec, metadatum.Length)
-
-			// TODO: HACK just for early visualisation
-			res.Operations[i] = acc(column.ReadValueColumn(rCol, prevValueMetadata))
+		switch metadatum.Spec {
+		case 1: // ID: 0, type: actor
+			res.OperationColumns.ObjectActorId = column.ReadActorColumn(rCol)
+		case 2: // ID: 0, type: uleb128
+			res.OperationColumns.ObjectCounter = column.ReadUlebColumn(rCol)
+		case 17: // ID: 1, type: actor
+			res.OperationColumns.KeyActorId = column.ReadActorColumn(rCol)
+		case 19: // ID: 1, type: delta
+			res.OperationColumns.KeyCounter = column.ReadDeltaColumn(rCol)
+		case 21: // ID: 1, type: string
+			res.OperationColumns.KeyString = column.ReadStringColumn(rCol)
+		case 33: // ID: 2, type: actor
+			res.OperationColumns.ActorId = column.ReadActorColumn(rCol)
+		case 35: // ID: 2, type: delta
+			res.OperationColumns.Counter = column.ReadDeltaColumn(rCol)
+		case 52: // ID: 3, type: bool
+			res.OperationColumns.Insert = column.ReadBooleanColumn(rCol)
+		case 66: // ID: 4, type: uleb128
+			res.OperationColumns.Action = column.ReadUlebColumn(rCol)
+		case 86: // ID: 5, type: value_metadata
+			res.OperationColumns.ValueMetadata = column.ReadValueMetadataColumn(rCol)
+		case 87: // ID: 5, type: value
+			res.OperationColumns.Value = column.NewValueColumn(rCol)
+		case 112: // ID: 7, type: group
+			res.OperationColumns.PredecessorGroup = column.ReadGroupColumn(rCol)
+		case 113: // ID: 7, type: actor
+			res.OperationColumns.PredecessorActorId = column.ReadActorColumn(rCol)
+		case 115: // ID: 7, type: delta
+			res.OperationColumns.PredecessorCounter = column.ReadDeltaColumn(rCol)
+		case 128: // ID: 8, type: group
+			res.OperationColumns.SuccessorGroup = column.ReadGroupColumn(rCol)
+		case 129: // ID: 8, type: actor
+			res.OperationColumns.SuccessorActorId = column.ReadActorColumn(rCol)
+		case 131: // ID: 8, type: delta
+			res.OperationColumns.SuccessorCounter = column.ReadDeltaColumn(rCol)
+		case 148: // ID: 9, type: bool
+			res.OperationColumns.ExpandControl = column.ReadBooleanColumn(rCol)
+		case 165: // ID: 10, type: string
+			res.OperationColumns.Mark = column.ReadStringColumn(rCol)
+		default:
+			// TODO: unknown column should be maintained
+			panic(fmt.Sprintf("unknown column type: %v", metadatum.Spec))
 		}
 	}
+
+	// var prevValueMetadata []column.ValueMetadata
+	//
+	// res.Operations = make([][]any, len(res.OperationMetadata))
+	// for i, metadatum := range res.OperationMetadata {
+	// 	rCol := r.Limit(int64(metadatum.Length))
+	// 	if metadatum.Spec.Deflate() {
+	// 		return nil, fmt.Errorf("deflate not supported in change chunk column")
+	// 	}
+	//
+	// 	switch metadatum.Spec.Type() {
+	// 	case column.TypeGroup:
+	// 		res.Operations[i] = acc(rle.ReadUint64RLE(rCol))
+	// 	case column.TypeActor:
+	// 		res.Operations[i] = acc(rle.ReadUint64RLE(rCol))
+	// 	case column.TypeULEB128:
+	// 		res.Operations[i] = acc(column.ReadUlebColumn(rCol))
+	// 	case column.TypeDelta:
+	// 		res.Operations[i] = acc(column.ReadDeltaColumn(rCol))
+	// 	case column.TypeBool:
+	// 		res.Operations[i] = acc(column.ReadBooleanColumn(rCol))
+	// 	case column.TypeString:
+	// 		res.Operations[i] = acc(column.ReadStringColumn(rCol))
+	// 	case column.TypeValueMetadata:
+	// 		// TODO: HACK just for early visualisation
+	// 		it := column.ReadValueMetadataColumn(rCol)
+	// 		for vm, err := range it {
+	// 			if err != nil {
+	// 				panic(err)
+	// 			}
+	// 			res.Operations[i] = append(res.Operations[i], vm)
+	// 			prevValueMetadata = append(prevValueMetadata, vm)
+	// 		}
+	// 	case column.TypeValue:
+	// 		// skip(rCol, metadatum.Spec, metadatum.Length)
+	//
+	// 		// TODO: HACK just for early visualisation
+	// 		res.Operations[i] = acc(column.ReadValueColumn(rCol, prevValueMetadata))
+	// 	}
+	// }
 
 	if r.Empty() {
 		// Don't try to read the extra bytes if we know there is none.
@@ -149,4 +235,41 @@ func readChangeChunk(r *lbuf.Reader) (*ChangeChunk, error) {
 	}
 
 	return &res, nil
+}
+
+func (cc ChangeChunk) Operations() iter.Seq2[Operation, error] {
+	objs := ObjectIterator(
+		cc.Actor,
+		cc.OtherActors,
+		cc.OperationColumns.ObjectActorId,
+		cc.OperationColumns.ObjectCounter,
+	)
+
+	return func(yield func(Operation, error) bool) {
+		for id, err := range objs {
+			if err != nil {
+				yield(Operation{}, err)
+				return
+			}
+			if !yield(Operation{
+				Object: id,
+			}, nil) {
+				return
+			}
+		}
+	}
+}
+
+type Change struct {
+	ActorId   types.ActorId
+	SeqNum    uint64
+	Ops       []Operation
+	Deps      []types.ChangeHash
+	Time      types.Timestamp
+	Message   string
+	ExtraData any
+}
+
+func (cc ChangeChunk) ToChange() {
+
 }

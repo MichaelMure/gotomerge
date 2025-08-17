@@ -7,8 +7,6 @@ import (
 	"io"
 
 	"github.com/jcalabro/leb128"
-
-	"gotomerge/lbuf"
 )
 
 type ActorId []byte
@@ -23,7 +21,7 @@ func (a ActorId) String() string {
 	return hex.EncodeToString(a)
 }
 
-func ReadLengthEncodedActorId(r *lbuf.Reader) (ActorId, error) {
+func ReadLengthEncodedActorId(r io.Reader) (ActorId, error) {
 	l, err := leb128.DecodeU64(r)
 	if err != nil {
 		return nil, fmt.Errorf("error reading actor id length: %w", err)

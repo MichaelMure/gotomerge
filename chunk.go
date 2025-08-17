@@ -10,8 +10,8 @@ import (
 
 	"github.com/jcalabro/leb128"
 
-	"gotomerge/lbuf"
 	"gotomerge/types"
+	ioutil "gotomerge/utils/io"
 )
 
 type ChunkType byte
@@ -22,13 +22,22 @@ const (
 	ChunkTypeCompressedChange ChunkType = 0x02
 )
 
+// type hWriter struct {
+// 	hash.Hash
+// }
+//
+// func (l hWriter) Write(p []byte) (n int, err error) {
+// 	fmt.Printf("WRITING %x\n", p)
+// 	return l.Hash.Write(p)
+// }
+
 var magicBytes = []byte{0x85, 0x6f, 0x4a, 0x83}
 
 type chunk interface {
 	// TODO?
 }
 
-func readChunk(r *lbuf.Reader) (chunk, error) {
+func readChunk(r ioutil.SubReader) (chunk, error) {
 	// reading buffer of 16 bytes, but sized to read magic+checksum
 	buf := make([]byte, 4+4, 16)
 	n, err := io.ReadFull(r, buf)
@@ -45,13 +54,11 @@ func readChunk(r *lbuf.Reader) (chunk, error) {
 
 	// Run the remaining reads through SHA256 to compute the checksum
 	h := sha256.New()
-	r = r.AddProcessor(func(reader io.Reader) io.Reader {
-		return io.TeeReader(reader, h)
-	})
+	tee := io.TeeReader(r, h)
 
 	// reuse the allocated buffer to read a single byte
 	buf = buf[0:1]
-	n, err = io.ReadFull(r, buf)
+	n, err = io.ReadFull(tee, buf)
 	if err != nil {
 		return nil, fmt.Errorf("error reading chunk type: %w", err)
 	}
@@ -60,30 +67,41 @@ func readChunk(r *lbuf.Reader) (chunk, error) {
 	}
 	chunkType := ChunkType(buf[0])
 
-	length, err := leb128.DecodeU64(r)
+	length, err := leb128.DecodeU64(tee)
 	if err != nil {
 		return nil, fmt.Errorf("error reading chunk length: %w", err)
 	}
-	r = r.Limit(int64(length))
+	sub, err := r.SubReader(0, length)
+	if err != nil {
+		return nil, fmt.Errorf("error reading chunk: %w", err)
+	}
 
 	var res chunk
 
 	switch chunkType {
 	case ChunkTypeDocument:
-		res, err = readDocumentChunk(r)
+		err = r.Peek(h, int(length))
+		if err != nil {
+			return nil, fmt.Errorf("error hashing chunk: %w", err)
+		}
+		res, err = readDocumentChunk(sub)
 	case ChunkTypeChange:
-		res, err = readChangeChunk(r)
+		err = r.Peek(h, int(length))
+		if err != nil {
+			return nil, fmt.Errorf("error hashing chunk: %w", err)
+		}
+		res, err = readChangeChunk(sub)
 	case ChunkTypeCompressedChange:
-		// The compressed change format required that we hash:
+		// The compressed change format required that we hash the equivalent uncompressed chunk, that is:
 		// - the normal change chunk type (0x01)
 		// - the length of the *decompressed* bytes
-		// - the decompressed bytes
+		// - the decompressed bytes of the remaining chunk (excluding type+size)
 		// As we can't know the decompressed size before fully decompressing it, it's not possible to stream decode the
 		// chunk like with the other types. A small format change would allow that.
 		// Instead, we have to fully decompress in memory and re-do the hashing.
 		//
 		// Some benchmarking shows that this cost +11% speed, +7% allocation count, +2% allocation size.
-		decompressed, err := io.ReadAll(flate.NewReader(r))
+		decompressed, err := io.ReadAll(flate.NewReader(sub))
 		if err != nil {
 			return nil, fmt.Errorf("error reading compressed change: %w", err)
 		}
@@ -97,12 +115,12 @@ func readChunk(r *lbuf.Reader) (chunk, error) {
 		if err != nil {
 			return nil, err
 		}
+		_, err = h.Write(decompressed)
+		if err != nil {
+			return nil, err
+		}
 
-		r = lbuf.FromBytes(decompressed)
-		r = r.AddProcessor(func(reader io.Reader) io.Reader {
-			return io.TeeReader(reader, h)
-		})
-		res, err = readChangeChunk(r)
+		res, err = readChangeChunk(ioutil.NewBytesReader(decompressed))
 	default:
 		return nil, fmt.Errorf("invalid chunk type: %d", chunkType)
 	}
@@ -117,6 +135,10 @@ func readChunk(r *lbuf.Reader) (chunk, error) {
 	// }
 	// fmt.Printf("REST READ: %v\n", len(rest))
 
+	err = r.Skip(int(length))
+	if err != nil {
+		return nil, fmt.Errorf("error reading chunk: %w", err)
+	}
 	if !bytes.Equal(checksum, h.Sum(nil)[0:4]) {
 		return nil, fmt.Errorf("invalid checksum")
 	}
@@ -125,6 +147,7 @@ func readChunk(r *lbuf.Reader) (chunk, error) {
 }
 
 // TODO: remove
+
 func acc[T any](it iter.Seq2[T, error]) []any {
 	var res []any
 	for t, err := range it {
@@ -136,7 +159,7 @@ func acc[T any](it iter.Seq2[T, error]) []any {
 	return res
 }
 
-func readChangeHashes(r *lbuf.Reader) ([]types.ChangeHash, error) {
+func readChangeHashes(r io.Reader) ([]types.ChangeHash, error) {
 	n, err := leb128.DecodeU64(r)
 	if err != nil {
 		return nil, fmt.Errorf("error reading change hash length: %w", err)
@@ -177,7 +200,7 @@ func writeChangeHashes(w io.Writer, hashes []types.ChangeHash) error {
 	return nil
 }
 
-func readActorIds(r *lbuf.Reader) ([]types.ActorId, error) {
+func readActorIds(r io.Reader) ([]types.ActorId, error) {
 	n, err := leb128.DecodeU64(r)
 	if err != nil {
 		return nil, fmt.Errorf("error reading actor ids length: %w", err)
@@ -193,11 +216,16 @@ func readActorIds(r *lbuf.Reader) ([]types.ActorId, error) {
 	}
 	res := make([]types.ActorId, 0, allocate)
 
+	var prevId types.ActorId
 	for i := uint64(0); i < n; i++ {
 		id, err := types.ReadLengthEncodedActorId(r)
 		if err != nil {
 			return nil, fmt.Errorf("error reading actor id: %w", err)
 		}
+		if bytes.Compare(id, prevId) <= 0 {
+			return nil, fmt.Errorf("actor IDs must be sorted")
+		}
+		prevId = id
 		res = append(res, id)
 	}
 	return res, nil
@@ -221,7 +249,7 @@ func writeActorIds(w io.Writer, ids []types.ActorId) error {
 	return nil
 }
 
-func readHeadIndexes(r *lbuf.Reader, count int) ([]uint64, error) {
+func readHeadIndexes(r io.Reader, count int) ([]uint64, error) {
 	res := make([]uint64, count)
 	for i := 0; i < count; i++ {
 		index, err := leb128.DecodeU64(r)

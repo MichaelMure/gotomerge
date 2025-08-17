@@ -1,24 +1,18 @@
 package column
 
 import (
-	"bytes"
 	"fmt"
+	"io"
 	"iter"
 
 	"gotomerge/column/rle"
 )
 
-type ValueMetadataColumn []byte
-
 type ValueMetadataColumnIter = iter.Seq2[ValueMetadata, error]
 
-func ValueMetadataColumnFromBytes(b []byte) ValueMetadataColumn {
-	return ValueMetadataColumn(b)
-}
-
-func (vmc ValueMetadataColumn) Iter() ValueMetadataColumnIter {
+func ReadValueMetadataColumn(r io.Reader) ValueMetadataColumnIter {
 	return func(yield func(ValueMetadata, error) bool) {
-		for nullableUint64, err := range rle.ReadUint64RLE(bytes.NewReader(vmc)) {
+		for nullableUint64, err := range rle.ReadUint64RLE(r) {
 			if err != nil {
 				yield(0, err)
 				return

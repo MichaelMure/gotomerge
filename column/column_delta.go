@@ -1,26 +1,20 @@
 package column
 
 import (
-	"bytes"
 	"fmt"
+	"io"
 	"iter"
 	"math"
 
 	"gotomerge/column/rle"
 )
 
-type DeltaColumn []byte
-
 type DeltaColumnIter = iter.Seq2[rle.NullableValue[uint64], error]
 
-func DeltaColumnFromBytes(b []byte) DeltaColumn {
-	return DeltaColumn(b)
-}
-
-func (d DeltaColumn) Iter() DeltaColumnIter {
+func ReadDeltaColumn(r io.Reader) DeltaColumnIter {
 	return func(yield func(rle.NullableValue[uint64], error) bool) {
 		var prev, res uint64
-		for signed, err := range rle.ReadInt64RLE(bytes.NewReader(d)) {
+		for signed, err := range rle.ReadInt64RLE(r) {
 			if err != nil {
 				yield(nil, err)
 				return

@@ -82,6 +82,21 @@ func (r *Reader) Empty() bool {
 }
 
 func (r *Reader) ReadBytesLimitedPrealloc(size uint64) ([]byte, error) {
+	return ReadBytesLimitedPrealloc(r, size)
+}
+
+func (r *Reader) ReadStringLimitedPrealloc(size uint64) (string, error) {
+	return ReadStringLimitedPrealloc(r, size)
+}
+
+var pool = sync.Pool{
+	New: func() interface{} {
+		// size from a quick bench tuning
+		return bufio.NewReaderSize(nil, 16*1024) // 16kB
+	},
+}
+
+func ReadBytesLimitedPrealloc(r io.Reader, size uint64) ([]byte, error) {
 	if size <= bytes.MinRead {
 		// reading with this size would force the buffer to grow and realloc with bytes.Buffer.ReadFrom()
 		buf := make([]byte, size)
@@ -104,18 +119,11 @@ func (r *Reader) ReadBytesLimitedPrealloc(size uint64) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (r *Reader) ReadStringLimitedPrealloc(size uint64) (string, error) {
-	strBytes, err := r.ReadBytesLimitedPrealloc(size)
+func ReadStringLimitedPrealloc(r io.Reader, size uint64) (string, error) {
+	strBytes, err := ReadBytesLimitedPrealloc(r, size)
 	if err != nil {
 		return "", err
 	}
 	// zero-copy cast to string
 	return unsafe.String(unsafe.SliceData(strBytes), len(strBytes)), nil
-}
-
-var pool = sync.Pool{
-	New: func() interface{} {
-		// size from a quick bench tuning
-		return bufio.NewReaderSize(nil, 16*1024) // 16kB
-	},
 }

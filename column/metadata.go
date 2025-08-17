@@ -5,8 +5,6 @@ import (
 	"io"
 
 	"github.com/jcalabro/leb128"
-
-	"gotomerge/lbuf"
 )
 
 type Metadata []struct {
@@ -14,7 +12,7 @@ type Metadata []struct {
 	Length uint64
 }
 
-func ReadMetadata(r *lbuf.Reader) (Metadata, error) {
+func ReadMetadata(r io.Reader) (Metadata, error) {
 	n, err := leb128.DecodeU64(r)
 	if err != nil {
 		return nil, fmt.Errorf("error reading column metadata length: %w", err)

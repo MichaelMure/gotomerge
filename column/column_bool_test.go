@@ -1,6 +1,7 @@
 package column
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,7 +13,7 @@ func TestReadBooleanColumn(t *testing.T) {
 	expected := []bool{true, true, false, false, false}
 	var res []bool
 
-	for b, err := range BooleanColumnFromBytes(buf).Iter() {
+	for b, err := range ReadBooleanColumn(bytes.NewReader(buf)) {
 		require.NoError(t, err)
 		res = append(res, b)
 	}
