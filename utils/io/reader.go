@@ -8,7 +8,7 @@ import (
 type SubReader interface {
 	io.Reader
 
-	// subReader returns an io.Reader for a section of the given size, placed offset bytes after
+	// SubReader returns an io.Reader for a section of the given size, placed offset bytes after
 	// the current position. This does NOT change the position. After being done with one or more
 	// sub-readers, the caller should call Skip() to move the position past the now irrelevant bytes.
 	SubReader(offset uint64, size uint64) (SubReader, error)
@@ -93,7 +93,7 @@ func (r *pagedReader) Read(p []byte) (int, error) {
 	return totalRead, nil
 }
 
-// subReader returns an io.Reader for a section of the given size, placed offset bytes after
+// SubReader returns an io.Reader for a section of the given size, placed offset bytes after
 // the current position. This does NOT change the position. After being done with one or more
 // sub-readers, the caller should call Skip() to move the position past the now irrelevant bytes.
 func (r *pagedReader) SubReader(offset uint64, size uint64) (SubReader, error) {
@@ -417,7 +417,7 @@ func NewBytesReader(data []byte) SubReader {
 
 func (b *bytesReader) Read(p []byte) (n int, err error) {
 	var toRead int
-	if len(p) < len(b.data)-b.position {
+	if len(p) <= len(b.data)-b.position {
 		toRead = len(p)
 	} else {
 		toRead = len(b.data) - b.position
@@ -429,7 +429,7 @@ func (b *bytesReader) Read(p []byte) (n int, err error) {
 }
 
 func (b *bytesReader) SubReader(offset uint64, size uint64) (SubReader, error) {
-	if offset+size > uint64(len(b.data)) {
+	if uint64(b.position)+offset+size > uint64(len(b.data)) {
 		return nil, fmt.Errorf("bytesReader: offset + size > len(data)")
 	}
 	return &bytesReader{data: b.data[uint64(b.position)+offset : uint64(b.position)+offset+size], position: 0}, nil

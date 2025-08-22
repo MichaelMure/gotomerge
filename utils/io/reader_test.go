@@ -1,6 +1,8 @@
 package ioutil
 
 import (
+	"bytes"
+	"errors"
 	"io"
 	"testing"
 
@@ -158,6 +160,182 @@ func TestPagedReader_ExtremeReallocation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, extremeSize, len(result))
 	require.Equal(t, g.All(), result)
+}
+
+func TestPagedReader_Peek_Basic(t *testing.T) {
+	g := generate(500)
+	r := NewPagedReader(g)
+
+	var buf bytes.Buffer
+	err := r.Peek(&buf, 100)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[:100], buf.Bytes())
+
+	// Position should not have changed
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All(), result)
+}
+
+func TestPagedReader_Peek_ZeroBytes(t *testing.T) {
+	g := generate(200)
+	r := NewPagedReader(g)
+
+	var buf bytes.Buffer
+	err := r.Peek(&buf, 0)
+	require.NoError(t, err)
+	require.Equal(t, 0, buf.Len())
+
+	// Position should not have changed
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All(), result)
+}
+
+func TestPagedReader_Peek_EmptySource(t *testing.T) {
+	g := generate(0)
+	r := NewPagedReader(g)
+
+	var buf bytes.Buffer
+	err := r.Peek(&buf, 10)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, 0, buf.Len())
+}
+
+func TestPagedReader_Peek_CrossPageBoundary(t *testing.T) {
+	g := generate(40 * 1024) // Multiple pages
+	r := NewPagedReader(g)
+
+	var buf bytes.Buffer
+	err := r.Peek(&buf, 25*1024) // Span across multiple pages
+	require.NoError(t, err)
+	require.Equal(t, g.All()[:25*1024], buf.Bytes())
+
+	// Position should not have changed
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All(), result)
+}
+
+func TestPagedReader_Peek_AfterRead(t *testing.T) {
+	g := generate(2000)
+	r := NewPagedReader(g)
+
+	// Read some data first
+	readBuf := make([]byte, 500)
+	n, err := r.Read(readBuf)
+	require.NoError(t, err)
+	require.Equal(t, 500, n)
+	require.Equal(t, g.All()[:500], readBuf)
+
+	// Peek at remaining data
+	var peekBuf bytes.Buffer
+	err = r.Peek(&peekBuf, 300)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[500:800], peekBuf.Bytes())
+
+	// Position should not have changed by peek
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[500:], result)
+}
+
+func TestPagedReader_Peek_AfterSkip(t *testing.T) {
+	g := generate(3000)
+	r := NewPagedReader(g)
+
+	// Skip some data
+	err := r.Skip(800)
+	require.NoError(t, err)
+
+	// Peek at remaining data
+	var buf bytes.Buffer
+	err = r.Peek(&buf, 400)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[800:1200], buf.Bytes())
+
+	// Position should not have changed by peek
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[800:], result)
+}
+
+func TestPagedReader_Peek_ExactAvailable(t *testing.T) {
+	g := generate(1500)
+	r := NewPagedReader(g)
+
+	// Read some data to set position
+	buf := make([]byte, 700)
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 700, n)
+
+	// Peek at all remaining data
+	var peekBuf bytes.Buffer
+	err = r.Peek(&peekBuf, 800) // Exactly remaining bytes
+	require.NoError(t, err)
+	require.Equal(t, g.All()[700:], peekBuf.Bytes())
+}
+
+func TestPagedReader_Peek_MoreThanAvailable(t *testing.T) {
+	g := generate(1000)
+	r := NewPagedReader(g)
+
+	// Read some data
+	buf := make([]byte, 600)
+	_, err := r.Read(buf)
+	require.NoError(t, err)
+
+	// Try to peek more than remaining
+	var peekBuf bytes.Buffer
+	err = r.Peek(&peekBuf, 500) // Only 400 bytes remaining
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, 0, peekBuf.Len())
+}
+
+func TestPagedReader_Peek_GrowBuffer(t *testing.T) {
+	g := generate(100 * 1024) // Large data to trigger growth
+	r := NewPagedReader(g)
+
+	// Peek at a large amount that will require growing the buffer
+	var buf bytes.Buffer
+	err := r.Peek(&buf, 80*1024)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[:80*1024], buf.Bytes())
+
+	// Position should not have changed
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All(), result)
+}
+
+func TestPagedReader_Peek_AtPageBoundary(t *testing.T) {
+	g := generate(3 * pageSize) // Three full pages
+	r := NewPagedReader(g)
+
+	// Read to position exactly at page boundary
+	readBuf := make([]byte, pageSize)
+	n, err := r.Read(readBuf)
+	require.NoError(t, err)
+	require.Equal(t, pageSize, n)
+
+	// Peek starting exactly at page boundary
+	var peekBuf bytes.Buffer
+	err = r.Peek(&peekBuf, pageSize)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[pageSize:2*pageSize], peekBuf.Bytes())
+}
+
+func TestPagedReader_Peek_WriterError(t *testing.T) {
+	g := generate(1000)
+	r := NewPagedReader(g)
+
+	// Create a writer that will fail after writing some bytes
+	failingWriter := &failingWriter{failAfter: 50}
+
+	err := r.Peek(failingWriter, 100)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "write failed")
 }
 
 func TestPagedReader_SubReader(t *testing.T) {
@@ -1498,4 +1676,590 @@ func TestSubReader_Empty_AfterSkipAndRead(t *testing.T) {
 
 	// Should be empty now
 	require.True(t, sub.Empty())
+}
+
+func TestBytesReader_Read_Basic(t *testing.T) {
+	g := generate(100)
+	r := NewBytesReader(g.All())
+
+	buf := make([]byte, 20)
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 20, n)
+	require.Equal(t, g.All()[:20], buf)
+
+	// Read more
+	n, err = r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 20, n)
+	require.Equal(t, g.All()[20:40], buf)
+
+	// Read remaining
+	buf = make([]byte, 80)
+	n, err = r.Read(buf)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, 60, n)
+	require.Equal(t, g.All()[40:100], buf[:n])
+}
+
+func TestBytesReader_Read_EmptyData(t *testing.T) {
+	g := generate(0)
+	r := NewBytesReader(g.All())
+
+	buf := make([]byte, 10)
+	n, err := r.Read(buf)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, 0, n)
+}
+
+func TestBytesReader_Read_ZeroLengthBuffer(t *testing.T) {
+	g := generate(50)
+	r := NewBytesReader(g.All())
+
+	// Read with nil buffer
+	n, err := r.Read(nil)
+	require.NoError(t, err)
+	require.Equal(t, 0, n)
+
+	// Read with empty buffer
+	n, err = r.Read([]byte{})
+	require.NoError(t, err)
+	require.Equal(t, 0, n)
+
+	// Verify data is still available
+	buf := make([]byte, 10)
+	n, err = r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 10, n)
+	require.Equal(t, g.All()[:10], buf)
+}
+
+func TestBytesReader_Read_ExactSize(t *testing.T) {
+	g := generate(25)
+	r := NewBytesReader(g.All())
+
+	buf := make([]byte, 25)
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 25, n)
+	require.Equal(t, g.All(), buf)
+}
+
+func TestBytesReader_Read_LargerBuffer(t *testing.T) {
+	g := generate(30)
+	r := NewBytesReader(g.All())
+
+	buf := make([]byte, 100)
+	n, err := r.Read(buf)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, 30, n)
+	require.Equal(t, g.All(), buf[:n])
+}
+
+func TestBytesReader_Read_SmallIncrements(t *testing.T) {
+	g := generate(256)
+	r := NewBytesReader(g.All())
+
+	var result []byte
+	buf := make([]byte, 1) // Read one byte at a time
+
+	for {
+		n, err := r.Read(buf)
+		if err == io.EOF {
+			if n > 0 {
+				result = append(result, buf[:n]...)
+			}
+			break
+		}
+		require.NoError(t, err)
+		require.Equal(t, 1, n)
+		result = append(result, buf[:n]...)
+	}
+
+	require.Equal(t, g.All(), result)
+}
+
+func TestBytesReader_Read_AfterEOF(t *testing.T) {
+	g := generate(40)
+	r := NewBytesReader(g.All())
+
+	// Read all data
+	buf := make([]byte, 40)
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 40, n)
+
+	// Try to read after EOF
+	n, err = r.Read(buf)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, 0, n)
+}
+
+func TestBytesReader_SubReader_Basic(t *testing.T) {
+	g := generate(100)
+	r := NewBytesReader(g.All())
+
+	// Create sub-reader from beginning
+	sub, err := r.SubReader(0, 10)
+	require.NoError(t, err)
+
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[:10], result)
+
+	// Create sub-reader from middle
+	sub, err = r.SubReader(20, 15)
+	require.NoError(t, err)
+
+	result, err = io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[20:35], result)
+}
+
+func TestBytesReader_SubReader_AfterRead(t *testing.T) {
+	g := generate(200)
+	r := NewBytesReader(g.All())
+
+	// Read some data first
+	buf := make([]byte, 30)
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 30, n)
+	require.Equal(t, g.All()[:30], buf)
+
+	// Create sub-reader relative to current position
+	sub, err := r.SubReader(10, 20) // Should start from position 40 (30 + 10)
+	require.NoError(t, err)
+
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[40:60], result)
+}
+
+func TestBytesReader_SubReader_ZeroSize(t *testing.T) {
+	g := generate(50)
+	r := NewBytesReader(g.All())
+
+	sub, err := r.SubReader(25, 0)
+	require.NoError(t, err)
+
+	buf := make([]byte, 10)
+	n, err := sub.Read(buf)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, 0, n)
+}
+
+func TestBytesReader_SubReader_OutOfBounds(t *testing.T) {
+	g := generate(80)
+	r := NewBytesReader(g.All())
+
+	// Offset + size exceeds available data
+	_, err := r.SubReader(70, 20) // 70 + 20 = 90 > 80
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "offset + size > len(data)")
+
+	// Test after reading some data
+	buf := make([]byte, 30)
+	_, err = r.Read(buf)
+	require.NoError(t, err)
+
+	// Now only 50 bytes remain at position 30
+	_, err = r.SubReader(30, 25) // position(30) + offset(30) + size(25) = 85 > 80
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "offset + size > len(data)")
+}
+
+func TestBytesReader_SubReader_ExactBounds(t *testing.T) {
+	g := generate(64)
+	r := NewBytesReader(g.All())
+
+	// Use all available data
+	sub, err := r.SubReader(0, 64)
+	require.NoError(t, err)
+
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All(), result)
+}
+
+func TestBytesReader_SubReader_Nested(t *testing.T) {
+	g := generate(300)
+	r := NewBytesReader(g.All())
+
+	// Create parent sub-reader
+	parentSub, err := r.SubReader(50, 100) // bytes 50-149
+	require.NoError(t, err)
+
+	// Create child sub-reader
+	childSub, err := parentSub.SubReader(20, 30) // bytes 70-99
+	require.NoError(t, err)
+
+	result, err := io.ReadAll(childSub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[70:100], result)
+}
+
+func TestBytesReader_Skip_Basic(t *testing.T) {
+	g := generate(150)
+	r := NewBytesReader(g.All())
+
+	// Skip some bytes
+	err := r.Skip(40)
+	require.NoError(t, err)
+
+	// Read remaining
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[40:], result)
+}
+
+func TestBytesReader_Skip_ZeroBytes(t *testing.T) {
+	g := generate(60)
+	r := NewBytesReader(g.All())
+
+	err := r.Skip(0)
+	require.NoError(t, err)
+
+	// Should still be able to read all data
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All(), result)
+}
+
+func TestBytesReader_Skip_ExactLength(t *testing.T) {
+	g := generate(75)
+	r := NewBytesReader(g.All())
+
+	err := r.Skip(75)
+	require.NoError(t, err)
+
+	// Should be at end
+	buf := make([]byte, 10)
+	n, err := r.Read(buf)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, 0, n)
+}
+
+func TestBytesReader_Skip_OutOfBounds(t *testing.T) {
+	g := generate(30)
+	r := NewBytesReader(g.All())
+
+	err := r.Skip(40) // More than available
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "skip 40 > len(data)")
+}
+
+func TestBytesReader_Skip_AfterRead(t *testing.T) {
+	g := generate(120)
+	r := NewBytesReader(g.All())
+
+	// Read some data
+	buf := make([]byte, 25)
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 25, n)
+	require.Equal(t, g.All()[:25], buf)
+
+	// Skip some more
+	err = r.Skip(35)
+	require.NoError(t, err)
+
+	// Read remaining
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[60:], result)
+}
+
+func TestBytesReader_Skip_Incremental(t *testing.T) {
+	g := generate(256)
+	r := NewBytesReader(g.All())
+
+	// Skip in small increments
+	err := r.Skip(50)
+	require.NoError(t, err)
+
+	err = r.Skip(75)
+	require.NoError(t, err)
+
+	err = r.Skip(25)
+	require.NoError(t, err)
+
+	// Should be at position 150 now
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[150:], result)
+}
+
+func TestBytesReader_Empty_InitialState(t *testing.T) {
+	// Non-empty data
+	g := generate(100)
+	r := NewBytesReader(g.All())
+	require.False(t, r.Empty())
+
+	// Empty data
+	emptyG := generate(0)
+	emptyR := NewBytesReader(emptyG.All())
+	require.True(t, emptyR.Empty())
+}
+
+func TestBytesReader_Empty_AfterRead(t *testing.T) {
+	g := generate(80)
+	r := NewBytesReader(g.All())
+
+	require.False(t, r.Empty())
+
+	// Read part of the data
+	buf := make([]byte, 40)
+	_, err := r.Read(buf)
+	require.NoError(t, err)
+	require.False(t, r.Empty())
+
+	// Read remaining data
+	_, err = io.ReadAll(r)
+	require.NoError(t, err)
+	require.True(t, r.Empty())
+}
+
+func TestBytesReader_Empty_AfterSkip(t *testing.T) {
+	g := generate(45)
+	r := NewBytesReader(g.All())
+
+	require.False(t, r.Empty())
+
+	// Skip all data
+	err := r.Skip(45)
+	require.NoError(t, err)
+	require.True(t, r.Empty())
+}
+
+func TestBytesReader_Empty_MixedOperations(t *testing.T) {
+	g := generate(120)
+	r := NewBytesReader(g.All())
+
+	require.False(t, r.Empty())
+
+	// Read some data
+	buf := make([]byte, 30)
+	_, err := r.Read(buf)
+	require.NoError(t, err)
+	require.False(t, r.Empty())
+
+	// Skip some data
+	err = r.Skip(40)
+	require.NoError(t, err)
+	require.False(t, r.Empty())
+
+	// Read remaining
+	_, err = io.ReadAll(r)
+	require.NoError(t, err)
+	require.True(t, r.Empty())
+}
+
+func TestBytesReader_Peek_Basic(t *testing.T) {
+	g := generate(200)
+	r := NewBytesReader(g.All())
+
+	var buf bytes.Buffer
+	err := r.Peek(&buf, 25)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[:25], buf.Bytes())
+
+	// Position should not have changed
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All(), result)
+}
+
+func TestBytesReader_Peek_ZeroBytes(t *testing.T) {
+	g := generate(50)
+	r := NewBytesReader(g.All())
+
+	var buf bytes.Buffer
+	err := r.Peek(&buf, 0)
+	require.NoError(t, err)
+	require.Equal(t, 0, buf.Len())
+
+	// Position should not have changed
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All(), result)
+}
+
+func TestBytesReader_Peek_OutOfBounds(t *testing.T) {
+	g := generate(30)
+	r := NewBytesReader(g.All())
+
+	var buf bytes.Buffer
+	err := r.Peek(&buf, 50) // More than available
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "peek 50 > len(data) - position")
+}
+
+func TestBytesReader_Peek_AfterRead(t *testing.T) {
+	g := generate(180)
+	r := NewBytesReader(g.All())
+
+	// Read some data first
+	buf := make([]byte, 60)
+	_, err := r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[:60], buf)
+
+	// Peek at remaining data
+	var peekBuf bytes.Buffer
+	err = r.Peek(&peekBuf, 40)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[60:100], peekBuf.Bytes())
+
+	// Position should not have changed from the peek
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[60:], result)
+}
+
+func TestBytesReader_Peek_ExactRemaining(t *testing.T) {
+	g := generate(90)
+	r := NewBytesReader(g.All())
+
+	// Read part of the data
+	buf := make([]byte, 50)
+	_, err := r.Read(buf)
+	require.NoError(t, err)
+
+	// Peek at exactly remaining bytes
+	var peekBuf bytes.Buffer
+	err = r.Peek(&peekBuf, 40)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[50:90], peekBuf.Bytes())
+}
+
+func TestBytesReader_Peek_AfterSkip(t *testing.T) {
+	g := generate(160)
+	r := NewBytesReader(g.All())
+
+	// Skip some data
+	err := r.Skip(70)
+	require.NoError(t, err)
+
+	// Peek at remaining data
+	var buf bytes.Buffer
+	err = r.Peek(&buf, 30)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[70:100], buf.Bytes())
+
+	// Verify position unchanged by peek
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[70:], result)
+}
+
+func TestBytesReader_Peek_WriterError(t *testing.T) {
+	g := generate(50)
+	r := NewBytesReader(g.All())
+
+	// Create a writer that will fail
+	failingWriter := &failingWriter{failAfter: 10}
+
+	err := r.Peek(failingWriter, 25)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "write failed")
+}
+
+func TestBytesReader_Integration_AllMethods(t *testing.T) {
+	g := generate(500)
+	r := NewBytesReader(g.All())
+
+	// Test initial state
+	require.False(t, r.Empty())
+
+	// Test peek
+	var peekBuf bytes.Buffer
+	err := r.Peek(&peekBuf, 50)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[:50], peekBuf.Bytes())
+
+	// Test read
+	buf := make([]byte, 50)
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 50, n)
+	require.Equal(t, g.All()[:50], buf)
+
+	// Test skip
+	err = r.Skip(100) // skip bytes 50-149
+	require.NoError(t, err)
+
+	// Test sub-reader
+	sub, err := r.SubReader(50, 80) // bytes 200-279 (position 150 + offset 50)
+	require.NoError(t, err)
+
+	subResult, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[200:280], subResult)
+
+	// Continue with main reader
+	remaining, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[150:], remaining)
+
+	// Test empty state
+	require.True(t, r.Empty())
+}
+
+func TestBytesReader_LargeData(t *testing.T) {
+	// Test with larger data to ensure no issues with scaling
+	g := generate(10000)
+	r := NewBytesReader(g.All())
+
+	// Read in chunks
+	var result []byte
+	buf := make([]byte, 512)
+
+	for {
+		n, err := r.Read(buf)
+		result = append(result, buf[:n]...)
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, g.All(), result)
+	require.True(t, r.Empty())
+}
+
+func TestBytesReader_FullCycle(t *testing.T) {
+	// Test with full 256-byte cycle from generator
+	g := generate(256)
+	r := NewBytesReader(g.All())
+
+	// Test all methods with the complete byte range
+	var peekBuf bytes.Buffer
+	err := r.Peek(&peekBuf, 100)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[:100], peekBuf.Bytes())
+
+	// Read and verify
+	result, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All(), result)
+
+	// Verify we have all byte values 0-255
+	for i := 0; i < 256; i++ {
+		require.Equal(t, byte(i), result[i], "Byte at position %d should be %d", i, i)
+	}
+}
+
+// Helper type for testing writer errors
+type failingWriter struct {
+	written   int
+	failAfter int
+}
+
+func (fw *failingWriter) Write(p []byte) (n int, err error) {
+	if fw.written+len(p) > fw.failAfter {
+		return fw.failAfter - fw.written, errors.New("write failed")
+	}
+	fw.written += len(p)
+	return len(p), nil
 }
