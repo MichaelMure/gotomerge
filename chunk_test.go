@@ -44,11 +44,14 @@ func TestReadDocument(t *testing.T) {
 
 			var chunks int
 			for {
-				_, err := readChunk(r)
+				_, toSkip, err := readChunk(r)
 				require.NoError(t, err)
 				// fmt.Println(c)
 				// fmt.Println()
 				// fmt.Println()
+
+				err = r.Skip(toSkip)
+				require.NoError(t, err)
 
 				chunks++
 				if r.Empty() {
@@ -70,9 +73,11 @@ func TestLarge(t *testing.T) {
 
 	var chunks []chunk
 	for {
-		c, err := readChunk(r)
+		c, toSkip, err := readChunk(r)
 		require.NoError(t, err)
 		chunks = append(chunks, c)
+		err = r.Skip(toSkip)
+		require.NoError(t, err)
 		if r.Empty() {
 			break
 		}
@@ -92,12 +97,13 @@ func BenchmarkReadExamplar(b *testing.B) {
 		r := ioutil.NewPagedReader(f)
 		for {
 			chunksExemplar = nil
-			c, err := readChunk(r)
+			c, toSkip, err := readChunk(r)
 			if errors.Is(err, io.EOF) {
 				break
 			}
 			chunksExemplar = append(chunksExemplar, c)
 			chunkCount++
+			_ = r.Skip(toSkip)
 		}
 		_ = f.Close()
 	}
@@ -116,12 +122,13 @@ func BenchmarkReadLarge(b *testing.B) {
 		f, _ := os.Open("testdata/text-edits.amrg")
 		r := ioutil.NewPagedReader(f)
 		for {
-			c, err := readChunk(r)
+			c, toSkip, err := readChunk(r)
 			if errors.Is(err, io.EOF) {
 				break
 			}
 			chunksLarge = append(chunksLarge, c)
 			chunkCount++
+			_ = r.Skip(toSkip)
 		}
 		_ = f.Close()
 	}
@@ -140,12 +147,13 @@ func BenchmarkCompressed(b *testing.B) {
 		f, _ := os.Open("testdata/two_change_chunks_compressed.automerge")
 		r := ioutil.NewPagedReader(f)
 		for {
-			c, err := readChunk(r)
+			c, toSkip, err := readChunk(r)
 			if errors.Is(err, io.EOF) {
 				break
 			}
 			chunkCompressed = append(chunkCompressed, c)
 			chunkCount++
+			_ = r.Skip(toSkip)
 		}
 		_ = f.Close()
 	}
@@ -155,8 +163,9 @@ func BenchmarkCompressed(b *testing.B) {
 func TestEmptyDocumentRead(t *testing.T) {
 	buf := []byte{0x85, 0x6f, 0x4a, 0x83, 0xb8, 0x1a, 0x95, 0x44, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00}
 	r := ioutil.NewBytesReader(buf)
-	c, err := readChunk(r)
+	c, toSkip, err := readChunk(r)
 	require.NoError(t, err)
+	require.NoError(t, r.Skip(toSkip))
 	require.True(t, r.Empty()) // we should consume everything
 	// TODO: add assertions once the struct is stable
 	fmt.Println(c)

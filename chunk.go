@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"iter"
 
 	"github.com/jcalabro/leb128"
 
@@ -22,33 +21,31 @@ const (
 	ChunkTypeCompressedChange ChunkType = 0x02
 )
 
-// type hWriter struct {
-// 	hash.Hash
-// }
-//
-// func (l hWriter) Write(p []byte) (n int, err error) {
-// 	fmt.Printf("WRITING %x\n", p)
-// 	return l.Hash.Write(p)
-// }
-
 var magicBytes = []byte{0x85, 0x6f, 0x4a, 0x83}
 
 type chunk interface {
 	// TODO?
 }
 
-func readChunk(r ioutil.SubReader) (chunk, error) {
+func readChunk(r ioutil.SubReader) (chunk, int, error) {
+	// take a subreader to read without consuming, we'll
+	// return how many bytes to skip when done with the chunk
+	r, err := r.SubReaderOffset(0)
+	if err != nil {
+		return nil, 0, fmt.Errorf("error reading chunk: %w", err)
+	}
+
 	// reading buffer of 16 bytes, but sized to read magic+checksum
 	buf := make([]byte, 4+4, 16)
 	n, err := io.ReadFull(r, buf)
 	if err != nil {
-		return nil, fmt.Errorf("error reading chunk header: %w", err)
+		return nil, r.Consumed(), fmt.Errorf("error reading chunk header: %w", err)
 	}
 	if n != (4 + 4) {
-		return nil, fmt.Errorf("unexpected end of chunk")
+		return nil, r.Consumed(), fmt.Errorf("unexpected end of chunk")
 	}
 	if !bytes.Equal(buf[0:4], magicBytes) {
-		return nil, fmt.Errorf("invalid magic bytes")
+		return nil, r.Consumed(), fmt.Errorf("invalid magic bytes")
 	}
 	checksum := buf[4:8]
 
@@ -60,20 +57,21 @@ func readChunk(r ioutil.SubReader) (chunk, error) {
 	buf = buf[0:1]
 	n, err = io.ReadFull(tee, buf)
 	if err != nil {
-		return nil, fmt.Errorf("error reading chunk type: %w", err)
+		return nil, r.Consumed(), fmt.Errorf("error reading chunk type: %w", err)
 	}
 	if n != 1 {
-		return nil, fmt.Errorf("unexpected end of chunk")
+		return nil, r.Consumed(), fmt.Errorf("unexpected end of chunk")
 	}
 	chunkType := ChunkType(buf[0])
 
 	length, err := leb128.DecodeU64(tee)
 	if err != nil {
-		return nil, fmt.Errorf("error reading chunk length: %w", err)
+		return nil, r.Consumed(), fmt.Errorf("error reading chunk length: %w", err)
 	}
+	toSkip := r.Consumed() + int(length)
 	sub, err := r.SubReader(0, length)
 	if err != nil {
-		return nil, fmt.Errorf("error reading chunk: %w", err)
+		return nil, toSkip, fmt.Errorf("error reading chunk: %w", err)
 	}
 
 	var res chunk
@@ -82,13 +80,13 @@ func readChunk(r ioutil.SubReader) (chunk, error) {
 	case ChunkTypeDocument:
 		err = r.Peek(h, int(length))
 		if err != nil {
-			return nil, fmt.Errorf("error hashing chunk: %w", err)
+			return nil, toSkip, fmt.Errorf("error hashing chunk: %w", err)
 		}
 		res, err = readDocumentChunk(sub)
 	case ChunkTypeChange:
 		err = r.Peek(h, int(length))
 		if err != nil {
-			return nil, fmt.Errorf("error hashing chunk: %w", err)
+			return nil, toSkip, fmt.Errorf("error hashing chunk: %w", err)
 		}
 		res, err = readChangeChunk(sub)
 	case ChunkTypeCompressedChange:
@@ -103,29 +101,29 @@ func readChunk(r ioutil.SubReader) (chunk, error) {
 		// Some benchmarking shows that this cost +11% speed, +7% allocation count, +2% allocation size.
 		decompressed, err := io.ReadAll(flate.NewReader(sub))
 		if err != nil {
-			return nil, fmt.Errorf("error reading compressed change: %w", err)
+			return nil, toSkip, fmt.Errorf("error reading compressed change: %w", err)
 		}
 
 		h = sha256.New()
 		_, err = h.Write([]byte{byte(ChunkTypeChange)})
 		if err != nil {
-			return nil, err
+			return nil, toSkip, err
 		}
 		_, err = h.Write(leb128.EncodeU64(uint64(len(decompressed))))
 		if err != nil {
-			return nil, err
+			return nil, toSkip, err
 		}
 		_, err = h.Write(decompressed)
 		if err != nil {
-			return nil, err
+			return nil, toSkip, err
 		}
 
 		res, err = readChangeChunk(ioutil.NewBytesReader(decompressed))
 	default:
-		return nil, fmt.Errorf("invalid chunk type: %d", chunkType)
+		return nil, toSkip, fmt.Errorf("invalid chunk type: %d", chunkType)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("error reading chunk: %w", err)
+		return nil, toSkip, fmt.Errorf("error reading chunk: %w", err)
 	}
 
 	// TODO: remove
@@ -135,28 +133,11 @@ func readChunk(r ioutil.SubReader) (chunk, error) {
 	// }
 	// fmt.Printf("REST READ: %v\n", len(rest))
 
-	err = r.Skip(int(length))
-	if err != nil {
-		return nil, fmt.Errorf("error reading chunk: %w", err)
-	}
 	if !bytes.Equal(checksum, h.Sum(nil)[0:4]) {
-		return nil, fmt.Errorf("invalid checksum")
+		return nil, toSkip, fmt.Errorf("invalid checksum")
 	}
 
-	return res, nil
-}
-
-// TODO: remove
-
-func acc[T any](it iter.Seq2[T, error]) []any {
-	var res []any
-	for t, err := range it {
-		if err != nil {
-			panic(err)
-		}
-		res = append(res, t)
-	}
-	return res
+	return res, toSkip, nil
 }
 
 func readChangeHashes(r io.Reader) ([]types.ChangeHash, error) {

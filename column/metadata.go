@@ -9,7 +9,7 @@ import (
 
 type Metadata []struct {
 	Spec   specification
-	Length uint64
+	Length uint64 // in bytes
 }
 
 func ReadMetadata(r io.Reader) (Metadata, error) {

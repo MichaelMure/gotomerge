@@ -20,6 +20,8 @@ const (
 	ValueTypeBytes     ValueType = 7
 	ValueTypeCounter   ValueType = 8
 	ValueTypeTimestamp ValueType = 9
+
+	// ValueTypeUnknown ValueType = math.MaxUint8
 )
 
 type ValueMetadata uint64
@@ -57,4 +59,10 @@ var valueTypeNames = [...]string{
 
 func (vm ValueMetadata) String() string {
 	return fmt.Sprintf("(t=%s l=%d)", valueTypeNames[vm.Type()], vm.Length())
+}
+
+// UnknownValue is used when reading value of an unknown type, for example from a future automerge version.
+type UnknownValue struct {
+	Type  ValueType
+	Bytes []byte
 }

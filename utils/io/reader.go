@@ -13,11 +13,17 @@ type SubReader interface {
 	// sub-readers, the caller should call Skip() to move the position past the now irrelevant bytes.
 	SubReader(offset uint64, size uint64) (SubReader, error)
 
+	// SubReaderOffset is the same as SubReader but with only an offset. The end of the data remain the same.
+	SubReaderOffset(offset uint64) (SubReader, error)
+
 	// Skip increments the reader position by N bytes and release consumed pages.
 	Skip(n int) error
 
 	// Empty tells if the underlying reader has been entirely consumed.
 	Empty() bool
+
+	// Consumed returns the number of bytes read, with either Read() or Skip()
+	Consumed() int
 
 	// Peek writes into w the n next bytes without moving the internal position.
 	Peek(w io.Writer, n int) error
@@ -39,6 +45,7 @@ type pagedReader struct {
 	count     int      // number of pages currently in use
 	position  int      // position in bytes from the start of the head page
 	available int      // total bytes available for reading in the loaded pages
+	consumed  int      // total bytes given to a consumer (through Read(), Skip())
 }
 
 // NewPagedReader creates a new paged reader with pre-allocated capacity
@@ -90,6 +97,8 @@ func (r *pagedReader) Read(p []byte) (int, error) {
 		return 0, io.EOF
 	}
 
+	r.consumed += totalRead
+
 	return totalRead, nil
 }
 
@@ -98,6 +107,10 @@ func (r *pagedReader) Read(p []byte) (int, error) {
 // sub-readers, the caller should call Skip() to move the position past the now irrelevant bytes.
 func (r *pagedReader) SubReader(offset uint64, size uint64) (SubReader, error) {
 	return newSubReader(r, offset, size)
+}
+
+func (r *pagedReader) SubReaderOffset(offset uint64) (SubReader, error) {
+	return newSubReaderOffset(r, offset)
 }
 
 // Skip increments the reader position by N bytes and release consumed pages.
@@ -113,6 +126,7 @@ func (r *pagedReader) Skip(n int) error {
 		if n < availableInPage {
 			r.position += n
 			r.available -= n
+			r.consumed += n
 			return nil
 		} else {
 			r.pages[r.head] = r.pages[r.head][:0] // keep the cap, set len to zero
@@ -121,6 +135,7 @@ func (r *pagedReader) Skip(n int) error {
 			r.position = 0
 			r.available -= availableInPage
 			n -= availableInPage
+			r.consumed += availableInPage
 		}
 	}
 	return nil
@@ -133,6 +148,10 @@ func (r *pagedReader) Empty() bool {
 	}
 	err := r.grow(1)
 	return err == io.EOF
+}
+
+func (r *pagedReader) Consumed() int {
+	return r.consumed
 }
 
 func (r *pagedReader) Peek(w io.Writer, n int) error {
@@ -192,39 +211,10 @@ func (r *pagedReader) grow(minBytes int) error {
 
 	// Read pages until we have enough bytes
 	for needed > 0 {
-		if r.count >= len(r.pages) {
-			r.growPagesRing()
-		}
-		tail := (r.head + r.count) % len(r.pages)
-
-		// Get or allocate page at tail position
-		if r.pages[tail] == nil {
-			r.pages[tail] = make([]byte, pageSize)
-		} else {
-			// Reset slice length to full page capacity for reuse
-			r.pages[tail] = r.pages[tail][:pageSize]
-		}
-
-		// Read from source into this page
-		n, err := r.source.Read(r.pages[tail])
-		if err != nil && err != io.EOF {
+		n, err := r.loadPage()
+		if err != nil {
 			return err
 		}
-
-		if n == 0 {
-			// No more data available
-			if err == io.EOF {
-				return io.EOF
-			}
-			break
-		}
-
-		// Trim page to actual bytes read
-		r.pages[tail] = r.pages[tail][:n]
-
-		// Update counters
-		r.count++
-		r.available += n
 
 		needed -= n
 
@@ -235,6 +225,46 @@ func (r *pagedReader) grow(minBytes int) error {
 	}
 
 	return nil
+}
+
+// loadPage reads the next page of data, for up to pageSize bytes.
+func (r *pagedReader) loadPage() (int, error) {
+	if r.count >= len(r.pages) {
+		r.growPagesRing()
+	}
+	tail := (r.head + r.count) % len(r.pages)
+
+	// Get or allocate page at tail position
+	if r.pages[tail] == nil {
+		r.pages[tail] = make([]byte, pageSize)
+	} else {
+		// Reset slice length to full page capacity for reuse
+		r.pages[tail] = r.pages[tail][:pageSize]
+	}
+
+	// Read from source into this page
+	n, err := r.source.Read(r.pages[tail])
+
+	// Trim page to actual bytes read
+	r.pages[tail] = r.pages[tail][:n]
+
+	if err != nil && err != io.EOF {
+		return n, err
+	}
+
+	if n == 0 {
+		// No more data available
+		if err == io.EOF {
+			return n, io.EOF
+		}
+		return n, nil
+	}
+
+	// Update counters
+	r.count++
+	r.available += n
+
+	return n, nil
 }
 
 // growPagesRing grows the pages slice when the ring buffer is full
@@ -253,10 +283,11 @@ func (r *pagedReader) growPagesRing() {
 var _ SubReader = &subReader{}
 
 type subReader struct {
-	r         *pagedReader
-	head      int // the page at which the SubReader currently reads
-	position  int // position in bytes from the start of SubReader's head page
-	available int // remaining bytes allowed for reading, similar to an io.LimitedReader
+	r        *pagedReader
+	head     int // the page at which the SubReader currently reads
+	position int // position in bytes from the start of SubReader's head page
+	allowed  int // remaining bytes allowed for reading, similar to an io.LimitedReader
+	consumed int // total bytes given to a consumer (through Read(), Skip())
 }
 
 func newSubReader(r *pagedReader, offset uint64, size uint64) (*subReader, error) {
@@ -289,39 +320,39 @@ func newSubReader(r *pagedReader, offset uint64, size uint64) (*subReader, error
 	}
 
 	return &subReader{
-		r:         r,
-		head:      head,
-		position:  position,
-		available: int(size),
+		r:        r,
+		head:     head,
+		position: position,
+		allowed:  int(size),
 	}, nil
 }
 
-func (s *subReader) Read(p []byte) (n int, err error) {
+func (s *subReader) Read(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
 
 	totalRead := 0
 
-	for totalRead < len(p) && s.available > 0 {
+	for totalRead < len(p) && s.allowed > 0 {
 		availableInPage := len(s.r.pages[s.head]) - s.position
 		wanted := len(p) - totalRead
 
-		if wanted < availableInPage || s.available < availableInPage {
+		if wanted < availableInPage || s.allowed < availableInPage {
 			// we stay within one page
-			if wanted <= s.available {
+			if wanted <= s.allowed {
 				// not reaching the end of available
 				copy(p[totalRead:], s.r.pages[s.head][s.position:s.position+wanted])
 				totalRead += wanted
 				s.position += wanted
-				s.available -= wanted
+				s.allowed -= wanted
 				break
 			} else {
 				// reaching the end of available
-				copy(p[totalRead:], s.r.pages[s.head][s.position:s.position+s.available])
-				totalRead += s.available
-				s.position += s.available
-				s.available = 0
+				copy(p[totalRead:], s.r.pages[s.head][s.position:s.position+s.allowed])
+				totalRead += s.allowed
+				s.position += s.allowed
+				s.allowed = 0
 				return totalRead, io.EOF
 			}
 		} else {
@@ -330,7 +361,7 @@ func (s *subReader) Read(p []byte) (n int, err error) {
 			totalRead += availableInPage
 			s.head = (s.head + 1) % len(s.r.pages)
 			s.position = 0
-			s.available -= availableInPage
+			s.allowed -= availableInPage
 		}
 	}
 
@@ -338,17 +369,19 @@ func (s *subReader) Read(p []byte) (n int, err error) {
 		return 0, io.EOF
 	}
 
+	s.consumed += totalRead
+
 	return totalRead, nil
 }
 
 func (s *subReader) SubReader(offset uint64, size uint64) (SubReader, error) {
-	if offset+size > uint64(s.available) {
+	if offset+size > uint64(s.allowed) {
 		return nil, fmt.Errorf("subReader: offset + size > available")
 	}
 
 	head := s.head
 	position := s.position
-	available := s.available
+	available := s.allowed
 	toSkip := int(offset)
 
 	for toSkip > 0 && available > 0 {
@@ -368,40 +401,302 @@ func (s *subReader) SubReader(offset uint64, size uint64) (SubReader, error) {
 	}
 
 	return &subReader{
-		r:         s.r,
-		head:      head,
-		position:  position,
-		available: int(size),
+		r:        s.r,
+		head:     head,
+		position: position,
+		allowed:  int(size),
+	}, nil
+}
+
+func (s *subReader) SubReaderOffset(offset uint64) (SubReader, error) {
+	if offset > uint64(s.allowed) {
+		return nil, fmt.Errorf("subReader: offset > available")
+	}
+
+	head := s.head
+	position := s.position
+	available := s.allowed
+	toSkip := int(offset)
+
+	for toSkip > 0 && available > 0 {
+		availableInPage := len(s.r.pages[head]) - position
+
+		if toSkip < availableInPage {
+			position += toSkip
+			available -= toSkip
+			toSkip = 0
+			break
+		} else {
+			head = (head + 1) % len(s.r.pages)
+			position = 0
+			available -= availableInPage
+			toSkip -= availableInPage
+		}
+	}
+
+	return &subReader{
+		r:        s.r,
+		head:     head,
+		position: position,
+		allowed:  s.allowed - int(offset),
 	}, nil
 }
 
 func (s *subReader) Skip(n int) error {
-	if n > s.available {
-		return fmt.Errorf("subReader: skip %d > available %d", n, s.available)
+	if n > s.allowed {
+		return fmt.Errorf("subReader: skip %d > available %d", n, s.allowed)
 	}
 	for n > 0 {
 		availableInPage := len(s.r.pages[s.head]) - s.position
 		if n < availableInPage {
 			s.position += n
-			s.available -= n
+			s.allowed -= n
+			s.consumed += n
 			return nil
 		} else {
 			s.r.pages[s.head] = s.r.pages[s.head][:0] // keep the cap, set len to zero
 			s.head = (s.head + 1) % len(s.r.pages)
 			s.position = 0
-			s.available -= availableInPage
+			s.allowed -= availableInPage
 			n -= availableInPage
+			s.consumed += availableInPage
 		}
 	}
 	return nil
 }
 
 func (s *subReader) Empty() bool {
-	return s.available <= 0
+	return s.allowed <= 0
+}
+
+func (s *subReader) Consumed() int {
+	return s.consumed
 }
 
 func (s *subReader) Peek(w io.Writer, n int) error {
 	panic("not implemented")
+}
+
+var _ SubReader = &subReaderOffset{}
+
+type subReaderOffset struct {
+	r        *pagedReader
+	head     int // the page at which the SubReader currently reads
+	position int // position in bytes from the start of SubReader's head page
+	consumed int // total bytes given to a consumer (through Read(), Skip())
+}
+
+func newSubReaderOffset(r *pagedReader, offset uint64) (*subReaderOffset, error) {
+	// Only grow enough to reach the offset, not more
+	if int(offset) > r.available {
+		err := r.grow(int(offset))
+		if err != nil {
+			return nil, fmt.Errorf("subReaderOffset: grow failed: %w", err)
+		}
+	}
+
+	head := r.head
+	position := r.position
+	available := r.available
+	toSkip := int(offset)
+
+	for toSkip > 0 && available > 0 {
+		availableInPage := len(r.pages[head]) - position
+
+		if toSkip <= availableInPage {
+			position += toSkip
+			available -= toSkip
+			toSkip = 0
+			break
+		} else {
+			head = (head + 1) % len(r.pages)
+			position = 0
+			available -= availableInPage
+			toSkip -= availableInPage
+		}
+	}
+
+	return &subReaderOffset{
+		r:        r,
+		head:     head,
+		position: position,
+	}, nil
+}
+
+func (s *subReaderOffset) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	// if the current page is empty, try to load
+	if s.head == (s.r.head+s.r.count)%len(s.r.pages) && len(s.r.pages[s.head]) == 0 {
+		_, err := s.r.loadPage()
+		if err != nil && err != io.EOF {
+			return 0, err
+		}
+	}
+
+	totalRead := 0
+
+	for totalRead < len(p) {
+		availableInPage := len(s.r.pages[s.head]) - s.position
+		wanted := len(p) - totalRead
+
+		if wanted <= availableInPage {
+			copy(p[totalRead:], s.r.pages[s.head][s.position:s.position+wanted])
+			s.position += wanted
+			totalRead += wanted
+			break
+		} else {
+			copy(p[totalRead:], s.r.pages[s.head][s.position:])
+			totalRead += availableInPage
+			if (s.head+1)%len(s.r.pages) == (s.r.head+s.r.count)%len(s.r.pages) {
+				loaded, err := s.r.loadPage()
+				if loaded == 0 {
+					s.consumed += totalRead
+					return totalRead, io.EOF
+				}
+				if err != nil {
+					s.consumed += totalRead
+					return totalRead, err
+				}
+			}
+			s.head = (s.head + 1) % len(s.r.pages)
+			s.position = 0
+		}
+	}
+
+	if totalRead == 0 {
+		return 0, io.EOF
+	}
+
+	s.consumed += totalRead
+
+	return totalRead, nil
+}
+
+func (s *subReaderOffset) SubReader(offset uint64, size uint64) (SubReader, error) {
+	head := s.head
+	position := s.position
+	toSkip := int(offset)
+
+	for toSkip > 0 {
+		availableInPage := len(s.r.pages[head]) - position
+
+		if toSkip < availableInPage {
+			position += toSkip
+			toSkip = 0
+			break
+		} else {
+			if (head+1)%len(s.r.pages) == (s.r.head+s.r.count)%len(s.r.pages) {
+				_, err := s.r.loadPage()
+				if err != nil {
+					return nil, fmt.Errorf("subReaderOffset: SubReader offset beyond available data: %w", err)
+				}
+			}
+			head = (head + 1) % len(s.r.pages)
+			position = 0
+			toSkip -= availableInPage
+		}
+	}
+
+	return &subReader{
+		r:        s.r,
+		head:     head,
+		position: position,
+		allowed:  int(size),
+	}, nil
+}
+
+func (s *subReaderOffset) SubReaderOffset(offset uint64) (SubReader, error) {
+	panic("not implemented")
+}
+
+func (s *subReaderOffset) Skip(n int) error {
+	// if the current page is empty, try to load
+	if s.head == (s.r.head+s.r.count)%len(s.r.pages) && len(s.r.pages[s.head]) == 0 {
+		_, err := s.r.loadPage()
+		if err != nil && err != io.EOF {
+			return err
+		}
+	}
+
+	for n > 0 {
+		availableInPage := len(s.r.pages[s.head]) - s.position
+		if n < availableInPage {
+			s.position += n
+			s.consumed += n
+			return nil
+		} else {
+			n -= availableInPage
+			s.consumed += availableInPage
+			if (s.head+1)%len(s.r.pages) == (s.r.head+s.r.count)%len(s.r.pages) {
+				loaded, err := s.r.loadPage()
+				if loaded == 0 {
+					return io.EOF
+				}
+				if err != nil {
+					return err
+				}
+			}
+			s.head = (s.head + 1) % len(s.r.pages)
+			s.position = 0
+		}
+	}
+	return nil
+}
+
+func (s *subReaderOffset) Empty() bool {
+	panic("not implemented")
+}
+
+func (s *subReaderOffset) Consumed() int {
+	return s.consumed
+}
+
+func (s *subReaderOffset) Peek(w io.Writer, n int) error {
+	if n == 0 {
+		return nil
+	}
+
+	// if the current page is empty, try to load
+	if s.head == (s.r.head+s.r.count)%len(s.r.pages) && len(s.r.pages[s.head])-s.position == 0 {
+		_, err := s.r.loadPage()
+		if err != nil {
+			return err
+		}
+	}
+
+	head := s.head
+	position := s.position
+
+	for n > 0 {
+		availableInPage := len(s.r.pages[head]) - position
+
+		if n <= availableInPage {
+			_, err := w.Write(s.r.pages[head][position : position+n])
+			return err
+		} else {
+			_, err := w.Write(s.r.pages[head][position:])
+			if err != nil {
+				return err
+			}
+			n -= availableInPage
+			if (head+1)%len(s.r.pages) == (s.r.head+s.r.count)%len(s.r.pages) {
+				loaded, err := s.r.loadPage()
+				if loaded == 0 {
+					return io.EOF
+				}
+				if err != nil {
+					return err
+				}
+			}
+			head = (head + 1) % len(s.r.pages)
+			position = 0
+		}
+	}
+
+	return nil
 }
 
 var _ SubReader = &bytesReader{}
@@ -409,6 +704,7 @@ var _ SubReader = &bytesReader{}
 type bytesReader struct {
 	data     []byte
 	position int
+	consumed int // total bytes given to a consumer (through Read(), Skip())
 }
 
 func NewBytesReader(data []byte) SubReader {
@@ -425,6 +721,7 @@ func (b *bytesReader) Read(p []byte) (n int, err error) {
 	}
 	copy(p, b.data[b.position:b.position+toRead])
 	b.position += toRead
+	b.consumed += toRead
 	return toRead, err
 }
 
@@ -435,17 +732,28 @@ func (b *bytesReader) SubReader(offset uint64, size uint64) (SubReader, error) {
 	return &bytesReader{data: b.data[uint64(b.position)+offset : uint64(b.position)+offset+size], position: 0}, nil
 }
 
+func (b *bytesReader) SubReaderOffset(offset uint64) (SubReader, error) {
+	if uint64(b.position)+offset > uint64(len(b.data)) {
+		return nil, fmt.Errorf("bytesReader: offset > len(data)")
+	}
+	return &bytesReader{data: b.data[uint64(b.position)+offset:], position: 0}, nil
+}
+
 func (b *bytesReader) Skip(n int) error {
-	fmt.Println("skip", n)
-	b.position += n
-	if b.position > len(b.data) {
+	if b.position+n > len(b.data) {
 		return fmt.Errorf("bytesReader: skip %d > len(data)", n)
 	}
+	b.position += n
+	b.consumed += n
 	return nil
 }
 
 func (b *bytesReader) Empty() bool {
 	return b.position >= len(b.data)
+}
+
+func (b *bytesReader) Consumed() int {
+	return b.consumed
 }
 
 func (b *bytesReader) Peek(w io.Writer, n int) error {

@@ -485,6 +485,188 @@ func TestPagedReader_SubReader_ExactPageBoundary(t *testing.T) {
 	require.Equal(t, g.All()[16*1024:24*1024], result)
 }
 
+func TestPagedReader_SubReaderOffset_Basic(t *testing.T) {
+	g := generate(10000)
+	r := NewPagedReader(g)
+
+	// Test reading from offset 0 (beginning)
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All(), result)
+}
+
+func TestPagedReader_SubReaderOffset_FromMiddle(t *testing.T) {
+	g := generate(10000)
+	r := NewPagedReader(g)
+
+	// Test reading from offset 3000 to end
+	sub, err := r.SubReaderOffset(3000)
+	require.NoError(t, err)
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[3000:], result)
+
+	// Original reader position should not have changed
+	originalResult, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All(), originalResult)
+}
+
+func TestPagedReader_SubReaderOffset_AfterRead(t *testing.T) {
+	g := generate(15000)
+	r := NewPagedReader(g)
+
+	// Read some data first
+	buf := make([]byte, 4000)
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 4000, n)
+
+	// Create sub-reader from offset relative to current position
+	sub, err := r.SubReaderOffset(2000)
+	require.NoError(t, err)
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[6000:], result) // 4000 (read) + 2000 (offset)
+
+	// Original reader should still be at position 4000
+	remaining, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[4000:], remaining)
+}
+
+func TestPagedReader_SubReaderOffset_CrossPageBoundary(t *testing.T) {
+	g := generate(100 * 1024) // Multiple pages
+	r := NewPagedReader(g)
+
+	// Create sub-reader starting from an offset that crosses page boundaries
+	sub, err := r.SubReaderOffset(20 * 1024)
+	require.NoError(t, err)
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[20*1024:], result)
+}
+
+func TestPagedReader_SubReaderOffset_EmptyResult(t *testing.T) {
+	g := generate(1000)
+	r := NewPagedReader(g)
+
+	// Try to create sub-reader from end of data
+	sub, err := r.SubReaderOffset(1000)
+	require.NoError(t, err)
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Empty(t, result)
+}
+
+func TestPagedReader_SubReaderOffset_OffsetBeyondData(t *testing.T) {
+	g := generate(1000)
+	r := NewPagedReader(g)
+
+	// Try to create sub-reader from beyond available data
+	sub, err := r.SubReaderOffset(2000)
+	require.Error(t, err)
+	require.Nil(t, sub)
+}
+
+func TestPagedReader_SubReaderOffset_WithSkip(t *testing.T) {
+	g := generate(20000)
+	r := NewPagedReader(g)
+
+	// Skip some data
+	err := r.Skip(5000)
+	require.NoError(t, err)
+
+	// Create sub-reader from offset relative to current position
+	sub, err := r.SubReaderOffset(3000)
+	require.NoError(t, err)
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[8000:], result) // 5000 (skipped) + 3000 (offset)
+
+	// Original reader should still be at position 5000
+	remaining, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[5000:], remaining)
+}
+
+func TestPagedReader_SubReaderOffset_MultipleSubReaders(t *testing.T) {
+	g := generate(30000)
+	r := NewPagedReader(g)
+
+	// Create multiple sub-readers at different offsets
+	sub1, err := r.SubReaderOffset(1000)
+	require.NoError(t, err)
+
+	sub2, err := r.SubReaderOffset(5000)
+	require.NoError(t, err)
+
+	sub3, err := r.SubReaderOffset(10000)
+	require.NoError(t, err)
+
+	// Read from each sub-reader
+	result1, err := io.ReadAll(sub1)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[1000:], result1)
+
+	result2, err := io.ReadAll(sub2)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[5000:], result2)
+
+	result3, err := io.ReadAll(sub3)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[10000:], result3)
+
+	// Original reader position should not have changed
+	originalResult, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All(), originalResult)
+}
+
+func TestPagedReader_SubReaderOffset_SmallReads(t *testing.T) {
+	g := generate(5000)
+	r := NewPagedReader(g)
+
+	sub, err := r.SubReaderOffset(2000)
+	require.NoError(t, err)
+
+	// Read one byte at a time from the sub-reader
+	var result []byte
+	buf := make([]byte, 1)
+
+	for {
+		n, err := sub.Read(buf)
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		require.Equal(t, 1, n)
+		result = append(result, buf[:n]...)
+	}
+
+	require.Equal(t, g.All()[2000:], result)
+}
+
+func TestPagedReader_SubReaderOffset_ZeroOffset(t *testing.T) {
+	g := generate(8000)
+	r := NewPagedReader(g)
+
+	// Read some data first to change position
+	buf := make([]byte, 3000)
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 3000, n)
+
+	// Create sub-reader with zero offset (from current position)
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[3000:], result) // Should start from current position
+}
+
 func TestPagedReader_Skip_AfterSubReader(t *testing.T) {
 	g := generate(10000)
 	r := NewPagedReader(g)
@@ -865,6 +1047,75 @@ func TestPagedReader_Empty_CrossPageBoundaries(t *testing.T) {
 	require.True(t, r.Empty())
 }
 
+func TestPagedReader_Consumed_Basic(t *testing.T) {
+	g := generate(2000)
+	r := NewPagedReader(g)
+
+	// Initially consumed should be 0
+	require.Equal(t, 0, r.Consumed())
+
+	// Read some data
+	buf := make([]byte, 500)
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 500, n)
+
+	// Consumed should reflect the read bytes
+	require.Equal(t, 500, r.Consumed())
+
+	// Read more data
+	n, err = r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 500, n)
+
+	// Consumed should accumulate
+	require.Equal(t, 1000, r.Consumed())
+}
+
+func TestPagedReader_Consumed_WithSkip(t *testing.T) {
+	g := generate(3000)
+	r := NewPagedReader(g)
+
+	// Read some data
+	buf := make([]byte, 800)
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 800, n)
+	require.Equal(t, 800, r.Consumed())
+
+	// Skip some data
+	err = r.Skip(600)
+	require.NoError(t, err)
+
+	// Consumed should include skipped bytes
+	require.Equal(t, 1400, r.Consumed())
+
+	// Read more data
+	n, err = r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 800, n)
+
+	// Final consumed count
+	require.Equal(t, 2200, r.Consumed())
+}
+
+func TestPagedReader_Consumed_EmptySource(t *testing.T) {
+	g := generate(0)
+	r := NewPagedReader(g)
+
+	// Consumed should be 0 for empty source
+	require.Equal(t, 0, r.Consumed())
+
+	// Try to read from empty source
+	buf := make([]byte, 100)
+	n, err := r.Read(buf)
+	require.Equal(t, 0, n)
+	require.Equal(t, io.EOF, err)
+
+	// Consumed should still be 0
+	require.Equal(t, 0, r.Consumed())
+}
+
 func TestSubReader_SubReader_Basic(t *testing.T) {
 	g := generate(10000)
 	r := NewPagedReader(g)
@@ -1183,6 +1434,126 @@ func TestSubReader_SubReader_LargeData(t *testing.T) {
 	expectedStart := 10*1024 + 20*1024     // 30KB
 	expectedEnd := expectedStart + 40*1024 // 70KB
 	require.Equal(t, g.All()[expectedStart:expectedEnd], result)
+}
+
+func TestSubReaderOffset_SubReader_Basic(t *testing.T) {
+	g := generate(10000)
+	r := NewPagedReader(g)
+
+	// Create a subReaderOffset starting from position 1000
+	offsetSub, err := r.SubReaderOffset(1000)
+	require.NoError(t, err)
+
+	// Create a SubReader from the offset reader
+	sub, err := offsetSub.SubReader(500, 2000)
+	require.NoError(t, err)
+
+	// Should read from position 1500 to 3500 in original data
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[1500:3500], result)
+}
+
+func TestSubReaderOffset_SubReader_FromBeginning(t *testing.T) {
+	g := generate(8000)
+	r := NewPagedReader(g)
+
+	// Create a subReaderOffset starting from position 2000
+	offsetSub, err := r.SubReaderOffset(2000)
+	require.NoError(t, err)
+
+	// Create a SubReader from offset 0 (beginning of offsetSub)
+	sub, err := offsetSub.SubReader(0, 1500)
+	require.NoError(t, err)
+
+	// Should read from position 2000 to 3500 in original data
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[2000:3500], result)
+}
+
+func TestSubReaderOffset_SubReader_ZeroSize(t *testing.T) {
+	g := generate(5000)
+	r := NewPagedReader(g)
+
+	offsetSub, err := r.SubReaderOffset(1000)
+	require.NoError(t, err)
+
+	// Create a zero-size SubReader
+	sub, err := offsetSub.SubReader(500, 0)
+	require.NoError(t, err)
+
+	buf := make([]byte, 100)
+	n, err := sub.Read(buf)
+	require.Equal(t, 0, n)
+	require.Equal(t, io.EOF, err)
+}
+
+func TestSubReaderOffset_SubReader_CrossPageBoundary(t *testing.T) {
+	g := generate(50 * 1024) // Multiple pages
+	r := NewPagedReader(g)
+
+	// Create offset reader starting at 10KB
+	offsetSub, err := r.SubReaderOffset(10 * 1024)
+	require.NoError(t, err)
+
+	// Create sub-reader that spans multiple pages
+	sub, err := offsetSub.SubReader(5*1024, 20*1024)
+	require.NoError(t, err)
+
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+
+	// Should read from 15KB to 35KB in original data
+	require.Equal(t, g.All()[15*1024:35*1024], result)
+}
+
+func TestSubReaderOffset_SubReader_ConcurrentReads(t *testing.T) {
+	g := generate(20000)
+	r := NewPagedReader(g)
+
+	offsetSub, err := r.SubReaderOffset(3000)
+	require.NoError(t, err)
+
+	// Create multiple SubReaders from the same offset reader
+	sub1, err := offsetSub.SubReader(0, 2000)
+	require.NoError(t, err)
+	sub2, err := offsetSub.SubReader(2000, 1500)
+	require.NoError(t, err)
+	sub3, err := offsetSub.SubReader(5000, 2500)
+	require.NoError(t, err)
+
+	// Read from all SubReaders
+	result1, err := io.ReadAll(sub1)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[3000:5000], result1)
+
+	result2, err := io.ReadAll(sub2)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[5000:6500], result2)
+
+	result3, err := io.ReadAll(sub3)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[8000:10500], result3)
+}
+
+func TestSubReaderOffset_SubReader_ExactPageBoundary(t *testing.T) {
+	g := generate(64 * 1024) // 4 pages
+	r := NewPagedReader(g)
+
+	// Start offset reader at page boundary
+	offsetSub, err := r.SubReaderOffset(16 * 1024)
+	require.NoError(t, err)
+
+	// Create SubReader starting at another page boundary
+	sub, err := offsetSub.SubReader(16*1024, 16*1024)
+	require.NoError(t, err)
+
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+
+	// Should read from 32KB to 48KB in original data
+	require.Equal(t, g.All()[32*1024:48*1024], result)
 }
 
 func TestSubReader_Skip_Basic(t *testing.T) {
@@ -1676,6 +2047,278 @@ func TestSubReader_Empty_AfterSkipAndRead(t *testing.T) {
 
 	// Should be empty now
 	require.True(t, sub.Empty())
+}
+
+func TestSubReader_Consumed_InitialState(t *testing.T) {
+	g := generate(5000)
+	r := NewPagedReader(g)
+
+	sub, err := r.SubReader(1000, 2000)
+	require.NoError(t, err)
+
+	// Initially no bytes consumed
+	require.Equal(t, 0, sub.Consumed())
+}
+
+func TestSubReader_Consumed_AfterRead(t *testing.T) {
+	g := generate(8000)
+	r := NewPagedReader(g)
+
+	sub, err := r.SubReader(500, 3000)
+	require.NoError(t, err)
+
+	// Read some data
+	buf := make([]byte, 1000)
+	n, err := sub.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 1000, n)
+
+	// Should show 1000 bytes consumed
+	require.Equal(t, 1000, sub.Consumed())
+}
+
+func TestSubReader_Consumed_MultipleReads(t *testing.T) {
+	g := generate(6000)
+	r := NewPagedReader(g)
+
+	sub, err := r.SubReader(200, 2500)
+	require.NoError(t, err)
+
+	// Read in chunks
+	buf := make([]byte, 400)
+
+	n1, err := sub.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 400, n1)
+	require.Equal(t, 400, sub.Consumed())
+
+	n2, err := sub.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 400, n2)
+	require.Equal(t, 800, sub.Consumed()) // 400 + 400
+
+	n3, err := sub.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 400, n3)
+	require.Equal(t, 1200, sub.Consumed()) // 400 + 400 + 400
+}
+
+func TestSubReader_Consumed_AfterSkip(t *testing.T) {
+	g := generate(10000)
+	r := NewPagedReader(g)
+
+	sub, err := r.SubReader(1000, 4000)
+	require.NoError(t, err)
+
+	// Skip some data
+	err = sub.Skip(800)
+	require.NoError(t, err)
+	require.Equal(t, 800, sub.Consumed())
+
+	// Read some data
+	buf := make([]byte, 500)
+	n, err := sub.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 500, n)
+
+	// Should include both skipped and read bytes
+	require.Equal(t, 1300, sub.Consumed()) // 800 + 500
+}
+
+func TestSubReaderOffset_Peek_Basic(t *testing.T) {
+	g := generate(5000)
+	r := NewPagedReader(g)
+
+	sub, err := r.SubReaderOffset(1000)
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	err = sub.Peek(&buf, 500)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[1000:1500], buf.Bytes())
+
+	// Position should not have changed
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[1000:], result)
+}
+
+func TestSubReaderOffset_Peek_ZeroBytes(t *testing.T) {
+	g := generate(3000)
+	r := NewPagedReader(g)
+
+	sub, err := r.SubReaderOffset(800)
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	err = sub.Peek(&buf, 0)
+	require.NoError(t, err)
+	require.Equal(t, 0, buf.Len())
+
+	// Position should not have changed
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[800:], result)
+}
+
+func TestSubReaderOffset_Peek_AfterRead(t *testing.T) {
+	g := generate(8000)
+	r := NewPagedReader(g)
+
+	sub, err := r.SubReaderOffset(2000)
+	require.NoError(t, err)
+
+	// Read some data first
+	readBuf := make([]byte, 1000)
+	n, err := sub.Read(readBuf)
+	require.NoError(t, err)
+	require.Equal(t, 1000, n)
+	require.Equal(t, g.All()[2000:3000], readBuf)
+
+	// Peek at next data
+	var peekBuf bytes.Buffer
+	err = sub.Peek(&peekBuf, 800)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[3000:3800], peekBuf.Bytes())
+
+	// Position should not have changed by peek
+	remaining, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[3000:], remaining)
+}
+
+func TestSubReaderOffset_Peek_CrossPageBoundary(t *testing.T) {
+	g := generate(100 * 1024) // Multiple pages
+	r := NewPagedReader(g)
+
+	sub, err := r.SubReaderOffset(10 * 1024)
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	err = sub.Peek(&buf, 30*1024) // Span across multiple pages
+	require.NoError(t, err)
+	require.Equal(t, g.All()[10*1024:40*1024], buf.Bytes())
+
+	// Position should not have changed
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[10*1024:], result)
+}
+
+func TestSubReaderOffset_Peek_FromMainReaderPosition(t *testing.T) {
+	g := generate(12000)
+	r := NewPagedReader(g)
+
+	// Read some data with main reader
+	buf := make([]byte, 3000)
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 3000, n)
+
+	// Create sub-reader from offset relative to current position
+	sub, err := r.SubReaderOffset(2000)
+	require.NoError(t, err)
+
+	// Peek from the sub-reader
+	var peekBuf bytes.Buffer
+	err = sub.Peek(&peekBuf, 1000)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[5000:6000], peekBuf.Bytes()) // 3000 + 2000 = 5000
+
+	// Main reader position should not have changed
+	remaining, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[3000:], remaining)
+}
+
+func TestSubReaderOffset_Peek_AtPageBoundary(t *testing.T) {
+	g := generate(3 * pageSize)
+	r := NewPagedReader(g)
+
+	// Create sub-reader starting at page boundary
+	sub, err := r.SubReaderOffset(pageSize)
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	err = sub.Peek(&buf, pageSize)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[pageSize:2*pageSize], buf.Bytes())
+
+	// Position should not have changed
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[pageSize:], result)
+}
+
+func TestSubReaderOffset_Peek_NeedToLoadPages(t *testing.T) {
+	g := generate(80 * 1024) // Large data requiring page loading
+	r := NewPagedReader(g)
+
+	sub, err := r.SubReaderOffset(5 * 1024)
+	require.NoError(t, err)
+
+	// Peek at a large amount that will require loading more pages
+	var buf bytes.Buffer
+	err = sub.Peek(&buf, 50*1024)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[5*1024:55*1024], buf.Bytes())
+
+	// Position should not have changed
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[5*1024:], result)
+}
+
+func TestSubReaderOffset_Peek_WriterError(t *testing.T) {
+	g := generate(2000)
+	r := NewPagedReader(g)
+
+	sub, err := r.SubReaderOffset(500)
+	require.NoError(t, err)
+
+	// Create a writer that will fail after writing some bytes
+	failingWriter := &failingWriter{failAfter: 100}
+
+	err = sub.Peek(failingWriter, 300)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "write failed")
+}
+
+func TestSubReaderOffset_Peek_EmptyAtOffset(t *testing.T) {
+	g := generate(1000)
+	r := NewPagedReader(g)
+
+	// Create sub-reader at the very end
+	sub, err := r.SubReaderOffset(1000)
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	err = sub.Peek(&buf, 100)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, 0, buf.Len())
+}
+
+func TestSubReaderOffset_Peek_AfterSkip(t *testing.T) {
+	g := generate(10000)
+	r := NewPagedReader(g)
+
+	sub, err := r.SubReaderOffset(1000)
+	require.NoError(t, err)
+
+	// Skip some data in the sub-reader
+	err = sub.Skip(500)
+	require.NoError(t, err)
+
+	// Peek at remaining data
+	var buf bytes.Buffer
+	err = sub.Peek(&buf, 300)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[1500:1800], buf.Bytes()) // 1000 offset + 500 skipped
+
+	// Position should not have changed by peek
+	remaining, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, g.All()[1500:], remaining)
 }
 
 func TestBytesReader_Read_Basic(t *testing.T) {

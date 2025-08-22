@@ -28,34 +28,6 @@ type ChangeChunk struct {
 	ExtraBytes []byte
 }
 
-type OperationColumns struct {
-	ObjectActorId column.ActorColumnIter
-	ObjectCounter column.UlebColumnIter
-
-	KeyActorId column.ActorColumnIter
-	KeyCounter column.DeltaColumnIter
-	KeyString  column.StringColumnIter
-
-	ActorId column.ActorColumnIter
-	Counter column.DeltaColumnIter
-	Insert  column.BooleanColumnIter
-	Action  column.UlebColumnIter
-
-	ValueMetadata column.ValueMetadataColumnIter
-	Value         column.ValueColumn
-
-	PredecessorGroup   column.GroupColumnIter
-	PredecessorActorId column.ActorColumnIter
-	PredecessorCounter column.DeltaColumnIter
-
-	SuccessorGroup   column.GroupColumnIter
-	SuccessorActorId column.ActorColumnIter
-	SuccessorCounter column.DeltaColumnIter
-
-	ExpandControl column.BooleanColumnIter
-	Mark          column.StringColumnIter
-}
-
 func (cc ChangeChunk) String() string {
 	var res strings.Builder
 	res.WriteString("ChangeChunk {\n")
@@ -69,9 +41,13 @@ func (cc ChangeChunk) String() string {
 	for i, metadatum := range cc.OperationMetadata {
 		res.WriteString(fmt.Sprintf("  OperationMetadata[%d]: %v\n", i, metadatum))
 	}
-	// for operation, _ := range cc.Operations() {
-	// 	res.WriteString(fmt.Sprintf("  Operations: %v\n", operation))
-	// }
+	for operation, err := range cc.Operations() {
+		if err != nil {
+			res.WriteString(fmt.Sprintf("  Operation[i]: %v\n", err))
+		} else {
+			res.WriteString(fmt.Sprintf("  Operation[i]: %v\n", operation))
+		}
+	}
 	res.WriteString(fmt.Sprintf("  ExtraBytes: %v\n", cc.ExtraBytes))
 	res.WriteString("}\n")
 	return res.String()
@@ -182,54 +158,19 @@ func readChangeChunk(r ioutil.SubReader) (*ChangeChunk, error) {
 		}
 	}
 
-	// var prevValueMetadata []column.ValueMetadata
-	//
-	// res.Operations = make([][]any, len(res.OperationMetadata))
-	// for i, metadatum := range res.OperationMetadata {
-	// 	rCol := r.Limit(int64(metadatum.Length))
-	// 	if metadatum.Spec.Deflate() {
-	// 		return nil, fmt.Errorf("deflate not supported in change chunk column")
-	// 	}
-	//
-	// 	switch metadatum.Spec.Type() {
-	// 	case column.TypeGroup:
-	// 		res.Operations[i] = acc(rle.ReadUint64RLE(rCol))
-	// 	case column.TypeActor:
-	// 		res.Operations[i] = acc(rle.ReadUint64RLE(rCol))
-	// 	case column.TypeULEB128:
-	// 		res.Operations[i] = acc(column.ReadUlebColumn(rCol))
-	// 	case column.TypeDelta:
-	// 		res.Operations[i] = acc(column.ReadDeltaColumn(rCol))
-	// 	case column.TypeBool:
-	// 		res.Operations[i] = acc(column.ReadBooleanColumn(rCol))
-	// 	case column.TypeString:
-	// 		res.Operations[i] = acc(column.ReadStringColumn(rCol))
-	// 	case column.TypeValueMetadata:
-	// 		// TODO: HACK just for early visualisation
-	// 		it := column.ReadValueMetadataColumn(rCol)
-	// 		for vm, err := range it {
-	// 			if err != nil {
-	// 				panic(err)
-	// 			}
-	// 			res.Operations[i] = append(res.Operations[i], vm)
-	// 			prevValueMetadata = append(prevValueMetadata, vm)
-	// 		}
-	// 	case column.TypeValue:
-	// 		// skip(rCol, metadatum.Spec, metadatum.Length)
-	//
-	// 		// TODO: HACK just for early visualisation
-	// 		res.Operations[i] = acc(column.ReadValueColumn(rCol, prevValueMetadata))
-	// 	}
-	// }
+	extra, err := r.SubReaderOffset(offset)
+	if err != nil {
+		return nil, fmt.Errorf("error reading extra: %w", err)
+	}
 
-	if r.Empty() {
+	if extra.Empty() {
 		// Don't try to read the extra bytes if we know there is none.
 		// This avoids an allocation in io.ReadAll(), as we know that virtually
 		// all the changes we read don't have those extra bytes.
 		return &res, nil
 	}
 
-	res.ExtraBytes, err = io.ReadAll(r)
+	res.ExtraBytes, err = io.ReadAll(extra)
 	if err != nil {
 		return nil, fmt.Errorf("error reading extra bytes: %w", err)
 	}
@@ -238,37 +179,18 @@ func readChangeChunk(r ioutil.SubReader) (*ChangeChunk, error) {
 }
 
 func (cc ChangeChunk) Operations() iter.Seq2[Operation, error] {
-	objs := ObjectIterator(
-		cc.Actor,
-		cc.OtherActors,
-		cc.OperationColumns.ObjectActorId,
-		cc.OperationColumns.ObjectCounter,
-	)
-
-	return func(yield func(Operation, error) bool) {
-		for id, err := range objs {
-			if err != nil {
-				yield(Operation{}, err)
-				return
-			}
-			if !yield(Operation{
-				Object: id,
-			}, nil) {
-				return
-			}
-		}
-	}
+	return cc.OperationColumns.Operations()
 }
 
-type Change struct {
-	ActorId   types.ActorId
-	SeqNum    uint64
-	Ops       []Operation
-	Deps      []types.ChangeHash
-	Time      types.Timestamp
-	Message   string
-	ExtraData any
-}
+// type Change struct {
+// 	ActorId   types.ActorId
+// 	SeqNum    uint64
+// 	Ops       []Operation
+// 	Deps      []types.ChangeHash
+// 	Time      types.Timestamp
+// 	Message   string
+// 	ExtraData any
+// }
 
 func (cc ChangeChunk) ToChange() {
 

@@ -2,7 +2,6 @@ package column
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"iter"
 	"unicode/utf8"
@@ -11,6 +10,7 @@ import (
 
 	"gotomerge/lbuf"
 	"gotomerge/types"
+	ioutil "gotomerge/utils/io"
 )
 
 type ValueColumn struct {
@@ -18,16 +18,22 @@ type ValueColumn struct {
 }
 
 type ValueColumnIter = iter.Seq2[any, error]
+type ValueColumnIterMaker interface {
+	Iter(meta iter.Seq2[ValueMetadata, error]) ValueColumnIter
+}
 
 func NewValueColumn(r io.Reader) ValueColumn {
 	return ValueColumn{r: r}
 }
 
-func (vc ValueColumn) Iter(meta []ValueMetadata) ValueColumnIter {
+func (vc ValueColumn) Iter(meta iter.Seq2[ValueMetadata, error]) ValueColumnIter {
 	return func(yield func(any, error) bool) {
-		for _, metadata := range meta {
+		for metadata, err := range meta {
+			if err != nil {
+				yield(err, nil)
+				return
+			}
 			var val any
-			var err error
 			switch metadata.Type() {
 			case ValueTypeNull:
 				val = nil
@@ -41,7 +47,6 @@ func (vc ValueColumn) Iter(meta []ValueMetadata) ValueColumnIter {
 				val, err = leb128.DecodeS64(vc.r)
 			case ValueTypeFloat:
 				var f float64
-				// TODO: little endian? complete the spec
 				err = binary.Read(vc.r, binary.LittleEndian, &f)
 				val = f
 			case ValueTypeString:
@@ -70,9 +75,12 @@ func (vc ValueColumn) Iter(meta []ValueMetadata) ValueColumnIter {
 				ts, err = leb128.DecodeS64(vc.r)
 				val = types.Timestamp(ts)
 			default:
-				// TODO: should we read to write back later?
-				yield(nil, fmt.Errorf("unknown value type %d", metadata.Type()))
-				return
+				data, err := ioutil.ReadBytesLimitedPrealloc(vc.r, metadata.Length())
+				if err != nil {
+					yield(nil, err)
+					return
+				}
+				val = UnknownValue{Type: metadata.Type(), Bytes: data}
 			}
 			if err != nil {
 				yield(nil, err)
@@ -80,6 +88,55 @@ func (vc ValueColumn) Iter(meta []ValueMetadata) ValueColumnIter {
 			}
 			if !yield(val, nil) {
 				return
+			}
+		}
+	}
+}
+
+type NullValueColumn struct{}
+
+func (NullValueColumn) Iter(meta iter.Seq2[ValueMetadata, error]) ValueColumnIter {
+	return func(yield func(any, error) bool) {
+		for metadata, err := range meta {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			switch metadata.Type() {
+			case ValueTypeNull:
+				if !yield(nil, nil) {
+					return
+				}
+			case ValueTypeFalse:
+				// TODO: what to do here?
+				panic("what to do here?")
+			case ValueTypeTrue:
+				// TODO: what to do here?
+				panic("what to do here?")
+			case ValueTypeUInt:
+				// TODO: what to do here?
+				panic("what to do here?")
+			case ValueTypeInt:
+				// TODO: what to do here?
+				panic("what to do here?")
+			case ValueTypeFloat:
+				// TODO: what to do here?
+				panic("what to do here?")
+			case ValueTypeString:
+				// TODO: what to do here?
+				panic("what to do here?")
+			case ValueTypeBytes:
+				// TODO: what to do here?
+				panic("what to do here?")
+			case ValueTypeCounter:
+				// TODO: what to do here?
+				panic("what to do here?")
+			case ValueTypeTimestamp:
+				// TODO: what to do here?
+				panic("what to do here?")
+			default:
+				// TODO: what to do here?
+				panic("what to do here?")
 			}
 		}
 	}
