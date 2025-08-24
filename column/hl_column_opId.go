@@ -36,11 +36,10 @@ func (o OperationIdColumnIter) Next() (types.OpId, error) {
 		return types.OpId{}, err
 	}
 
-	// TODO: a bit of guessing below, is that correct?
 	switch {
-	case !nullActorIdx:
+	case nullActorIdx:
 		return types.OpId{}, ErrUnexpectedNull("counter")
-	case !nullCounter:
+	case nullCounter:
 		return types.OpId{}, ErrUnexpectedNull("actor index")
 	default:
 		if actorIdx < 0 || actorIdx >= math.MaxUint32 {

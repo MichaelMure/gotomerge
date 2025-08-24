@@ -26,8 +26,8 @@ func TestReadDocument(t *testing.T) {
 		name   string
 		chunks int
 	}{
-		{name: "64bit_obj_id_change.automerge", chunks: 1},
-		{name: "64bit_obj_id_doc.automerge", chunks: 1},
+		// {name: "64bit_obj_id_change.automerge", chunks: 1}, // those are actually invalid, counter overflows
+		// {name: "64bit_obj_id_doc.automerge", chunks: 1},
 		{name: "counter_value_is_ok.automerge", chunks: 1},
 		{name: "exemplar", chunks: 1},
 		{name: "two_change_chunks.automerge", chunks: 2},
@@ -44,11 +44,11 @@ func TestReadDocument(t *testing.T) {
 
 			var chunks int
 			for {
-				_, toSkip, err := readChunk(r)
+				c, toSkip, err := readChunk(r)
 				require.NoError(t, err)
-				// fmt.Println(c)
-				// fmt.Println()
-				// fmt.Println()
+				fmt.Println(c)
+				fmt.Println()
+				fmt.Println()
 
 				err = r.Skip(toSkip)
 				require.NoError(t, err)

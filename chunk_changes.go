@@ -1,6 +1,7 @@
 package gotomerge
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -22,8 +23,8 @@ type ChangeChunk struct {
 	Message      string
 	OtherActors  []types.ActorId
 
-	OperationMetadata column.Metadata
-	OperationColumns  OperationColumns
+	OpMetadata column.Metadata
+	OpColumns  OperationColumns
 
 	ExtraBytes []byte
 }
@@ -38,7 +39,7 @@ func (cc ChangeChunk) String() string {
 	res.WriteString(fmt.Sprintf("  Time: %v\n", cc.Time))
 	res.WriteString(fmt.Sprintf("  Message: %v\n", cc.Message))
 	res.WriteString(fmt.Sprintf("  OtherActors: %v\n", cc.OtherActors))
-	for i, metadatum := range cc.OperationMetadata {
+	for i, metadatum := range cc.OpMetadata {
 		res.WriteString(fmt.Sprintf("  OperationMetadata[%d]: %v\n", i, metadatum))
 	}
 	for operation, err := range cc.Operations() {
@@ -97,13 +98,13 @@ func readChangeChunk(r ioutil.SubReader) (*ChangeChunk, error) {
 		return nil, fmt.Errorf("error reading other actors: %w", err)
 	}
 
-	res.OperationMetadata, err = column.ReadMetadata(r)
+	res.OpMetadata, err = column.ReadMetadata(r)
 	if err != nil {
 		return nil, fmt.Errorf("error reading operation metadata: %w", err)
 	}
 
 	var offset uint64
-	for _, metadatum := range res.OperationMetadata {
+	for _, metadatum := range res.OpMetadata {
 		rCol, err := r.SubReader(offset, metadatum.Length)
 		if err != nil {
 			return nil, fmt.Errorf("error reading operation column: %w", err)
@@ -115,46 +116,46 @@ func readChangeChunk(r ioutil.SubReader) (*ChangeChunk, error) {
 
 		switch metadatum.Spec {
 		case 1: // ID: 0, type: actor
-			res.OperationColumns.ObjectActorId = column.ReadActorColumn(rCol)
+			res.OpColumns.ObjectActorId = column.ReadActorColumn(rCol)
 		case 2: // ID: 0, type: uleb128
-			res.OperationColumns.ObjectCounter = column.ReadUlebColumn(rCol)
+			res.OpColumns.ObjectCounter = column.ReadUlebColumn(rCol)
 		case 17: // ID: 1, type: actor
-			res.OperationColumns.KeyActorId = column.ReadActorColumn(rCol)
+			res.OpColumns.KeyActorId = column.ReadActorColumn(rCol)
 		case 19: // ID: 1, type: delta
-			res.OperationColumns.KeyCounter = column.ReadDeltaColumn(rCol)
+			res.OpColumns.KeyCounter = column.ReadDeltaColumn(rCol)
 		case 21: // ID: 1, type: string
-			res.OperationColumns.KeyString = column.ReadStringColumn(rCol)
+			res.OpColumns.KeyString = column.ReadStringColumn(rCol)
 		case 33: // ID: 2, type: actor
-			res.OperationColumns.ActorId = column.ReadActorColumn(rCol)
+			res.OpColumns.ActorId = column.ReadActorColumn(rCol)
 		case 35: // ID: 2, type: delta
-			res.OperationColumns.Counter = column.ReadDeltaColumn(rCol)
+			res.OpColumns.Counter = column.ReadDeltaColumn(rCol)
 		case 52: // ID: 3, type: bool
-			res.OperationColumns.Insert = column.ReadBooleanColumn(rCol)
+			res.OpColumns.Insert = column.ReadBooleanColumn(rCol)
 		case 66: // ID: 4, type: uleb128
-			res.OperationColumns.Action = column.ReadUlebColumn(rCol)
+			res.OpColumns.Action = column.ReadUlebColumn(rCol)
 		case 86: // ID: 5, type: value_metadata
-			res.OperationColumns.ValueMetadata = column.ReadValueMetadataColumn(rCol)
+			res.OpColumns.ValueMetadata = column.ReadValueMetadataColumn(rCol)
 		case 87: // ID: 5, type: value
-			res.OperationColumns.Value = column.NewValueColumn(rCol)
+			res.OpColumns.Value = column.NewValueColumn(rCol)
 		case 112: // ID: 7, type: group
-			res.OperationColumns.PredecessorGroup = column.ReadGroupColumn(rCol)
+			res.OpColumns.PredecessorGroup = column.ReadGroupColumn(rCol)
 		case 113: // ID: 7, type: actor
-			res.OperationColumns.PredecessorActorId = column.ReadActorColumn(rCol)
+			res.OpColumns.PredecessorActorId = column.ReadActorColumn(rCol)
 		case 115: // ID: 7, type: delta
-			res.OperationColumns.PredecessorCounter = column.ReadDeltaColumn(rCol)
+			res.OpColumns.PredecessorCounter = column.ReadDeltaColumn(rCol)
 		case 128: // ID: 8, type: group
-			res.OperationColumns.SuccessorGroup = column.ReadGroupColumn(rCol)
+			res.OpColumns.SuccessorGroup = column.ReadGroupColumn(rCol)
 		case 129: // ID: 8, type: actor
-			res.OperationColumns.SuccessorActorId = column.ReadActorColumn(rCol)
+			res.OpColumns.SuccessorActorId = column.ReadActorColumn(rCol)
 		case 131: // ID: 8, type: delta
-			res.OperationColumns.SuccessorCounter = column.ReadDeltaColumn(rCol)
+			res.OpColumns.SuccessorCounter = column.ReadDeltaColumn(rCol)
 		case 148: // ID: 9, type: bool
-			res.OperationColumns.ExpandControl = column.ReadBooleanColumn(rCol)
+			res.OpColumns.ExpandControl = column.ReadBooleanColumn(rCol)
 		case 165: // ID: 10, type: string
-			res.OperationColumns.Mark = column.ReadStringColumn(rCol)
+			res.OpColumns.Mark = column.ReadStringColumn(rCol)
 		default:
 			// TODO: unknown column should be maintained
-			panic(fmt.Sprintf("unknown column type: %v", metadatum.Spec))
+			return nil, fmt.Errorf("unknown column type (TODO implementation): %v", metadatum.Spec)
 		}
 	}
 
@@ -178,8 +179,92 @@ func readChangeChunk(r ioutil.SubReader) (*ChangeChunk, error) {
 	return &res, nil
 }
 
-func (cc ChangeChunk) Operations() iter.Seq2[Operation, error] {
-	return cc.OperationColumns.Operations()
+func (cc ChangeChunk) Operations() iter.Seq2[ChangeOperation, error] {
+	objIter := column.ObjectColumn(cc.OpColumns.ObjectActorId, cc.OpColumns.ObjectCounter)
+	keyIter := column.KeyColumn(cc.OpColumns.KeyActorId, cc.OpColumns.KeyCounter, cc.OpColumns.KeyString)
+	insertIter := column.InsertColumn(cc.OpColumns.Insert)
+	actionIter := column.ActionColumn(cc.OpColumns.Action, cc.OpColumns.ValueMetadata, cc.OpColumns.Value)
+	predIter := column.GroupedOperationIdColumn("predecessors", cc.OpColumns.PredecessorGroup, cc.OpColumns.PredecessorActorId, cc.OpColumns.PredecessorCounter)
+
+	// TODO: text formatting
+
+	return func(yield func(ChangeOperation, error) bool) {
+		defer objIter.Stop()
+		defer keyIter.Stop()
+		defer insertIter.Stop()
+		defer actionIter.Stop()
+
+		for {
+			action, errAction := actionIter.Next()
+			if errAction != nil && !errors.Is(errAction, column.ErrDone) {
+				yield(ChangeOperation{}, errAction)
+				return
+			}
+
+			// Action act as the marker for how long we should iterate
+			// (from the rust codebase)
+			if errors.Is(errAction, column.ErrDone) {
+				return
+			}
+
+			obj, err := objIter.Next()
+			if err != nil && !errors.Is(err, column.ErrDone) {
+				yield(ChangeOperation{}, err)
+				return
+			}
+
+			key, err := keyIter.Next()
+			if err != nil && !errors.Is(err, column.ErrDone) {
+				yield(ChangeOperation{}, err)
+				return
+			}
+
+			insert, err := insertIter.Next()
+			if err != nil && !errors.Is(err, column.ErrDone) {
+				yield(ChangeOperation{}, err)
+				return
+			}
+
+			pred, err := predIter.Next()
+			if err != nil && !errors.Is(err, column.ErrDone) {
+				yield(ChangeOperation{}, err)
+				return
+			}
+
+			if !yield(ChangeOperation{
+				Object:       obj,
+				Key:          key,
+				Insert:       insert,
+				Action:       action,
+				Predecessors: pred,
+			}, nil) {
+				return
+			}
+		}
+	}
+}
+
+type ChangeOperation struct {
+	Object       types.ObjectId
+	Key          types.Key
+	Insert       bool
+	Action       types.Action
+	Predecessors []types.OpId
+}
+
+func (o ChangeOperation) String() string {
+	var res strings.Builder
+	res.WriteString("Operation {\n")
+	res.WriteString(fmt.Sprintf("  \tObject: %v\n", o.Object))
+	res.WriteString(fmt.Sprintf("  \tKey: %v\n", o.Key))
+	res.WriteString(fmt.Sprintf("  \tInsert: %v\n", o.Insert))
+	res.WriteString(fmt.Sprintf("  \tAction: %v\n", o.Action))
+	res.WriteString(fmt.Sprintf("  \tPredecessors: %v\n", o.Predecessors))
+	for i, pred := range o.Predecessors {
+		res.WriteString(fmt.Sprintf("  \tPredecessors[%d]: %v\n", i, pred))
+	}
+	res.WriteString("  }")
+	return res.String()
 }
 
 // type Change struct {

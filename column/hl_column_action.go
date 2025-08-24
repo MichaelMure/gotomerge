@@ -45,12 +45,12 @@ func (a ActionColumnIter) Next() (types.Action, error) {
 		return types.Action{}, ErrUnexpectedNull("action kind")
 	}
 
-	value, err, nullValue := a.nextValue()
+	value, err, ok := a.nextValue()
 	if err != nil {
 		return types.Action{}, err
 	}
-	if nullValue {
-		value = nil
+	if !ok {
+		return types.Action{}, ErrDone
 	}
 
 	err = types.ValidateAction(kind, value)
