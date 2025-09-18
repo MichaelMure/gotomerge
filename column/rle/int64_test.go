@@ -1,11 +1,10 @@
 package rle
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"gotomerge/lbuf"
 )
 
 func TestReadInt64RLE(t *testing.T) {
@@ -28,7 +27,7 @@ func TestReadInt64RLE(t *testing.T) {
 
 	var res []tuple
 
-	for leb, err := range ReadInt64RLE(lbuf.FromBytes(buf)) {
+	for leb, err := range ReadInt64RLE(bytes.NewReader(buf)) {
 		require.NoError(t, err)
 		val, valid := leb.Value()
 		res = append(res, tuple{val: val, valid: valid})
@@ -43,7 +42,7 @@ func BenchmarkReadInt64RLE(b *testing.B) {
 	// expand to 7 values
 	buf := []byte{0x7f, 0x03, 0x03, 0x01, 0x7d, 0x03, 0x7e, 0x01}
 	for i := 0; i < b.N; i++ {
-		for _, _ = range ReadInt64RLE(lbuf.FromBytes(buf)) {
+		for _, _ = range ReadInt64RLE(bytes.NewReader(buf)) {
 		}
 	}
 }

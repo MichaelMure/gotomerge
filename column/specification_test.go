@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"gotomerge/lbuf"
+	ioutil "gotomerge/utils/io"
 )
 
 func TestSpecification(t *testing.T) {
@@ -43,7 +43,7 @@ func TestSpecification(t *testing.T) {
 			err := writeSpecification(buf, spec)
 			require.NoError(t, err)
 
-			read, err := readSpecification(lbuf.FromReader(buf))
+			read, err := readSpecification(buf)
 			require.NoError(t, err)
 
 			require.Equal(t, spec, read)
@@ -64,7 +64,7 @@ func BenchmarkReadSpecification(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		_, _ = readSpecification(lbuf.FromReader(buf))
+		_, _ = readSpecification(buf)
 	}
 }
 
@@ -79,7 +79,7 @@ func BenchmarkWriteSpecification(b *testing.B) {
 
 func FuzzSpecificationRoundTrip(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
-		r := lbuf.FromBytes(data)
+		r := ioutil.NewBytesReader(data)
 		spec, err := readSpecification(r)
 		if err != nil {
 			return // ignore invalid input

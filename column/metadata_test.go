@@ -6,8 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"gotomerge/lbuf"
 )
 
 func TestMetadataRoundTrip(t *testing.T) {
@@ -20,7 +18,7 @@ func TestMetadataRoundTrip(t *testing.T) {
 	err := WriteMetadata(buf, meta)
 	require.NoError(t, err)
 
-	read, err := ReadMetadata(lbuf.FromReader(buf))
+	read, err := ReadMetadata(buf)
 	require.NoError(t, err)
 
 	require.Equal(t, meta, read)
@@ -74,7 +72,7 @@ func TestMetadataErrors(t *testing.T) {
 			err := WriteMetadata(buf, tc.bad)
 			require.NoError(t, err)
 
-			_, err = ReadMetadata(lbuf.FromReader(buf))
+			_, err = ReadMetadata(buf)
 			require.Error(t, err)
 		})
 	}
@@ -83,7 +81,7 @@ func TestMetadataErrors(t *testing.T) {
 func TestEmptyMetadata(t *testing.T) {
 	data := []byte{0x00}
 	buf := bytes.NewBuffer(data)
-	meta, err := ReadMetadata(lbuf.FromReader(buf))
+	meta, err := ReadMetadata(buf)
 	require.NoError(t, err)
 	require.Empty(t, meta)
 }
@@ -101,7 +99,7 @@ func BenchmarkReadMetadata(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		_, _ = ReadMetadata(lbuf.FromReader(buf))
+		_, _ = ReadMetadata(buf)
 	}
 }
 
