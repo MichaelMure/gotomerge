@@ -23,9 +23,17 @@ const (
 	ActionInc ActionKind = 0x05
 )
 
+func (k ActionKind) String() string {
+	return [...]string{"MakeMap", "Set", "MakeList", "Delete", "MakeText", "Inc"}[k]
+}
+
 type Action struct {
 	Kind  ActionKind
 	Value any
+}
+
+func (a Action) String() string {
+	return fmt.Sprintf("%s(%T: %v)", a.Kind, a.Value, a.Value)
 }
 
 func ValidateAction(action uint64, value any) error {

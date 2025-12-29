@@ -18,9 +18,8 @@ type DocumentChunk struct {
 	Heads       []types.ChangeHash
 	HeadIndexes []uint64
 
-	// TODO: should that stays?
 	ChangeMetadata column.Metadata
-	Changes        [][]any
+	ChangesColumns ChangeColumns
 
 	OpMetadata column.Metadata
 	OpColumns  OperationColumns
@@ -34,17 +33,18 @@ func (d DocumentChunk) String() string {
 	res.WriteString(fmt.Sprintf("  HeadIndexes: %v\n", d.HeadIndexes))
 	for i, metadatum := range d.ChangeMetadata {
 		res.WriteString(fmt.Sprintf("  ChangeMetadata[%d]: %v\n", i, metadatum))
-		res.WriteString(fmt.Sprintf("    Values: %v\n", d.Changes[i]))
 	}
 	for i, metadatum := range d.OpMetadata {
 		res.WriteString(fmt.Sprintf("  OperationMetadata[%d]: %v\n", i, metadatum))
 	}
+	i := 0
 	for operation, err := range d.Operations() {
 		if err != nil {
-			res.WriteString(fmt.Sprintf("  Operation[i]: %v\n", err))
+			res.WriteString(fmt.Sprintf("  Operation[%d]: %v\n", i, err))
 		} else {
-			res.WriteString(fmt.Sprintf("  Operation[i]: %v\n", operation))
+			res.WriteString(fmt.Sprintf("  Operation[%d]: %v\n", i, operation))
 		}
+		i++
 	}
 	res.WriteString("}\n")
 	return res.String()
@@ -75,7 +75,6 @@ func readDocumentChunk(r ioutil.SubReader) (*DocumentChunk, error) {
 	}
 
 	var offset uint64
-	res.Changes = make([][]any, len(res.ChangeMetadata))
 	for _, metadatum := range res.ChangeMetadata {
 		var rCol io.Reader
 		rCol, err = r.SubReader(offset, metadatum.Length)
@@ -87,26 +86,29 @@ func readDocumentChunk(r ioutil.SubReader) (*DocumentChunk, error) {
 			rCol = flate.NewReader(rCol)
 		}
 
-		// TODO
-
-		// switch metadatum.Spec.Type() {
-		// case column.TypeGroup:
-		// 	res.Changes[i] = acc(rle.ReadUint64RLE(rCol))
-		// case column.TypeActor:
-		// 	res.Changes[i] = acc(rle.ReadUint64RLE(rCol))
-		// case column.TypeULEB128:
-		// 	res.Changes[i] = acc(column.ReadUlebColumn(rCol))
-		// case column.TypeDelta:
-		// 	res.Changes[i] = acc(column.ReadDeltaColumn(rCol))
-		// case column.TypeBool:
-		// 	res.Changes[i] = acc(column.ReadBooleanColumn(rCol))
-		// case column.TypeString:
-		// 	res.Changes[i] = acc(column.ReadStringColumn(rCol))
-		// case column.TypeValueMetadata:
-		// 	res.Changes[i] = acc(column.ReadValueMetadataColumn(rCol))
-		// case column.TypeValue:
-		// 	skip(rCol, metadatum.Spec, metadatum.Length)
-		// }
+		switch metadatum.Spec {
+		case 1:
+			res.ChangesColumns.ActorId = column.ReadActorColumn(rCol)
+		case 3:
+			res.ChangesColumns.SeqNum = column.ReadDeltaColumn(rCol)
+		case 19:
+			res.ChangesColumns.MaxOp = column.ReadDeltaColumn(rCol)
+		case 35:
+			res.ChangesColumns.Time = column.ReadDeltaColumn(rCol)
+		case 53:
+			res.ChangesColumns.Message = column.ReadStringColumn(rCol)
+		case 64:
+			res.ChangesColumns.DependenciesGroup = column.ReadGroupColumn(rCol)
+		case 67:
+			res.ChangesColumns.DependenciesIndex = column.ReadDeltaColumn(rCol)
+		case 86:
+			res.ChangesColumns.ExtraMetadata = column.ReadValueMetadataColumn(rCol)
+		case 87:
+			res.ChangesColumns.ExtraData = column.NewValueColumn(rCol)
+		default:
+			// TODO: unknown column should be maintained
+			return nil, fmt.Errorf("unknown column type (TODO implementation): %v", metadatum.Spec)
+		}
 	}
 
 	for _, metadatum := range res.OpMetadata {
@@ -173,7 +175,16 @@ func readDocumentChunk(r ioutil.SubReader) (*DocumentChunk, error) {
 	return &res, nil
 }
 
-func (d DocumentChunk) Operations() iter.Seq2[DocOperation, error] {
+// func (d DocumentChunk) Changes() iter.Seq2[DocChange, error] {
+// 	nextActorIdx, stopActorIdx := iter.Pull2(d.ChangesColumns.ActorId)
+//
+// 	// actor iterator
+// 	// seqnum iterator
+// 	// max op iterator
+//
+// }
+
+func (d DocumentChunk) Operations() iter.Seq2[types.DocOperation, error] {
 	objIter := column.ObjectColumn(d.OpColumns.ObjectActorId, d.OpColumns.ObjectCounter)
 	keyIter := column.KeyColumn(d.OpColumns.KeyActorId, d.OpColumns.KeyCounter, d.OpColumns.KeyString)
 	OpIdIter := column.OperationIdColumn(d.OpColumns.ActorId, d.OpColumns.Counter)
@@ -183,7 +194,7 @@ func (d DocumentChunk) Operations() iter.Seq2[DocOperation, error] {
 
 	// TODO: text formatting
 
-	return func(yield func(DocOperation, error) bool) {
+	return func(yield func(types.DocOperation, error) bool) {
 		defer objIter.Stop()
 		defer keyIter.Stop()
 		defer OpIdIter.Stop()
@@ -193,7 +204,7 @@ func (d DocumentChunk) Operations() iter.Seq2[DocOperation, error] {
 		for {
 			action, errAction := actionIter.Next()
 			if errAction != nil && !errors.Is(errAction, column.ErrDone) {
-				yield(DocOperation{}, errAction)
+				yield(types.DocOperation{}, errAction)
 				return
 			}
 
@@ -205,35 +216,35 @@ func (d DocumentChunk) Operations() iter.Seq2[DocOperation, error] {
 
 			obj, err := objIter.Next()
 			if err != nil && !errors.Is(err, column.ErrDone) {
-				yield(DocOperation{}, err)
+				yield(types.DocOperation{}, err)
 				return
 			}
 
 			key, err := keyIter.Next()
 			if err != nil && !errors.Is(err, column.ErrDone) {
-				yield(DocOperation{}, err)
+				yield(types.DocOperation{}, err)
 				return
 			}
 
 			id, err := OpIdIter.Next()
 			if err != nil && !errors.Is(err, column.ErrDone) {
-				yield(DocOperation{}, err)
+				yield(types.DocOperation{}, err)
 				return
 			}
 
 			insert, err := insertIter.Next()
 			if err != nil && !errors.Is(err, column.ErrDone) {
-				yield(DocOperation{}, err)
+				yield(types.DocOperation{}, err)
 				return
 			}
 
 			succ, err := succIter.Next()
 			if err != nil && !errors.Is(err, column.ErrDone) {
-				yield(DocOperation{}, err)
+				yield(types.DocOperation{}, err)
 				return
 			}
 
-			if !yield(DocOperation{
+			if !yield(types.DocOperation{
 				Object:     obj,
 				Key:        key,
 				Id:         id,
@@ -247,27 +258,19 @@ func (d DocumentChunk) Operations() iter.Seq2[DocOperation, error] {
 	}
 }
 
-type DocOperation struct {
-	Object     types.ObjectId
-	Key        types.Key
-	Id         types.OpId
-	Insert     bool
-	Action     types.Action
-	Successors []types.OpId
-}
+type ChangeColumns struct {
+	ActorId column.ActorColumnIter
+	SeqNum  column.DeltaColumnIter
 
-func (o DocOperation) String() string {
-	var res strings.Builder
-	res.WriteString("Operation {\n")
-	res.WriteString(fmt.Sprintf("  \tObject: %v\n", o.Object))
-	res.WriteString(fmt.Sprintf("  \tKey: %v\n", o.Key))
-	res.WriteString(fmt.Sprintf("  \tId: %v\n", o.Id))
-	res.WriteString(fmt.Sprintf("  \tInsert: %v\n", o.Insert))
-	res.WriteString(fmt.Sprintf("  \tAction: %v\n", o.Action))
-	res.WriteString(fmt.Sprintf("  \tSuccessors: %v\n", o.Successors))
-	for i, succ := range o.Successors {
-		res.WriteString(fmt.Sprintf("  \tSuccessors[%d]: %v\n", i, succ))
-	}
-	res.WriteString("  }")
-	return res.String()
+	MaxOp column.DeltaColumnIter
+
+	Time column.DeltaColumnIter
+
+	Message column.StringColumnIter
+
+	DependenciesGroup column.GroupColumnIter
+	DependenciesIndex column.DeltaColumnIter
+
+	ExtraMetadata column.ValueMetadataColumnIter
+	ExtraData     column.ValueColumn
 }

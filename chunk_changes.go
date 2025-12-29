@@ -42,12 +42,14 @@ func (cc ChangeChunk) String() string {
 	for i, metadatum := range cc.OpMetadata {
 		res.WriteString(fmt.Sprintf("  OperationMetadata[%d]: %v\n", i, metadatum))
 	}
+	i := 0
 	for operation, err := range cc.Operations() {
 		if err != nil {
-			res.WriteString(fmt.Sprintf("  Operation[i]: %v\n", err))
+			res.WriteString(fmt.Sprintf("  Operation[%d]: %v\n", i, err))
 		} else {
-			res.WriteString(fmt.Sprintf("  Operation[i]: %v\n", operation))
+			res.WriteString(fmt.Sprintf("  Operation[%d]: %v\n", i, operation))
 		}
+		i++
 	}
 	res.WriteString(fmt.Sprintf("  ExtraBytes: %v\n", cc.ExtraBytes))
 	res.WriteString("}\n")
@@ -179,7 +181,7 @@ func readChangeChunk(r ioutil.SubReader) (*ChangeChunk, error) {
 	return &res, nil
 }
 
-func (cc ChangeChunk) Operations() iter.Seq2[ChangeOperation, error] {
+func (cc ChangeChunk) Operations() iter.Seq2[types.ChangeOperation, error] {
 	objIter := column.ObjectColumn(cc.OpColumns.ObjectActorId, cc.OpColumns.ObjectCounter)
 	keyIter := column.KeyColumn(cc.OpColumns.KeyActorId, cc.OpColumns.KeyCounter, cc.OpColumns.KeyString)
 	insertIter := column.InsertColumn(cc.OpColumns.Insert)
@@ -188,7 +190,7 @@ func (cc ChangeChunk) Operations() iter.Seq2[ChangeOperation, error] {
 
 	// TODO: text formatting
 
-	return func(yield func(ChangeOperation, error) bool) {
+	return func(yield func(types.ChangeOperation, error) bool) {
 		defer objIter.Stop()
 		defer keyIter.Stop()
 		defer insertIter.Stop()
@@ -197,7 +199,7 @@ func (cc ChangeChunk) Operations() iter.Seq2[ChangeOperation, error] {
 		for {
 			action, errAction := actionIter.Next()
 			if errAction != nil && !errors.Is(errAction, column.ErrDone) {
-				yield(ChangeOperation{}, errAction)
+				yield(types.ChangeOperation{}, errAction)
 				return
 			}
 
@@ -209,29 +211,29 @@ func (cc ChangeChunk) Operations() iter.Seq2[ChangeOperation, error] {
 
 			obj, err := objIter.Next()
 			if err != nil && !errors.Is(err, column.ErrDone) {
-				yield(ChangeOperation{}, err)
+				yield(types.ChangeOperation{}, err)
 				return
 			}
 
 			key, err := keyIter.Next()
 			if err != nil && !errors.Is(err, column.ErrDone) {
-				yield(ChangeOperation{}, err)
+				yield(types.ChangeOperation{}, err)
 				return
 			}
 
 			insert, err := insertIter.Next()
 			if err != nil && !errors.Is(err, column.ErrDone) {
-				yield(ChangeOperation{}, err)
+				yield(types.ChangeOperation{}, err)
 				return
 			}
 
 			pred, err := predIter.Next()
 			if err != nil && !errors.Is(err, column.ErrDone) {
-				yield(ChangeOperation{}, err)
+				yield(types.ChangeOperation{}, err)
 				return
 			}
 
-			if !yield(ChangeOperation{
+			if !yield(types.ChangeOperation{
 				Object:       obj,
 				Key:          key,
 				Insert:       insert,
@@ -242,29 +244,6 @@ func (cc ChangeChunk) Operations() iter.Seq2[ChangeOperation, error] {
 			}
 		}
 	}
-}
-
-type ChangeOperation struct {
-	Object       types.ObjectId
-	Key          types.Key
-	Insert       bool
-	Action       types.Action
-	Predecessors []types.OpId
-}
-
-func (o ChangeOperation) String() string {
-	var res strings.Builder
-	res.WriteString("Operation {\n")
-	res.WriteString(fmt.Sprintf("  \tObject: %v\n", o.Object))
-	res.WriteString(fmt.Sprintf("  \tKey: %v\n", o.Key))
-	res.WriteString(fmt.Sprintf("  \tInsert: %v\n", o.Insert))
-	res.WriteString(fmt.Sprintf("  \tAction: %v\n", o.Action))
-	res.WriteString(fmt.Sprintf("  \tPredecessors: %v\n", o.Predecessors))
-	for i, pred := range o.Predecessors {
-		res.WriteString(fmt.Sprintf("  \tPredecessors[%d]: %v\n", i, pred))
-	}
-	res.WriteString("  }")
-	return res.String()
 }
 
 // type Change struct {
