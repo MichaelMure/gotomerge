@@ -10,7 +10,7 @@ replace github.com/jcalabro/leb128 => ../leb128
 require (
 	github.com/DmitriyVTitov/size v1.5.0
 	github.com/jcalabro/leb128 v1.0.2
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 )
 
 require (

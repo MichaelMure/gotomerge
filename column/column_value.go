@@ -8,7 +8,6 @@ import (
 
 	"github.com/jcalabro/leb128"
 
-	"gotomerge/lbuf"
 	"gotomerge/types"
 	ioutil "gotomerge/utils/io"
 )
@@ -50,7 +49,7 @@ func (vc ValueColumn) Iter(meta iter.Seq2[ValueMetadata, error]) ValueColumnIter
 				err = binary.Read(vc.r, binary.LittleEndian, &f)
 				val = f
 			case ValueTypeString:
-				str, err := lbuf.ReadStringLimitedPrealloc(vc.r, metadata.Length())
+				str, err := ioutil.ReadStringLimitedPrealloc(vc.r, metadata.Length())
 				if err != nil {
 					yield(nil, err)
 					return
@@ -65,7 +64,7 @@ func (vc ValueColumn) Iter(meta iter.Seq2[ValueMetadata, error]) ValueColumnIter
 				}
 				val = str
 			case ValueTypeBytes:
-				val, err = lbuf.ReadBytesLimitedPrealloc(vc.r, metadata.Length())
+				val, err = ioutil.ReadBytesLimitedPrealloc(vc.r, metadata.Length())
 			case ValueTypeCounter:
 				var ctr int64
 				ctr, err = leb128.DecodeS64(vc.r)
