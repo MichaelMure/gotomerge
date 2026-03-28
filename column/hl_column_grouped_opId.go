@@ -74,3 +74,16 @@ func (o GroupedOperationIdColumnIter) Next() ([]types.OpId, error) {
 
 	return res, nil
 }
+
+// Stop releases resources held by the iterator.
+func (o GroupedOperationIdColumnIter) Stop() {
+	if o.stopGroup != nil {
+		o.stopGroup()
+	}
+	if o.stopActorIdx != nil {
+		o.stopActorIdx()
+	}
+	if o.stopCounter != nil {
+		o.stopCounter()
+	}
+}

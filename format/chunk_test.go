@@ -1,4 +1,4 @@
-package gotomerge
+package format
 
 import (
 	"bytes"
@@ -35,7 +35,7 @@ func TestReadDocument(t *testing.T) {
 		{name: "text-edits.amrg", chunks: 259779},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			f, err := os.Open("testdata/" + tc.name)
+			f, err := os.Open("../testdata/" + tc.name)
 			require.NoError(t, err)
 			defer f.Close()
 
@@ -43,7 +43,7 @@ func TestReadDocument(t *testing.T) {
 
 			var chunks int
 			for {
-				c, toSkip, err := readChunk(r)
+				c, toSkip, err := ReadChunk(r)
 				require.NoError(t, err)
 				fmt.Println(c)
 				fmt.Println()
@@ -66,13 +66,13 @@ func TestReadDocument(t *testing.T) {
 }
 
 func TestLarge(t *testing.T) {
-	f, err := os.Open("testdata/text-edits.amrg")
+	f, err := os.Open("../testdata/text-edits.amrg")
 	require.NoError(t, err)
 	r := ioutil.NewPagedReader(f)
 
-	var chunks []chunk
+	var chunks []Chunk
 	for {
-		c, toSkip, err := readChunk(r)
+		c, toSkip, err := ReadChunk(r)
 		require.NoError(t, err)
 		chunks = append(chunks, c)
 		err = r.Skip(toSkip)
@@ -84,7 +84,7 @@ func TestLarge(t *testing.T) {
 	fmt.Println(size.Of(chunks))
 }
 
-var chunksExemplar []chunk
+var chunksExemplar []Chunk
 
 func BenchmarkReadExamplar(b *testing.B) {
 	b.SetBytes(406)
@@ -92,11 +92,11 @@ func BenchmarkReadExamplar(b *testing.B) {
 	b.ReportAllocs()
 	var chunkCount int
 	for i := 0; i < b.N; i++ {
-		f, _ := os.Open("testdata/exemplar")
+		f, _ := os.Open("../testdata/exemplar")
 		r := ioutil.NewPagedReader(f)
 		for {
 			chunksExemplar = nil
-			c, toSkip, err := readChunk(r)
+			c, toSkip, err := ReadChunk(r)
 			if errors.Is(err, io.EOF) {
 				break
 			}
@@ -109,7 +109,7 @@ func BenchmarkReadExamplar(b *testing.B) {
 	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
 }
 
-var chunksLarge []chunk
+var chunksLarge []Chunk
 
 func BenchmarkReadLarge(b *testing.B) {
 	b.SetBytes(29249554)
@@ -118,10 +118,10 @@ func BenchmarkReadLarge(b *testing.B) {
 	var chunkCount int
 	for i := 0; i < b.N; i++ {
 		chunksLarge = nil
-		f, _ := os.Open("testdata/text-edits.amrg")
+		f, _ := os.Open("../testdata/text-edits.amrg")
 		r := ioutil.NewPagedReader(f)
 		for {
-			c, toSkip, err := readChunk(r)
+			c, toSkip, err := ReadChunk(r)
 			if errors.Is(err, io.EOF) {
 				break
 			}
@@ -134,7 +134,7 @@ func BenchmarkReadLarge(b *testing.B) {
 	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
 }
 
-var chunkCompressed []chunk
+var chunkCompressed []Chunk
 
 func BenchmarkCompressed(b *testing.B) {
 	b.SetBytes(192)
@@ -143,10 +143,10 @@ func BenchmarkCompressed(b *testing.B) {
 	var chunkCount int
 	for i := 0; i < b.N; i++ {
 		chunkCompressed = nil
-		f, _ := os.Open("testdata/two_change_chunks_compressed.automerge")
+		f, _ := os.Open("../testdata/two_change_chunks_compressed.automerge")
 		r := ioutil.NewPagedReader(f)
 		for {
-			c, toSkip, err := readChunk(r)
+			c, toSkip, err := ReadChunk(r)
 			if errors.Is(err, io.EOF) {
 				break
 			}
@@ -159,10 +159,116 @@ func BenchmarkCompressed(b *testing.B) {
 	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
 }
 
+// TestInvalidChunks checks that malformed Automerge files are rejected.
+func TestInvalidChunks(t *testing.T) {
+	// counter_value_is_overlong uses non-minimal LEB128 encoding, which the spec forbids.
+	// The error surfaces during column iteration, not chunk parsing.
+	t.Run("counter_value_is_overlong", func(t *testing.T) {
+		f, err := os.Open("../testdata/counter_value_is_overlong.automerge")
+		require.NoError(t, err)
+		defer f.Close()
+
+		c, _, err := ReadChunk(ioutil.NewPagedReader(f))
+		require.NoError(t, err)
+		cc := c.(*ChangeChunk)
+
+		var iterErr error
+		for _, e := range cc.Operations() {
+			if e != nil {
+				iterErr = e
+				break
+			}
+		}
+		require.Error(t, iterErr, "overlong LEB128 should be rejected during iteration")
+	})
+
+	// counter_value_has_incorrect_meta parses today without error because we don't yet
+	// validate counter metadata consistency (the Rust impl does). This test documents the
+	// current behaviour so we notice if it accidentally starts failing.
+	// TODO: add metadata validation and flip this to require.Error.
+	t.Run("counter_value_has_incorrect_meta", func(t *testing.T) {
+		f, err := os.Open("../testdata/counter_value_has_incorrect_meta.automerge")
+		require.NoError(t, err)
+		defer f.Close()
+
+		c, _, err := ReadChunk(ioutil.NewPagedReader(f))
+		require.NoError(t, err)
+		cc := c.(*ChangeChunk)
+
+		var iterErr error
+		for _, e := range cc.Operations() {
+			if e != nil {
+				iterErr = e
+				break
+			}
+		}
+		require.NoError(t, iterErr, "metadata validation not yet implemented; update this test when it is")
+	})
+}
+
+// TestDocumentChunkChanges verifies that Changes() on a document chunk correctly
+// yields change metadata with resolved ActorIds, seqnums, and dep indices.
+func TestDocumentChunkChanges(t *testing.T) {
+	f, err := os.Open("../testdata/exemplar")
+	require.NoError(t, err)
+	defer f.Close()
+
+	c, _, err := ReadChunk(ioutil.NewPagedReader(f))
+	require.NoError(t, err)
+	doc := c.(*DocumentChunk)
+
+	var changes []types.DocChange
+	for ch, err := range doc.Changes() {
+		require.NoError(t, err)
+		changes = append(changes, ch)
+	}
+
+	require.NotEmpty(t, changes, "exemplar should have at least one change")
+	// The exemplar has one change from one actor
+	require.Len(t, changes, 1)
+	require.NotEmpty(t, changes[0].ActorId, "actor ID must be resolved")
+	require.Equal(t, uint64(1), changes[0].SeqNum)
+	require.Greater(t, changes[0].MaxOp, uint64(0))
+}
+
+// TestChangeChunkOperationIds verifies that Operations() on a change chunk sets
+// correct Id values: ActorIdx=0 (change's own actor) and Counter=startOp+i.
+//
+// Operations must be iterated before calling r.Skip(), because column iterators
+// hold lazy references into the paged reader's ring buffer.
+func TestChangeChunkOperationIds(t *testing.T) {
+	f, err := os.Open("../testdata/two_change_chunks.automerge")
+	require.NoError(t, err)
+	defer f.Close()
+
+	r := ioutil.NewPagedReader(f)
+
+	var totalChunks int
+	for !r.Empty() {
+		c, toSkip, err := ReadChunk(r)
+		require.NoError(t, err)
+
+		cc := c.(*ChangeChunk)
+		var opIdx uint64
+		for op, err := range cc.Operations() {
+			require.NoError(t, err)
+			require.Equal(t, uint32(0), op.Id.ActorIdx, "ActorIdx should be 0 (local actor) in change chunk")
+			require.Equal(t, uint32(cc.StartOp+opIdx), op.Id.Counter,
+				"Counter should be startOp+i for op %d", opIdx)
+			opIdx++
+		}
+		require.Greater(t, opIdx, uint64(0), "change should have at least one operation")
+
+		require.NoError(t, r.Skip(toSkip))
+		totalChunks++
+	}
+	require.Equal(t, 2, totalChunks)
+}
+
 func TestEmptyDocumentRead(t *testing.T) {
 	buf := []byte{0x85, 0x6f, 0x4a, 0x83, 0xb8, 0x1a, 0x95, 0x44, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00}
 	r := ioutil.NewBytesReader(buf)
-	c, toSkip, err := readChunk(r)
+	c, toSkip, err := ReadChunk(r)
 	require.NoError(t, err)
 	require.NoError(t, r.Skip(toSkip))
 	require.True(t, r.Empty()) // we should consume everything
@@ -175,7 +281,7 @@ func TestEmptyDocumentRead(t *testing.T) {
 // 	buf := []byte{0x85, 0x6f, 0x4a, 0x83, 0x80, 0xb7, 0x5d, 0x54, 0x01, 0xf4, 0x02}
 // 	// buf := []byte{0x85, 0x6f, 0x4a, 0x83, 0x80, 0xb7, 0x5d, 0x54, 0x02, 0xc3, 0x02}
 // 	r := lbuf.FromBytes(buf)
-// 	c, err := readChunk(r)
+// 	c, err := ReadChunk(r)
 // 	require.NoError(t, err)
 // 	fmt.Println(c)
 // }

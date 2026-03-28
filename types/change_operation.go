@@ -6,6 +6,9 @@ import (
 )
 
 type ChangeOperation struct {
+	// Id is the operation's OpId. ActorIdx is local to the change's actor table
+	// (0 = the change's own actor) and is resolved to the document's actor table in ToChange().
+	Id           OpId
 	Object       ObjectId
 	Key          Key
 	Insert       bool
@@ -16,6 +19,7 @@ type ChangeOperation struct {
 func (o ChangeOperation) String() string {
 	var res strings.Builder
 	res.WriteString("Operation {\n")
+	res.WriteString(fmt.Sprintf("  \tId: %v\n", o.Id))
 	res.WriteString(fmt.Sprintf("  \tObject: %v\n", o.Object))
 	res.WriteString(fmt.Sprintf("  \tKey: %v\n", o.Key))
 	res.WriteString(fmt.Sprintf("  \tInsert: %v\n", o.Insert))

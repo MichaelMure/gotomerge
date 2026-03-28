@@ -1,4 +1,4 @@
-package gotomerge
+package format
 
 import (
 	"compress/flate"
@@ -23,7 +23,11 @@ type DocumentChunk struct {
 
 	OpMetadata column.Metadata
 	OpColumns  OperationColumns
+
+	unknownColumns []rawColumn
 }
+
+func (DocumentChunk) chunk() {}
 
 func (d DocumentChunk) String() string {
 	var res strings.Builder
@@ -38,6 +42,15 @@ func (d DocumentChunk) String() string {
 		res.WriteString(fmt.Sprintf("  OperationMetadata[%d]: %v\n", i, metadatum))
 	}
 	i := 0
+	for change, err := range d.Changes() {
+		if err != nil {
+			res.WriteString(fmt.Sprintf("  Change[%d]: %v\n", i, err))
+		} else {
+			res.WriteString(fmt.Sprintf("  Change[%d]: %v\n", i, change))
+		}
+		i++
+	}
+	i = 0
 	for operation, err := range d.Operations() {
 		if err != nil {
 			res.WriteString(fmt.Sprintf("  Operation[%d]: %v\n", i, err))
@@ -76,14 +89,15 @@ func readDocumentChunk(r ioutil.SubReader) (*DocumentChunk, error) {
 
 	var offset uint64
 	for _, metadatum := range res.ChangeMetadata {
-		var rCol io.Reader
-		rCol, err = r.SubReader(offset, metadatum.Length)
+		var rawCol ioutil.SubReader
+		rawCol, err = r.SubReader(offset, metadatum.Length)
 		if err != nil {
 			return nil, fmt.Errorf("error reading change column: %w", err)
 		}
 		offset += metadatum.Length
+		var rCol io.Reader = rawCol
 		if metadatum.Spec.Deflate() {
-			rCol = flate.NewReader(rCol)
+			rCol = flate.NewReader(rawCol)
 		}
 
 		switch metadatum.Spec {
@@ -106,20 +120,27 @@ func readDocumentChunk(r ioutil.SubReader) (*DocumentChunk, error) {
 		case 87:
 			res.ChangesColumns.ExtraData = column.NewValueColumn(rCol)
 		default:
-			// TODO: unknown column should be maintained
-			return nil, fmt.Errorf("unknown column type (TODO implementation): %v", metadatum.Spec)
+			data, err := io.ReadAll(rawCol)
+			if err != nil {
+				return nil, fmt.Errorf("error reading unknown change column: %w", err)
+			}
+			res.unknownColumns = append(res.unknownColumns, rawColumn{
+				specBits: uint32(metadatum.Spec),
+				data:     data,
+			})
 		}
 	}
 
 	for _, metadatum := range res.OpMetadata {
-		var rCol io.Reader
-		rCol, err = r.SubReader(offset, metadatum.Length)
+		var rawCol ioutil.SubReader
+		rawCol, err = r.SubReader(offset, metadatum.Length)
 		if err != nil {
-			return nil, fmt.Errorf("error reading change column: %w", err)
+			return nil, fmt.Errorf("error reading op column: %w", err)
 		}
 		offset += metadatum.Length
+		var rCol io.Reader = rawCol
 		if metadatum.Spec.Deflate() {
-			rCol = flate.NewReader(rCol)
+			rCol = flate.NewReader(rawCol)
 		}
 
 		switch metadatum.Spec {
@@ -162,8 +183,14 @@ func readDocumentChunk(r ioutil.SubReader) (*DocumentChunk, error) {
 		case 165: // ID: 10, type: string
 			res.OpColumns.Mark = column.ReadStringColumn(rCol)
 		default:
-			// TODO: unknown column should be maintained
-			return nil, fmt.Errorf("unknown column type (TODO implementation): %v", metadatum.Spec)
+			data, err := io.ReadAll(rawCol)
+			if err != nil {
+				return nil, fmt.Errorf("error reading unknown op column: %w", err)
+			}
+			res.unknownColumns = append(res.unknownColumns, rawColumn{
+				specBits: uint32(metadatum.Spec),
+				data:     data,
+			})
 		}
 	}
 
@@ -175,14 +202,54 @@ func readDocumentChunk(r ioutil.SubReader) (*DocumentChunk, error) {
 	return &res, nil
 }
 
-// func (d DocumentChunk) Changes() iter.Seq2[DocChange, error] {
-// 	nextActorIdx, stopActorIdx := iter.Pull2(d.ChangesColumns.ActorId)
-//
-// 	// actor iterator
-// 	// seqnum iterator
-// 	// max op iterator
-//
-// }
+func (d DocumentChunk) Changes() iter.Seq2[types.DocChange, error] {
+	changesIter := column.NewChangesIter(
+		d.ChangesColumns.ActorId,
+		d.ChangesColumns.SeqNum,
+		d.ChangesColumns.MaxOp,
+		d.ChangesColumns.Time,
+		d.ChangesColumns.Message,
+		d.ChangesColumns.DependenciesGroup,
+		d.ChangesColumns.DependenciesIndex,
+	)
+
+	return func(yield func(types.DocChange, error) bool) {
+		defer changesIter.Stop()
+
+		for {
+			raw, err := changesIter.Next()
+			if errors.Is(err, column.ErrDone) {
+				return
+			}
+			if err != nil {
+				yield(types.DocChange{}, err)
+				return
+			}
+
+			if raw.ActorIdx >= uint64(len(d.Actors)) {
+				yield(types.DocChange{}, fmt.Errorf("actor index out of range: %d (have %d actors)", raw.ActorIdx, len(d.Actors)))
+				return
+			}
+			actor := d.Actors[raw.ActorIdx]
+
+			var t types.Timestamp
+			if raw.Time != nil {
+				t = types.Timestamp(*raw.Time)
+			}
+
+			if !yield(types.DocChange{
+				ActorId: actor,
+				SeqNum:  raw.SeqNum,
+				MaxOp:   raw.MaxOp,
+				Deps:    raw.Deps,
+				Time:    t,
+				Message: raw.Message,
+			}, nil) {
+				return
+			}
+		}
+	}
+}
 
 func (d DocumentChunk) Operations() iter.Seq2[types.DocOperation, error] {
 	objIter := column.ObjectColumn(d.OpColumns.ObjectActorId, d.OpColumns.ObjectCounter)
@@ -192,14 +259,13 @@ func (d DocumentChunk) Operations() iter.Seq2[types.DocOperation, error] {
 	actionIter := column.ActionColumn(d.OpColumns.Action, d.OpColumns.ValueMetadata, d.OpColumns.Value)
 	succIter := column.GroupedOperationIdColumn("successor", d.OpColumns.SuccessorGroup, d.OpColumns.SuccessorActorId, d.OpColumns.SuccessorCounter)
 
-	// TODO: text formatting
-
 	return func(yield func(types.DocOperation, error) bool) {
 		defer objIter.Stop()
 		defer keyIter.Stop()
 		defer OpIdIter.Stop()
 		defer insertIter.Stop()
 		defer actionIter.Stop()
+		defer succIter.Stop()
 
 		for {
 			action, errAction := actionIter.Next()
@@ -208,7 +274,7 @@ func (d DocumentChunk) Operations() iter.Seq2[types.DocOperation, error] {
 				return
 			}
 
-			// Action act as the marker for how long we should iterate
+			// Actions act as the marker for how long we should iterate
 			// (from the rust codebase)
 			if errors.Is(errAction, column.ErrDone) {
 				return

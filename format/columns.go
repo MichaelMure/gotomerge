@@ -1,4 +1,4 @@
-package gotomerge
+package format
 
 import (
 	"gotomerge/column"

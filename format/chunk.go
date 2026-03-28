@@ -1,4 +1,4 @@
-package gotomerge
+package format
 
 import (
 	"bytes"
@@ -23,11 +23,19 @@ const (
 
 var magicBytes = []byte{0x85, 0x6f, 0x4a, 0x83}
 
-type chunk interface {
-	// TODO?
+// rawColumn holds an unparsed column with an unknown specification.
+// Preserved opaquely for forward compatibility when reading files with newer column types.
+type rawColumn struct {
+	specBits uint32 // raw specification bitfield; see column package for encoding
+	data     []byte
 }
 
-func readChunk(r ioutil.SubReader) (chunk, int, error) {
+// Chunk is the top-level unit of an Automerge binary file.
+type Chunk interface {
+	chunk()
+}
+
+func ReadChunk(r ioutil.SubReader) (Chunk, int, error) {
 	// take a subreader to read without consuming, we'll
 	// return how many bytes to skip when done with the chunk
 	r, err := r.SubReaderOffset(0)
@@ -74,7 +82,7 @@ func readChunk(r ioutil.SubReader) (chunk, int, error) {
 		return nil, toSkip, fmt.Errorf("error reading chunk: %w", err)
 	}
 
-	var res chunk
+	var res Chunk
 
 	switch chunkType {
 	case ChunkTypeDocument:
@@ -125,13 +133,6 @@ func readChunk(r ioutil.SubReader) (chunk, int, error) {
 	if err != nil {
 		return nil, toSkip, fmt.Errorf("error reading chunk: %w", err)
 	}
-
-	// TODO: remove
-	// rest, err := io.ReadAll(r)
-	// if err != nil {
-	// 	panic("")
-	// }
-	// fmt.Printf("REST READ: %v\n", len(rest))
 
 	if !bytes.Equal(checksum, h.Sum(nil)[0:4]) {
 		return nil, toSkip, fmt.Errorf("invalid checksum")
