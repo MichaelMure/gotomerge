@@ -13,6 +13,31 @@ import (
 	ioutil "gotomerge/utils/io"
 )
 
+// DocumentChunk is the parsed form of an Automerge document snapshot chunk.
+//
+// A document chunk is a merged representation of an entire document's history.
+// Rather than storing individual changes, it stores:
+//
+//   - Every operation from every change, in columnar form (OpColumns). Each
+//     operation carries a successor list: the operations that later overwrote it.
+//     An operation with no successors is the current live value; one with successors
+//     has been overwritten or deleted.
+//   - Per-change metadata in ChangesColumns: actor, sequence number, maxOp,
+//     timestamp, message, and dependency indices. This is enough to reconstruct
+//     the change graph and map operations back to their originating change.
+//     The operations themselves are not duplicated here; the range of operations
+//     belonging to change i is derived from MaxOp[i-1]+1 .. MaxOp[i].
+//     Dependency references are integer indices (not hashes) into this same array,
+//     which is stored in topological order: if change A depends on change B,
+//     B always appears at a lower index than A.
+//
+// Heads contains the hashes of the "tip" changes — the changes that no other
+// change in this document depends on. They identify the document's current version.
+// HeadIndexes is a parallel array: HeadIndexes[i] is the index of Heads[i] in the
+// change summary table, for fast lookup without scanning all changes.
+//
+// Actors is the document-wide actor table. All actor references in both the change
+// and operation columns are stored as indices into this table.
 type DocumentChunk struct {
 	Actors      []types.ActorId
 	Heads       []types.ChangeHash
@@ -202,6 +227,12 @@ func readDocumentChunk(r ioutil.SubReader) (*DocumentChunk, error) {
 	return &res, nil
 }
 
+// Changes iterates over the change summaries embedded in this document snapshot.
+//
+// Each yielded DocChange has actor IDs resolved from the document's Actors table,
+// but dependency references remain as integer indices (DocChange.Deps) rather than
+// hashes. This is because the document chunk does not store per-change hashes;
+// computing them requires re-serializing each change's content.
 func (d DocumentChunk) Changes() iter.Seq2[types.DocChange, error] {
 	changesIter := column.NewChangesIter(
 		d.ChangesColumns.ActorId,
@@ -251,6 +282,11 @@ func (d DocumentChunk) Changes() iter.Seq2[types.DocChange, error] {
 	}
 }
 
+// Operations iterates over every operation stored in this document snapshot.
+//
+// Unlike a change chunk — where operations are listed in creation order —
+// a document chunk stores operations grouped by the object they belong to.
+// This object-local ordering is part of the document chunk format definition.
 func (d DocumentChunk) Operations() iter.Seq2[types.DocOperation, error] {
 	objIter := column.ObjectColumn(d.OpColumns.ObjectActorId, d.OpColumns.ObjectCounter)
 	keyIter := column.KeyColumn(d.OpColumns.KeyActorId, d.OpColumns.KeyCounter, d.OpColumns.KeyString)
@@ -274,8 +310,10 @@ func (d DocumentChunk) Operations() iter.Seq2[types.DocOperation, error] {
 				return
 			}
 
-			// Actions act as the marker for how long we should iterate
-			// (from the rust codebase)
+			// The action column drives iteration length: it is always present and
+			// its exhaustion signals that all operations have been yielded. Other
+			// columns may be absent (nil iterator) or shorter if their values were
+			// all null/default.
 			if errors.Is(errAction, column.ErrDone) {
 				return
 			}
@@ -322,21 +360,4 @@ func (d DocumentChunk) Operations() iter.Seq2[types.DocOperation, error] {
 			}
 		}
 	}
-}
-
-type ChangeColumns struct {
-	ActorId column.ActorColumnIter
-	SeqNum  column.DeltaColumnIter
-
-	MaxOp column.DeltaColumnIter
-
-	Time column.DeltaColumnIter
-
-	Message column.StringColumnIter
-
-	DependenciesGroup column.GroupColumnIter
-	DependenciesIndex column.DeltaColumnIter
-
-	ExtraMetadata column.ValueMetadataColumnIter
-	ExtraData     column.ValueColumn
 }

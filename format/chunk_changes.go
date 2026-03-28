@@ -15,7 +15,28 @@ import (
 	ioutil "gotomerge/utils/io"
 )
 
+// ChangeChunk is the parsed form of an Automerge change chunk.
+//
+// A change records a set of operations authored by a single actor at a point in
+// time. Changes are the unit of replication: peers exchange changes to converge
+// on the same document state.
+//
+// The operations are stored in a columnar layout: instead of one record per
+// operation, each field (object, key, action, …) is stored as its own compressed
+// column. OperationColumns holds the decoded iterators for those columns.
+//
+// OtherActors lists every actor referenced *by the operations in this change*
+// other than the change's own Actor. Operation actor-index 0 always refers to
+// Actor; indices 1..N refer to OtherActors[i-1]. This local numbering keeps
+// repeated actor IDs compact on the wire.
+//
+// ExtraBytes is a reserved extension field in the binary format. It is preserved
+// intact so files using future extensions can be round-tripped without loss.
 type ChangeChunk struct {
+	// Hash is set by ReadChunk after the checksum is verified. It is the full
+	// 32-byte SHA-256 of the serialized change and serves as the change's
+	// globally unique identifier used in dependency references between changes.
+	Hash         types.ChangeHash
 	Dependencies []types.ChangeHash
 	Actor        types.ActorId
 	SeqNum       uint64
@@ -215,8 +236,10 @@ func (cc ChangeChunk) Operations() iter.Seq2[types.ChangeOperation, error] {
 				return
 			}
 
-			// Action acts as the marker for how long we should iterate
-			// (from the rust codebase)
+			// The action column drives iteration length: it is always present and
+			// its exhaustion signals that all operations have been yielded. Other
+			// columns may be absent (nil iterator) or shorter if their values were
+			// all null/default.
 			if errors.Is(errAction, column.ErrDone) {
 				return
 			}
@@ -265,3 +288,4 @@ func (cc ChangeChunk) Operations() iter.Seq2[types.ChangeOperation, error] {
 		}
 	}
 }
+

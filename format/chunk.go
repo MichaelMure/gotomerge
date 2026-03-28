@@ -23,21 +23,45 @@ const (
 
 var magicBytes = []byte{0x85, 0x6f, 0x4a, 0x83}
 
-// rawColumn holds an unparsed column with an unknown specification.
-// Preserved opaquely for forward compatibility when reading files with newer column types.
-type rawColumn struct {
-	specBits uint32 // raw specification bitfield; see column package for encoding
-	data     []byte
-}
-
 // Chunk is the top-level unit of an Automerge binary file.
+//
+// An Automerge file is a sequence of one or more chunks. Each chunk is either a
+// document snapshot (DocumentChunk) or a single peer edit (ChangeChunk). A file
+// with just one DocumentChunk is a compact, fully-merged snapshot. A file may
+// also hold a series of ChangeChunks representing the edit history of a document,
+// in which case the reader applies them in dependency order to reconstruct the
+// current state.
+//
+// The only concrete implementations are *DocumentChunk and *ChangeChunk. The
+// unexported chunk() method prevents other packages from satisfying this interface,
+// making those two the exhaustive set of variants. Callers must type-assert to the
+// concrete type to access chunk-specific fields.
 type Chunk interface {
 	chunk()
 }
 
+// rawColumn holds the raw bytes of an operation or change column whose spec number
+// is not recognised by this implementation. Storing it intact allows the file to be
+// round-tripped without data loss if a newer format version adds column types we
+// don't yet know about.
+type rawColumn struct {
+	specBits uint32 // encoded column spec; high bits are the column ID, low bits are the type
+	data     []byte
+}
+
+// ReadChunk reads one chunk from r. The second return value is the total number
+// of payload bytes belonging to this chunk. It is returned even on error so the
+// caller can decide whether to skip and continue.
+//
+// The file format for each chunk is:
+//
+//	[4 magic][4 checksum][1 type][varint length][...payload...]
+//
+// The checksum is the first 4 bytes of SHA-256(type || length || payload).
+// ReadChunk verifies the checksum before returning.
 func ReadChunk(r ioutil.SubReader) (Chunk, int, error) {
-	// take a subreader to read without consuming, we'll
-	// return how many bytes to skip when done with the chunk
+	// Open a sub-reader so we can track exactly how many bytes we consume
+	// and return an accurate skip count independent of parsing success.
 	r, err := r.SubReaderOffset(0)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error reading chunk: %w", err)
@@ -98,15 +122,18 @@ func ReadChunk(r ioutil.SubReader) (Chunk, int, error) {
 		}
 		res, err = readChangeChunk(sub)
 	case ChunkTypeCompressedChange:
-		// The compressed change format required that we hash the equivalent uncompressed chunk, that is:
-		// - the normal change chunk type (0x01)
-		// - the length of the *decompressed* bytes
-		// - the decompressed bytes of the remaining chunk (excluding type+size)
-		// As we can't know the decompressed size before fully decompressing it, it's not possible to stream decode the
-		// chunk like with the other types. A small format change would allow that.
-		// Instead, we have to fully decompress in memory and re-do the hashing.
+		// A compressed change has the same content as a plain change, but the payload
+		// is DEFLATE-compressed. Crucially, the *canonical hash* of a compressed change
+		// is defined as the hash of its *uncompressed* equivalent, not the compressed bytes.
+		// This means two peers — one that stored the change compressed and one that stored
+		// it uncompressed — will agree on the hash and therefore on the change's identity.
 		//
-		// Some benchmarking shows that this cost +11% speed, +7% allocation count, +2% allocation size.
+		// The downside: because the uncompressed length is only known after full decompression,
+		// we cannot stream-hash this chunk the way we do for plain changes. We must decompress
+		// entirely into memory and then hash type || decompressed-length || decompressed-bytes.
+		//
+		// Benchmarks show this costs roughly +11% time, +7% allocation count, +2% allocation size
+		// compared to plain changes.
 		decompressed, err := io.ReadAll(flate.NewReader(sub))
 		if err != nil {
 			return nil, toSkip, fmt.Errorf("error reading compressed change: %w", err)
@@ -134,8 +161,17 @@ func ReadChunk(r ioutil.SubReader) (Chunk, int, error) {
 		return nil, toSkip, fmt.Errorf("error reading chunk: %w", err)
 	}
 
-	if !bytes.Equal(checksum, h.Sum(nil)[0:4]) {
+	digest := h.Sum(nil)
+	if !bytes.Equal(checksum, digest[0:4]) {
 		return nil, toSkip, fmt.Errorf("invalid checksum")
+	}
+
+	// A change's identity in the dependency graph is its full 32-byte hash.
+	// We have already computed it for checksum verification, so store it in
+	// the chunk rather than requiring callers to recompute it later.
+	// DocumentChunk has no hash identity in the protocol, so we only do this for changes.
+	if cc, ok := res.(*ChangeChunk); ok {
+		copy(cc.Hash[:], digest)
 	}
 
 	return res, toSkip, nil
@@ -238,7 +274,8 @@ func readHeadIndexes(r io.Reader, count int) ([]uint64, error) {
 		if err != nil {
 			if i == 0 && err == io.EOF {
 				res = nil
-				// old document may not have this
+				// HeadIndexes were added in a later revision of the format.
+				// Pre-existing documents may not have them; treat EOF as "no indexes".
 				break
 			}
 			return nil, err

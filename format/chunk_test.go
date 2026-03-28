@@ -330,6 +330,42 @@ func TestActorIdsRoundTrip(t *testing.T) {
 	require.Equal(t, data, buf.Bytes())
 }
 
+// TestChangeChunkHashes verifies that ReadChunk correctly populates ChangeChunk.Hash:
+//   - the hash is non-zero for both plain and compressed chunks
+//   - hashing is deterministic (re-reading produces the same value)
+//   - a compressed change and its uncompressed equivalent hash to the same value
+//     (the spec defines the hash over the uncompressed content in both cases)
+func TestChangeChunkHashes(t *testing.T) {
+	readHashes := func(path string) []types.ChangeHash {
+		f, err := os.Open(path)
+		require.NoError(t, err)
+		defer f.Close()
+		var hashes []types.ChangeHash
+		r := ioutil.NewPagedReader(f)
+		for !r.Empty() {
+			c, toSkip, err := ReadChunk(r)
+			require.NoError(t, err)
+			hashes = append(hashes, c.(*ChangeChunk).Hash)
+			require.NoError(t, r.Skip(toSkip))
+		}
+		return hashes
+	}
+
+	plain := readHashes("../testdata/two_change_chunks.automerge")
+	compressed := readHashes("../testdata/two_change_chunks_compressed.automerge")
+
+	require.NotEmpty(t, plain)
+	for _, h := range plain {
+		require.NotEqual(t, types.ChangeHash{}, h)
+	}
+
+	// Deterministic: reading the same file twice gives the same hashes.
+	require.Equal(t, plain, readHashes("../testdata/two_change_chunks.automerge"))
+
+	// Compressed and uncompressed forms of the same changes must hash identically.
+	require.Equal(t, plain, compressed)
+}
+
 func TestHeadIndexesRoundTrip(t *testing.T) {
 	data := []byte{0x01, 0x02, 0x03, 0x11}
 	indexes, err := readHeadIndexes(bytes.NewReader(data), 4)

@@ -9,6 +9,11 @@ import (
 	"github.com/jcalabro/leb128"
 )
 
+// ActorId is a random byte string that uniquely identifies a peer (an instance
+// that creates changes). It is conventionally 16 bytes of cryptographic random,
+// but the format allows any length up to 32 bytes. It is not a UUID — it carries
+// no version/variant bits and has no structured encoding; it is just an opaque
+// random identifier that is unlikely to collide across peers.
 type ActorId []byte
 
 func NewActorId() ActorId {
