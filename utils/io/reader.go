@@ -1,6 +1,7 @@
 package ioutil
 
 import (
+	"compress/flate"
 	"fmt"
 	"io"
 )
@@ -27,6 +28,10 @@ type SubReader interface {
 
 	// Peek writes into w the n next bytes without moving the internal position.
 	Peek(w io.Writer, n int) error
+
+	// Deflate decompresses the remaining bytes of this SubReader using DEFLATE
+	// and returns a new SubReader over the decompressed data.
+	Deflate() (SubReader, error)
 }
 
 const pageSize = 16 * 1024 // 16KB pages
@@ -199,6 +204,8 @@ func (r *pagedReader) Peek(w io.Writer, n int) error {
 
 	return nil
 }
+
+func (r *pagedReader) Deflate() (SubReader, error) { return deflate(r) }
 
 // grow ensures we have at least minBytes available for reading
 func (r *pagedReader) grow(minBytes int) error {
@@ -477,6 +484,8 @@ func (s *subReader) Peek(w io.Writer, n int) error {
 	panic("not implemented")
 }
 
+func (s *subReader) Deflate() (SubReader, error) { return deflate(s) }
+
 var _ SubReader = &subReaderOffset{}
 
 type subReaderOffset struct {
@@ -609,8 +618,38 @@ func (s *subReaderOffset) SubReader(offset uint64, size uint64) (SubReader, erro
 }
 
 func (s *subReaderOffset) SubReaderOffset(offset uint64) (SubReader, error) {
-	panic("not implemented")
+	// Create a new subReaderOffset starting at the given offset from current position
+	head := s.head
+	position := s.position
+	toSkip := int(offset)
+
+	for toSkip > 0 {
+		availableInPage := len(s.r.pages[head]) - position
+		if toSkip < availableInPage {
+			position += toSkip
+			toSkip = 0
+			break
+		} else {
+			if (head+1)%len(s.r.pages) == (s.r.head+s.r.count)%len(s.r.pages) {
+				_, err := s.r.loadPage()
+				if err != nil {
+					return nil, fmt.Errorf("subReaderOffset: SubReaderOffset offset beyond available data: %w", err)
+				}
+			}
+			head = (head + 1) % len(s.r.pages)
+			position = 0
+			toSkip -= availableInPage
+		}
+	}
+
+	return &subReaderOffset{
+		r:        s.r,
+		head:     head,
+		position: position,
+	}, nil
 }
+
+func (s *subReaderOffset) Deflate() (SubReader, error) { return deflate(s) }
 
 func (s *subReaderOffset) Skip(n int) error {
 	// if the current page is empty, try to load
@@ -762,4 +801,24 @@ func (b *bytesReader) Peek(w io.Writer, n int) error {
 	}
 	_, err := w.Write(b.data[b.position : b.position+n])
 	return err
+}
+
+func (b *bytesReader) Deflate() (SubReader, error) { return deflate(b) }
+
+// deflate decompresses the remaining bytes of r using DEFLATE and returns a
+// new SubReader over the result. It forks r via SubReaderOffset(0) so the
+// caller's position is not advanced. The strategy (eager in-memory) can be
+// changed here without touching any call site.
+func deflate(r SubReader) (SubReader, error) {
+	fork, err := r.SubReaderOffset(0)
+	if err != nil {
+		return nil, fmt.Errorf("deflate: fork: %w", err)
+	}
+	fr := flate.NewReader(fork)
+	defer fr.Close()
+	decompressed, err := io.ReadAll(fr)
+	if err != nil {
+		return nil, fmt.Errorf("deflate: %w", err)
+	}
+	return NewBytesReader(decompressed), nil
 }

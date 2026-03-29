@@ -2,6 +2,7 @@ package ioutil
 
 import (
 	"bytes"
+	"compress/flate"
 	"errors"
 	"io"
 	"testing"
@@ -35,6 +36,18 @@ func (b *byteGenerator) All() []byte {
 		res[i] = byte(i % 256)
 	}
 	return res
+}
+
+// deflateCompress compresses data using DEFLATE (for use in tests only).
+func deflateCompress(t *testing.T, data []byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w, err := flate.NewWriter(&buf, flate.DefaultCompression)
+	require.NoError(t, err)
+	_, err = w.Write(data)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+	return buf.Bytes()
 }
 
 func TestBufferedRead(t *testing.T) {
@@ -1116,6 +1129,32 @@ func TestPagedReader_Consumed_EmptySource(t *testing.T) {
 	require.Equal(t, 0, r.Consumed())
 }
 
+func TestPagedReader_Deflate_Basic(t *testing.T) {
+	plain := []byte("hello from paged deflate")
+	compressed := deflateCompress(t, plain)
+
+	r := NewPagedReader(bytes.NewReader(compressed))
+	got, err := r.Deflate()
+	require.NoError(t, err)
+
+	result, err := io.ReadAll(got)
+	require.NoError(t, err)
+	require.Equal(t, plain, result)
+}
+
+func TestPagedReader_Deflate_DoesNotAdvancePosition(t *testing.T) {
+	plain := []byte("hello from paged deflate")
+	compressed := deflateCompress(t, plain)
+
+	r := NewPagedReader(bytes.NewReader(compressed))
+	_, err := r.Deflate()
+	require.NoError(t, err)
+
+	remaining, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, compressed, remaining)
+}
+
 func TestSubReader_SubReader_Basic(t *testing.T) {
 	g := generate(10000)
 	r := NewPagedReader(g)
@@ -1436,6 +1475,77 @@ func TestSubReader_SubReader_LargeData(t *testing.T) {
 	require.Equal(t, g.All()[expectedStart:expectedEnd], result)
 }
 
+func TestSubReader_SubReaderOffset_Basic(t *testing.T) {
+	data := make([]byte, 10)
+	for i := range data {
+		data[i] = byte(i)
+	}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReader(0, 10)
+	require.NoError(t, err)
+
+	off, err := sub.SubReaderOffset(3)
+	require.NoError(t, err)
+	result, err := io.ReadAll(off)
+	require.NoError(t, err)
+	require.Equal(t, data[3:], result)
+}
+
+func TestSubReader_SubReaderOffset_ZeroOffset(t *testing.T) {
+	data := []byte{10, 20, 30, 40, 50}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReader(0, 5)
+	require.NoError(t, err)
+
+	off, err := sub.SubReaderOffset(0)
+	require.NoError(t, err)
+	result, err := io.ReadAll(off)
+	require.NoError(t, err)
+	require.Equal(t, data, result)
+}
+
+func TestSubReader_SubReaderOffset_OffsetBeyondAllowed(t *testing.T) {
+	data := []byte{1, 2, 3, 4, 5}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReader(0, 5)
+	require.NoError(t, err)
+
+	_, err = sub.SubReaderOffset(6)
+	require.Error(t, err)
+}
+
+func TestSubReader_SubReaderOffset_CrossPageBoundary(t *testing.T) {
+	size := pageSize + 100
+	data := make([]byte, size)
+	for i := range data {
+		data[i] = byte(i % 251)
+	}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReader(0, uint64(size))
+	require.NoError(t, err)
+
+	offset := uint64(pageSize - 10)
+	off, err := sub.SubReaderOffset(offset)
+	require.NoError(t, err)
+	result, err := io.ReadAll(off)
+	require.NoError(t, err)
+	require.Equal(t, data[offset:], result)
+}
+
+func TestSubReader_SubReaderOffset_DoesNotAdvancePosition(t *testing.T) {
+	data := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReader(0, 8)
+	require.NoError(t, err)
+
+	_, err = sub.SubReaderOffset(4)
+	require.NoError(t, err)
+
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, data, result)
+}
+
 func TestSubReaderOffset_SubReader_Basic(t *testing.T) {
 	g := generate(10000)
 	r := NewPagedReader(g)
@@ -1554,6 +1664,180 @@ func TestSubReaderOffset_SubReader_ExactPageBoundary(t *testing.T) {
 
 	// Should read from 32KB to 48KB in original data
 	require.Equal(t, g.All()[32*1024:48*1024], result)
+}
+
+func TestSubReaderOffset_SubReaderOffset_ZeroOffset(t *testing.T) {
+	data := []byte{1, 2, 3, 4, 5}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+
+	fork, err := sub.SubReaderOffset(0)
+	require.NoError(t, err)
+	result, err := io.ReadAll(fork)
+	require.NoError(t, err)
+	require.Equal(t, data, result)
+}
+
+func TestSubReaderOffset_SubReaderOffset_NonZeroOffset(t *testing.T) {
+	data := []byte{10, 20, 30, 40, 50}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+
+	fork, err := sub.SubReaderOffset(2)
+	require.NoError(t, err)
+	result, err := io.ReadAll(fork)
+	require.NoError(t, err)
+	require.Equal(t, data[2:], result)
+}
+
+func TestSubReaderOffset_SubReaderOffset_DoesNotAdvancePosition(t *testing.T) {
+	data := []byte{1, 2, 3, 4, 5, 6}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+
+	_, err = sub.SubReaderOffset(3)
+	require.NoError(t, err)
+
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, data, result)
+}
+
+func TestSubReaderOffset_SubReaderOffset_CrossPageBoundary(t *testing.T) {
+	size := pageSize + 200
+	data := make([]byte, size)
+	for i := range data {
+		data[i] = byte(i % 251)
+	}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+
+	offset := uint64(pageSize + 50)
+	fork, err := sub.SubReaderOffset(offset)
+	require.NoError(t, err)
+	result, err := io.ReadAll(fork)
+	require.NoError(t, err)
+	require.Equal(t, data[offset:], result)
+}
+
+func TestSubReaderOffset_SubReaderOffset_RequiresPageLoad(t *testing.T) {
+	size := pageSize + 500
+	data := make([]byte, size)
+	for i := range data {
+		data[i] = byte(i % 199)
+	}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+
+	// Skip into the second page — forces loadPage inside SubReaderOffset loop.
+	offset := uint64(pageSize + 100)
+	fork, err := sub.SubReaderOffset(offset)
+	require.NoError(t, err)
+	result, err := io.ReadAll(fork)
+	require.NoError(t, err)
+	require.Equal(t, data[offset:], result)
+}
+
+func TestSubReaderOffset_Skip_Basic(t *testing.T) {
+	data := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+
+	err = sub.Skip(3)
+	require.NoError(t, err)
+
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, data[3:], result)
+}
+
+func TestSubReaderOffset_Skip_CrossPageBoundary(t *testing.T) {
+	size := pageSize + 300
+	data := make([]byte, size)
+	for i := range data {
+		data[i] = byte(i % 251)
+	}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+
+	skip := pageSize + 50
+	err = sub.Skip(skip)
+	require.NoError(t, err)
+
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, data[skip:], result)
+}
+
+func TestSubReaderOffset_Skip_ExactPageBoundary(t *testing.T) {
+	size := pageSize * 2
+	data := make([]byte, size)
+	for i := range data {
+		data[i] = byte(i % 251)
+	}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+
+	err = sub.Skip(pageSize)
+	require.NoError(t, err)
+
+	result, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, data[pageSize:], result)
+}
+
+func TestSubReaderOffset_Skip_PastEOF(t *testing.T) {
+	data := []byte{1, 2, 3}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+
+	// Read all data to exhaust the source, then skip — should return EOF.
+	_, err = io.ReadAll(sub)
+	require.NoError(t, err)
+
+	sub2, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+	err = sub2.Skip(len(data) + 1)
+	require.Error(t, err)
+}
+
+func TestSubReaderOffset_Consumed_InitialState(t *testing.T) {
+	r := NewPagedReader(bytes.NewReader([]byte{1, 2, 3}))
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+	require.Equal(t, 0, sub.Consumed())
+}
+
+func TestSubReaderOffset_Consumed_AfterRead(t *testing.T) {
+	data := []byte{1, 2, 3, 4, 5}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+
+	buf := make([]byte, 3)
+	_, err = io.ReadFull(sub, buf)
+	require.NoError(t, err)
+	require.Equal(t, 3, sub.Consumed())
+}
+
+func TestSubReaderOffset_Consumed_AfterSkip(t *testing.T) {
+	data := []byte{1, 2, 3, 4, 5}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+
+	err = sub.Skip(4)
+	require.NoError(t, err)
+	require.Equal(t, 4, sub.Consumed())
 }
 
 func TestSubReader_Skip_Basic(t *testing.T) {
@@ -2321,6 +2605,78 @@ func TestSubReaderOffset_Peek_AfterSkip(t *testing.T) {
 	require.Equal(t, g.All()[1500:], remaining)
 }
 
+func TestSubReader_Deflate_Basic(t *testing.T) {
+	plain := []byte("hello from sub-reader deflate")
+	compressed := deflateCompress(t, plain)
+	// Wrap the compressed bytes in a larger buffer with a prefix/suffix.
+	prefix := []byte{0xAA, 0xBB}
+	suffix := []byte{0xCC, 0xDD}
+	data := append(append(prefix, compressed...), suffix...)
+
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReader(uint64(len(prefix)), uint64(len(compressed)))
+	require.NoError(t, err)
+
+	got, err := sub.Deflate()
+	require.NoError(t, err)
+	result, err := io.ReadAll(got)
+	require.NoError(t, err)
+	require.Equal(t, plain, result)
+}
+
+func TestSubReader_Deflate_DoesNotAdvancePosition(t *testing.T) {
+	plain := []byte("hello from sub-reader deflate")
+	compressed := deflateCompress(t, plain)
+	data := append([]byte{0xAA, 0xBB}, compressed...)
+
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReader(2, uint64(len(compressed)))
+	require.NoError(t, err)
+
+	_, err = sub.Deflate()
+	require.NoError(t, err)
+
+	// sub's position must be unchanged: we can still read all the compressed bytes.
+	remaining, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, compressed, remaining)
+}
+
+func TestSubReaderOffset_Deflate_Basic(t *testing.T) {
+	plain := []byte("hello from offset deflate")
+	compressed := deflateCompress(t, plain)
+	prefix := []byte{0x01, 0x02, 0x03}
+	data := append(prefix, compressed...)
+
+	r := NewPagedReader(bytes.NewReader(data))
+	// SubReaderOffset skips prefix, no size limit.
+	sub, err := r.SubReaderOffset(uint64(len(prefix)))
+	require.NoError(t, err)
+
+	got, err := sub.Deflate()
+	require.NoError(t, err)
+	result, err := io.ReadAll(got)
+	require.NoError(t, err)
+	require.Equal(t, plain, result)
+}
+
+func TestSubReaderOffset_Deflate_DoesNotAdvancePosition(t *testing.T) {
+	plain := []byte("hello from offset deflate")
+	compressed := deflateCompress(t, plain)
+	data := append([]byte{0x01}, compressed...)
+
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReaderOffset(1)
+	require.NoError(t, err)
+
+	_, err = sub.Deflate()
+	require.NoError(t, err)
+
+	remaining, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, compressed, remaining)
+}
+
 func TestBytesReader_Read_Basic(t *testing.T) {
 	g := generate(100)
 	r := NewBytesReader(g.All())
@@ -2891,6 +3247,63 @@ func TestBytesReader_FullCycle(t *testing.T) {
 	for i := 0; i < 256; i++ {
 		require.Equal(t, byte(i), result[i], "Byte at position %d should be %d", i, i)
 	}
+}
+
+func TestBytesReader_Deflate_Basic(t *testing.T) {
+	plain := []byte("hello deflate world")
+	compressed := deflateCompress(t, plain)
+
+	r := NewBytesReader(compressed)
+	got, err := r.Deflate()
+	require.NoError(t, err)
+
+	result, err := io.ReadAll(got)
+	require.NoError(t, err)
+	require.Equal(t, plain, result)
+}
+
+func TestBytesReader_Deflate_DoesNotAdvancePosition(t *testing.T) {
+	plain := []byte("hello deflate world")
+	compressed := deflateCompress(t, plain)
+
+	r := NewBytesReader(compressed)
+	_, err := r.Deflate()
+	require.NoError(t, err)
+
+	// Original reader position must be unchanged.
+	remaining, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, compressed, remaining)
+}
+
+func TestBytesReader_Deflate_AfterPartialRead(t *testing.T) {
+	// Prefix 4 bytes before the compressed payload.
+	plain := []byte("hello deflate world")
+	compressed := deflateCompress(t, plain)
+	data := append([]byte{1, 2, 3, 4}, compressed...)
+
+	r := NewBytesReader(data)
+	// Advance past the prefix.
+	_, err := io.ReadFull(r, make([]byte, 4))
+	require.NoError(t, err)
+
+	got, err := r.Deflate()
+	require.NoError(t, err)
+	result, err := io.ReadAll(got)
+	require.NoError(t, err)
+	require.Equal(t, plain, result)
+}
+
+func TestBytesReader_Deflate_Empty(t *testing.T) {
+	plain := []byte{}
+	compressed := deflateCompress(t, plain)
+
+	r := NewBytesReader(compressed)
+	got, err := r.Deflate()
+	require.NoError(t, err)
+	result, err := io.ReadAll(got)
+	require.NoError(t, err)
+	require.Equal(t, plain, result)
 }
 
 // Helper type for testing writer errors
