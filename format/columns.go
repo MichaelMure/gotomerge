@@ -1,16 +1,21 @@
 package format
 
 import (
-	"gotomerge/column"
+	"iter"
+
+	ioutil "gotomerge/utils/io"
 )
 
-// OperationColumns holds the decoded column iterators for a set of operations,
+// OperationColumns holds SubReader references for a set of operations,
 // used by both ChangeChunk and DocumentChunk.
 //
 // In the Automerge binary format, operations are not stored as records. Instead,
 // each field of every operation is stored in its own column — a single compressed
 // stream for all values of that field across all operations. To reconstruct one
 // operation, you read one value from each relevant column in lockstep.
+//
+// Each field is nil when its column was absent from the binary data
+// (meaning all values for that field default to null/zero).
 //
 // Object (ObjectActorId + ObjectCounter) identifies which map, list, or text
 // object the operation targets. The root object is represented as (0, 0).
@@ -46,36 +51,36 @@ import (
 // ExpandControl and Mark support rich-text mark operations (bold, italic, etc.)
 // and are only relevant for text objects.
 type OperationColumns struct {
-	ObjectActorId column.ActorColumnIter
-	ObjectCounter column.UlebColumnIter
+	ObjectActorId ioutil.SubReader
+	ObjectCounter ioutil.SubReader
 
-	KeyActorId column.ActorColumnIter
-	KeyCounter column.DeltaColumnIter
-	KeyString  column.StringColumnIter
+	KeyActorId ioutil.SubReader
+	KeyCounter ioutil.SubReader
+	KeyString  ioutil.SubReader
 
-	ActorId column.ActorColumnIter
-	Counter column.DeltaColumnIter
+	ActorId ioutil.SubReader
+	Counter ioutil.SubReader
 
-	Insert column.BooleanColumnIter
+	Insert ioutil.SubReader
 
-	Action        column.UlebColumnIter
-	ValueMetadata column.ValueMetadataColumnIter
-	Value         column.ValueColumnIterMaker
+	Action        ioutil.SubReader
+	ValueMetadata ioutil.SubReader
+	Value         ioutil.SubReader
 
-	PredecessorGroup   column.GroupColumnIter
-	PredecessorActorId column.ActorColumnIter
-	PredecessorCounter column.DeltaColumnIter
+	PredecessorGroup   ioutil.SubReader
+	PredecessorActorId ioutil.SubReader
+	PredecessorCounter ioutil.SubReader
 
-	SuccessorGroup   column.GroupColumnIter
-	SuccessorActorId column.ActorColumnIter
-	SuccessorCounter column.DeltaColumnIter
+	SuccessorGroup   ioutil.SubReader
+	SuccessorActorId ioutil.SubReader
+	SuccessorCounter ioutil.SubReader
 
-	ExpandControl column.BooleanColumnIter
+	ExpandControl ioutil.SubReader
 
-	Mark column.StringColumnIter
+	Mark ioutil.SubReader
 }
 
-// ChangeColumns holds the decoded column iterators for the change summary table
+// ChangeColumns holds SubReader references for the change summary table
 // inside a document chunk. Each column stores one field for all changes in a
 // compressed, run-length-encoded form.
 //
@@ -87,18 +92,26 @@ type OperationColumns struct {
 //
 // ExtraMetadata / ExtraData are a reserved extension point in the format.
 type ChangeColumns struct {
-	ActorId column.ActorColumnIter
-	SeqNum  column.DeltaColumnIter
+	ActorId ioutil.SubReader
+	SeqNum  ioutil.SubReader
 
-	MaxOp column.DeltaColumnIter
+	MaxOp ioutil.SubReader
 
-	Time column.DeltaColumnIter
+	Time ioutil.SubReader
 
-	Message column.StringColumnIter
+	Message ioutil.SubReader
 
-	DependenciesGroup column.GroupColumnIter
-	DependenciesIndex column.DeltaColumnIter
+	DependenciesGroup ioutil.SubReader
+	DependenciesIndex ioutil.SubReader
 
-	ExtraMetadata column.ValueMetadataColumnIter
-	ExtraData     column.ValueColumn
+	ExtraMetadata ioutil.SubReader
+	ExtraData     ioutil.SubReader
+}
+
+// errSeq returns an iterator that immediately yields err and stops.
+func errSeq[T any](err error) iter.Seq2[T, error] {
+	return func(yield func(T, error) bool) {
+		var zero T
+		yield(zero, err)
+	}
 }

@@ -23,7 +23,8 @@ import (
 //
 // The operations are stored in a columnar layout: instead of one record per
 // operation, each field (object, key, action, …) is stored as its own compressed
-// column. OperationColumns holds the decoded iterators for those columns.
+// column. OperationColumns holds re-readable SubReaders for those columns; fresh
+// readers are created each time Operations() is called.
 //
 // OtherActors lists every actor referenced *by the operations in this change*
 // other than the change's own Actor. Operation actor-index 0 always refers to
@@ -133,8 +134,7 @@ func readChangeChunk(r ioutil.SubReader) (*ChangeChunk, error) {
 
 	var offset uint64
 	for _, metadatum := range res.OpMetadata {
-		var rawCol ioutil.SubReader
-		rawCol, err = r.SubReader(offset, metadatum.Length)
+		rawCol, err := r.SubReader(offset, metadatum.Length)
 		if err != nil {
 			return nil, fmt.Errorf("error reading operation column: %w", err)
 		}
@@ -145,43 +145,43 @@ func readChangeChunk(r ioutil.SubReader) (*ChangeChunk, error) {
 
 		switch metadatum.Spec {
 		case 1: // ID: 0, type: actor
-			res.OpColumns.ObjectActorId = column.ReadActorColumn(rawCol)
+			res.OpColumns.ObjectActorId = rawCol
 		case 2: // ID: 0, type: uleb128
-			res.OpColumns.ObjectCounter = column.ReadUlebColumn(rawCol)
+			res.OpColumns.ObjectCounter = rawCol
 		case 17: // ID: 1, type: actor
-			res.OpColumns.KeyActorId = column.ReadActorColumn(rawCol)
+			res.OpColumns.KeyActorId = rawCol
 		case 19: // ID: 1, type: delta
-			res.OpColumns.KeyCounter = column.ReadDeltaColumn(rawCol)
+			res.OpColumns.KeyCounter = rawCol
 		case 21: // ID: 1, type: string
-			res.OpColumns.KeyString = column.ReadStringColumn(rawCol)
+			res.OpColumns.KeyString = rawCol
 		case 33: // ID: 2, type: actor
-			res.OpColumns.ActorId = column.ReadActorColumn(rawCol)
+			res.OpColumns.ActorId = rawCol
 		case 35: // ID: 2, type: delta
-			res.OpColumns.Counter = column.ReadDeltaColumn(rawCol)
+			res.OpColumns.Counter = rawCol
 		case 52: // ID: 3, type: bool
-			res.OpColumns.Insert = column.ReadBooleanColumn(rawCol)
+			res.OpColumns.Insert = rawCol
 		case 66: // ID: 4, type: uleb128
-			res.OpColumns.Action = column.ReadUlebColumn(rawCol)
+			res.OpColumns.Action = rawCol
 		case 86: // ID: 5, type: value_metadata
-			res.OpColumns.ValueMetadata = column.ReadValueMetadataColumn(rawCol)
+			res.OpColumns.ValueMetadata = rawCol
 		case 87: // ID: 5, type: value
-			res.OpColumns.Value = column.NewValueColumn(rawCol)
+			res.OpColumns.Value = rawCol
 		case 112: // ID: 7, type: group
-			res.OpColumns.PredecessorGroup = column.ReadGroupColumn(rawCol)
+			res.OpColumns.PredecessorGroup = rawCol
 		case 113: // ID: 7, type: actor
-			res.OpColumns.PredecessorActorId = column.ReadActorColumn(rawCol)
+			res.OpColumns.PredecessorActorId = rawCol
 		case 115: // ID: 7, type: delta
-			res.OpColumns.PredecessorCounter = column.ReadDeltaColumn(rawCol)
+			res.OpColumns.PredecessorCounter = rawCol
 		case 128: // ID: 8, type: group
-			res.OpColumns.SuccessorGroup = column.ReadGroupColumn(rawCol)
+			res.OpColumns.SuccessorGroup = rawCol
 		case 129: // ID: 8, type: actor
-			res.OpColumns.SuccessorActorId = column.ReadActorColumn(rawCol)
+			res.OpColumns.SuccessorActorId = rawCol
 		case 131: // ID: 8, type: delta
-			res.OpColumns.SuccessorCounter = column.ReadDeltaColumn(rawCol)
+			res.OpColumns.SuccessorCounter = rawCol
 		case 148: // ID: 9, type: bool
-			res.OpColumns.ExpandControl = column.ReadBooleanColumn(rawCol)
+			res.OpColumns.ExpandControl = rawCol
 		case 165: // ID: 10, type: string
-			res.OpColumns.Mark = column.ReadStringColumn(rawCol)
+			res.OpColumns.Mark = rawCol
 		default:
 			data, err := io.ReadAll(rawCol)
 			if err != nil {
@@ -215,54 +215,64 @@ func readChangeChunk(r ioutil.SubReader) (*ChangeChunk, error) {
 }
 
 func (cc ChangeChunk) Operations() iter.Seq2[types.ChangeOperation, error] {
-	objIter := column.ObjectColumn(cc.OpColumns.ObjectActorId, cc.OpColumns.ObjectCounter)
-	keyIter := column.KeyColumn(cc.OpColumns.KeyActorId, cc.OpColumns.KeyCounter, cc.OpColumns.KeyString)
-	insertIter := column.InsertColumn(cc.OpColumns.Insert)
-	actionIter := column.ActionColumn(cc.OpColumns.Action, cc.OpColumns.ValueMetadata, cc.OpColumns.Value)
-	predIter := column.GroupedOperationIdColumn("predecessors", cc.OpColumns.PredecessorGroup, cc.OpColumns.PredecessorActorId, cc.OpColumns.PredecessorCounter)
+	objActor, e1 := column.Opt(cc.OpColumns.ObjectActorId, column.NewActorReader)
+	objCounter, e2 := column.Opt(cc.OpColumns.ObjectCounter, column.NewUlebReader)
+	keyActor, e3 := column.Opt(cc.OpColumns.KeyActorId, column.NewActorReader)
+	keyCounter, e4 := column.Opt(cc.OpColumns.KeyCounter, column.NewDeltaReader)
+	keyString, e5 := column.Opt(cc.OpColumns.KeyString, column.NewStringReader)
+	insert, e6 := column.Opt(cc.OpColumns.Insert, column.NewBoolReader)
+	actionKind, e7 := column.Opt(cc.OpColumns.Action, column.NewUlebReader)
+	valueMeta, e8 := column.Opt(cc.OpColumns.ValueMetadata, column.NewValueMetadataReader)
+	value, e9 := column.Opt(cc.OpColumns.Value, column.NewValueReader)
+	predGroup, e10 := column.Opt(cc.OpColumns.PredecessorGroup, column.NewGroupReader)
+	predActor, e11 := column.Opt(cc.OpColumns.PredecessorActorId, column.NewActorReader)
+	predCounter, e12 := column.Opt(cc.OpColumns.PredecessorCounter, column.NewDeltaReader)
+	if err := errors.Join(e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12); err != nil {
+		return errSeq[types.ChangeOperation](err)
+	}
+
+	objReader := column.NewObjectReader(objActor, objCounter)
+	keyReader := column.NewKeyReader(keyActor, keyCounter, keyString)
+	insertReader := column.NewInsertReader(insert)
+	actionReader := column.NewActionReader(actionKind, valueMeta, value)
+	predReader := column.NewGroupedOpIdReader("predecessors", predGroup, predActor, predCounter)
 
 	return func(yield func(types.ChangeOperation, error) bool) {
-		defer objIter.Stop()
-		defer keyIter.Stop()
-		defer insertIter.Stop()
-		defer actionIter.Stop()
-		defer predIter.Stop()
-
 		var opIdx uint64
 		for {
-			action, errAction := actionIter.Next()
-			if errAction != nil && !errors.Is(errAction, column.ErrDone) {
+			action, errAction := actionReader.Next()
+			if errors.Is(errAction, column.ErrDone) {
+				return
+			}
+			if errAction != nil {
 				yield(types.ChangeOperation{}, errAction)
 				return
 			}
 
 			// The action column drives iteration length: it is always present and
 			// its exhaustion signals that all operations have been yielded. Other
-			// columns may be absent (nil iterator) or shorter if their values were
+			// columns may be absent (nil reader) or shorter if their values were
 			// all null/default.
-			if errors.Is(errAction, column.ErrDone) {
-				return
-			}
 
-			obj, err := objIter.Next()
+			obj, err := objReader.Next()
 			if err != nil && !errors.Is(err, column.ErrDone) {
 				yield(types.ChangeOperation{}, err)
 				return
 			}
 
-			key, err := keyIter.Next()
+			key, err := keyReader.Next()
 			if err != nil && !errors.Is(err, column.ErrDone) {
 				yield(types.ChangeOperation{}, err)
 				return
 			}
 
-			insert, err := insertIter.Next()
+			insert, err := insertReader.Next()
 			if err != nil && !errors.Is(err, column.ErrDone) {
 				yield(types.ChangeOperation{}, err)
 				return
 			}
 
-			pred, err := predIter.Next()
+			pred, err := predReader.Next()
 			if err != nil && !errors.Is(err, column.ErrDone) {
 				yield(types.ChangeOperation{}, err)
 				return
@@ -288,4 +298,3 @@ func (cc ChangeChunk) Operations() iter.Seq2[types.ChangeOperation, error] {
 		}
 	}
 }
-

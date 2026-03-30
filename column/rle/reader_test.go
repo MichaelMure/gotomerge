@@ -7,7 +7,6 @@ package rle
 //   Literal run:   s64(L < 0), then -L values  → those values verbatim
 
 import (
-	"bytes"
 	"io"
 	"testing"
 

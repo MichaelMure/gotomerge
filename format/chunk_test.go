@@ -43,11 +43,11 @@ func TestReadDocument(t *testing.T) {
 
 			var chunks int
 			for {
-				c, toSkip, err := ReadChunk(r)
+				_, toSkip, err := ReadChunk(r)
 				require.NoError(t, err)
-				fmt.Println(c)
-				fmt.Println()
-				fmt.Println()
+				// fmt.Println(c)
+				// fmt.Println()
+				// fmt.Println()
 
 				err = r.Skip(toSkip)
 				require.NoError(t, err)
