@@ -14,7 +14,7 @@ type SubReader interface {
 	// sub-readers, the caller should call Skip() to move the position past the now irrelevant bytes.
 	SubReader(offset uint64, size uint64) (SubReader, error)
 
-	// SubReaderOffset is the same as SubReader but with only an offset. The end of the data remain the same.
+	// SubReaderOffset is the same as SubReader but with only an offset. The end of the data remains the same.
 	SubReaderOffset(offset uint64) (SubReader, error)
 
 	// Skip increments the reader position by N bytes and release consumed pages.
@@ -481,7 +481,15 @@ func (s *subReader) Consumed() int {
 }
 
 func (s *subReader) Peek(w io.Writer, n int) error {
-	panic("not implemented")
+	if n == 0 {
+		return nil
+	}
+	fork, err := s.SubReaderOffset(0)
+	if err != nil {
+		return fmt.Errorf("peek: %w", err)
+	}
+	_, err = io.CopyN(w, fork, int64(n))
+	return err
 }
 
 func (s *subReader) Deflate() (SubReader, error) { return deflate(s) }
@@ -539,9 +547,12 @@ func (s *subReaderOffset) Read(p []byte) (int, error) {
 
 	// if the current page is empty, try to load
 	if s.head == (s.r.head+s.r.count)%len(s.r.pages) && len(s.r.pages[s.head]) == 0 {
-		_, err := s.r.loadPage()
+		loaded, err := s.r.loadPage()
 		if err != nil && err != io.EOF {
 			return 0, err
+		}
+		if loaded == 0 {
+			return 0, io.EOF
 		}
 	}
 
@@ -562,6 +573,9 @@ func (s *subReaderOffset) Read(p []byte) (int, error) {
 			if (s.head+1)%len(s.r.pages) == (s.r.head+s.r.count)%len(s.r.pages) {
 				loaded, err := s.r.loadPage()
 				if loaded == 0 {
+					// Advance head to the frontier so Empty() can detect exhaustion.
+					s.head = (s.head + 1) % len(s.r.pages)
+					s.position = 0
 					s.consumed += totalRead
 					return totalRead, io.EOF
 				}
@@ -607,6 +621,44 @@ func (s *subReaderOffset) SubReader(offset uint64, size uint64) (SubReader, erro
 			position = 0
 			toSkip -= availableInPage
 		}
+	}
+
+	// subReader.Read never loads pages itself, so ensure all pages covering
+	// [head:position + size) are loaded now. We scan forward without moving
+	// head/position (those mark the start of the subReader window).
+	scanHead := head
+	scanPos := position
+	toLoad := int(size)
+	for toLoad > 0 {
+		avail := len(s.r.pages[scanHead]) - scanPos
+		if avail == 0 {
+			if (scanHead)%len(s.r.pages) == (s.r.head+s.r.count)%len(s.r.pages) {
+				loaded, err := s.r.loadPage()
+				if loaded == 0 {
+					break // EOF — subReader will return EOF naturally
+				}
+				if err != nil && err != io.EOF {
+					return nil, fmt.Errorf("subReaderOffset: SubReader cannot load data for size: %w", err)
+				}
+				continue
+			}
+		}
+		if toLoad <= avail {
+			break
+		}
+		toLoad -= avail
+		nextHead := (scanHead + 1) % len(s.r.pages)
+		if nextHead == (s.r.head+s.r.count)%len(s.r.pages) {
+			loaded, err := s.r.loadPage()
+			if loaded == 0 {
+				break
+			}
+			if err != nil && err != io.EOF {
+				return nil, fmt.Errorf("subReaderOffset: SubReader cannot load data for size: %w", err)
+			}
+		}
+		scanHead = nextHead
+		scanPos = 0
 	}
 
 	return &subReader{
@@ -669,7 +721,7 @@ func (s *subReaderOffset) Skip(n int) error {
 		} else {
 			n -= availableInPage
 			s.consumed += availableInPage
-			if (s.head+1)%len(s.r.pages) == (s.r.head+s.r.count)%len(s.r.pages) {
+			if n > 0 && (s.head+1)%len(s.r.pages) == (s.r.head+s.r.count)%len(s.r.pages) {
 				loaded, err := s.r.loadPage()
 				if loaded == 0 {
 					return io.EOF
@@ -686,7 +738,15 @@ func (s *subReaderOffset) Skip(n int) error {
 }
 
 func (s *subReaderOffset) Empty() bool {
-	panic("not implemented")
+	if s.position < len(s.r.pages[s.head]) {
+		return false
+	}
+	frontier := (s.r.head + s.r.count) % len(s.r.pages)
+	if s.head != frontier {
+		return false
+	}
+	loaded, _ := s.r.loadPage()
+	return loaded == 0
 }
 
 func (s *subReaderOffset) Consumed() int {
