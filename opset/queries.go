@@ -19,7 +19,7 @@ func (s *OpSet) MapGet(obj types.ObjectId, key string) (Op, bool) {
 
 	if s.snapshot != nil {
 		if r, ok := s.snapshot.objRanges[obj]; ok {
-			scanSnapshotRange(s.snapshot, r, func(idx uint32, op Op) bool {
+			s.snapshot.scanRange(r, func(idx uint32, op Op) bool {
 				if s.snapshot.succCount[idx] > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
 					return true
 				}
@@ -67,7 +67,7 @@ func (s *OpSet) MapGetAll(obj types.ObjectId, key string) []Op {
 
 	if s.snapshot != nil {
 		if r, ok := s.snapshot.objRanges[obj]; ok {
-			scanSnapshotRange(s.snapshot, r, func(idx uint32, op Op) bool {
+			s.snapshot.scanRange(r, func(idx uint32, op Op) bool {
 				if s.snapshot.succCount[idx] > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
 					return true
 				}
@@ -106,7 +106,7 @@ func (s *OpSet) MapKeys(obj types.ObjectId) []string {
 
 	if s.snapshot != nil {
 		if r, ok := s.snapshot.objRanges[obj]; ok {
-			scanSnapshotRange(s.snapshot, r, func(idx uint32, op Op) bool {
+			s.snapshot.scanRange(r, func(idx uint32, op Op) bool {
 				if s.snapshot.succCount[idx] > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
 					return true
 				}

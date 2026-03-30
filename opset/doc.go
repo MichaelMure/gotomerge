@@ -24,12 +24,9 @@ Automerge document and provides queries over it.
 	│  │  objCreators map[ObjectId]    │                           │
 	│  │  byId       map[OpId]uint32   │                           │
 	│  │                               │                           │
-	│  │  SubReaders (key/opId/action) │  ← zero-copy col refs     │
-	│  │       │                       │                           │
-	│  │       ▼                       │                           │
-	│  │  seekIndex  (seek.go)         │  ← checkpoints            │
-	│  │  []seekPoint{                 │     every seekStride ops  │
-	│  │    opIdx, *KeyReader,         │                           │
+	│  │  seekIndex  (seek.go)         │  ← checkpoints built      │
+	│  │  []seekPoint{                 │     during ApplyDocument  │
+	│  │    opIdx, *KeyReader,         │     every seekStride ops  │
 	│  │    *OpIdReader, *ActionReader │                           │
 	│  │  }                            │                           │
 	│  └───────────────────────────────┘                           │
@@ -44,16 +41,16 @@ Automerge document and provides queries over it.
 
 An OpSet is populated from two kinds of chunks:
 
-DocumentChunk — a merged snapshot of the entire document history. Its op
-columns are stored as SubReader references directly into the paged reader's
-pages (zero-copy). The snapshotStore wraps these column refs and builds a
-small amount of derived metadata in a single pass:
+DocumentChunk — a merged snapshot of the entire document history. ApplyDocument
+makes a single pass over all operations, building metadata and the seek index
+together:
 
   - succCount []uint32  - how many successors each op has (live iff 0)
   - insert    bitset    - set for list-insertion ops (skipped by map queries)
   - objRanges           - contiguous op range per object, for O(1) lookup
   - objCreators         - action kind of Make* ops, for ObjType() without scan
   - byId                - opId → array index, for predecessor updates
+  - seekIndex           - column reader checkpoints every seekStride ops
 
 ChangeChunk — an incremental change from one actor. Each change is applied
 on top of whatever is already in the OpSet (snapshot or prior changes). Ops
@@ -98,15 +95,13 @@ Phase 2 — scan and filter.
 	For snapshot ops, scanSnapshotRange is called with the opRange. It cannot
 	simply jump to position r.start in the column readers, because the readers
 	are stateful streams — seeking means replaying from the beginning. The seek
-	index (docSeekIndex) solves this:
+	index solves this:
 
 	  1. seekIdx.seek(r.start) returns the checkpoint just before r.start and
 	     the number of ops to skip from there (at most seekStride, currently 64).
-	  2. Each checkpoint (docSeekPoint) holds pre-forked KeyReader, OpIdReader,
+	  2. Each checkpoint (seekPoint) holds pre-forked KeyReader, OpIdReader,
 	     and ActionReader positioned at a known op boundary. Forking a reader
-	     calls SubReaderOffset(0) on its underlying SubReader, which returns a
-	     new independent read cursor into the same zero-copy page memory —
-	     no data is copied.
+	     creates a new independent cursor into the same bytes — no data is copied.
 	  3. The forked readers are advanced skip times to reach r.start, then
 	     iterated from r.start to r.end. At each position, succCount[idx] and
 	     insert.Get(idx) are read from the flat arrays (random access, O(1)),

@@ -6,10 +6,53 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"gotomerge/column/rle"
 	"gotomerge/format"
 	"gotomerge/types"
 	ioutil "gotomerge/utils/io"
 )
+
+// valueMetaString encodes a value metadata entry for a string of the given length.
+// ValueMetadata = (length << 4) | type; string type = 6.
+func valueMetaString(length int) uint64 {
+	return uint64(length)<<4 | 6
+}
+
+// changeChunkSetKey builds a minimal ChangeChunk with one op: set root[key] = value (string).
+func changeChunkSetKey(actor types.ActorId, seqNum, startOp uint64, deps []types.ChangeHash, hash types.ChangeHash, key, value string) *format.ChangeChunk {
+	return &format.ChangeChunk{
+		Hash:         hash,
+		Dependencies: deps,
+		Actor:        actor,
+		SeqNum:       seqNum,
+		StartOp:      startOp,
+		OpColumns: format.OperationColumns{
+			KeyString:     ioutil.NewBytesReader(rle.EncodeString(key)),
+			Action:        ioutil.NewBytesReader(rle.EncodeUint64(uint64(types.ActionSet))),
+			ValueMetadata: ioutil.NewBytesReader(rle.EncodeUint64(valueMetaString(len(value)))),
+			Value:         ioutil.NewBytesReader([]byte(value)),
+		},
+	}
+}
+
+// changeChunkDelete builds a minimal ChangeChunk with one op: delete the op
+// identified by predActorIdx/predCounter (in the change's local actor space).
+func changeChunkDelete(actor types.ActorId, seqNum, startOp uint64, deps []types.ChangeHash, hash types.ChangeHash, key string, predActorIdx uint32, predCounter int64) *format.ChangeChunk {
+	return &format.ChangeChunk{
+		Hash:         hash,
+		Dependencies: deps,
+		Actor:        actor,
+		SeqNum:       seqNum,
+		StartOp:      startOp,
+		OpColumns: format.OperationColumns{
+			KeyString:          ioutil.NewBytesReader(rle.EncodeString(key)),
+			Action:             ioutil.NewBytesReader(rle.EncodeUint64(uint64(types.ActionDelete))),
+			PredecessorGroup:   ioutil.NewBytesReader(rle.EncodeUint64(1)),
+			PredecessorActorId: ioutil.NewBytesReader(rle.EncodeUint64(uint64(predActorIdx))),
+			PredecessorCounter: ioutil.NewBytesReader(rle.EncodeInt64(predCounter)),
+		},
+	}
+}
 
 func applyFile(t *testing.T, path string) *OpSet {
 	t.Helper()

@@ -13,4 +13,14 @@ func NewInt64Reader(r ioutil.SubReader) *Int64Reader {
 }
 
 func NewNullableInt64(v int64) NullableValue[int64] { return nullable[int64]{val: v} }
-func NewNullInt64() NullableValue[int64]             { return nullable[int64]{null: true} }
+func NewNullInt64() NullableValue[int64]            { return nullable[int64]{null: true} }
+
+// TODO: bad encoder
+// EncodeInt64 encodes vals as a single literal RLE run of int64 values.
+func EncodeInt64(vals ...int64) []byte {
+	b := leb128.EncodeS64(int64(-len(vals)))
+	for _, v := range vals {
+		b = append(b, leb128.EncodeS64(v)...)
+	}
+	return b
+}

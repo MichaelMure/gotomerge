@@ -1,13 +1,14 @@
 package opset
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
+	"gotomerge/column"
 	"gotomerge/format"
 	"gotomerge/types"
 	"gotomerge/utils/bitset"
-	ioutil "gotomerge/utils/io"
 )
 
 // opRange marks a contiguous span of column positions belonging to one object.
@@ -30,9 +31,11 @@ type opRange struct{ start, end uint32 }
 //   - objCreators so that ObjType() can answer without scanning the action column.
 //   - byId for predecessor-update lookups when a subsequent ChangeChunk
 //     supersedes a snapshot op.
-//   - SubReaders for key/action/opId columns — zero-copy references into the
-//     paged reader's pages. The paged reader must remain alive while these are
-//     used; see DocumentChunk for the lifetime contract.
+//   - seek: a sparse checkpoint list of forked column readers, built in the
+//     same pass as the metadata above. Each checkpoint holds pre-forked
+//     KeyReader, OpIdReader, and ActionReader positioned at a known op boundary.
+//     The underlying column bytes are shared and never copied; the checkpoint
+//     is just a cursor state (a few integers).
 type snapshotStore struct {
 	opCount   uint32
 	succCount []uint32
@@ -42,29 +45,27 @@ type snapshotStore struct {
 	objCreators map[types.ObjectId]types.ActionKind
 	byId        map[types.OpId]uint32
 
-	// Column SubReaders for query-time scanning. Re-readable via SubReaderOffset(0).
-	keyActorId    ioutil.SubReader
-	keyCounter    ioutil.SubReader
-	keyString     ioutil.SubReader
-	opActorId     ioutil.SubReader
-	opCounter     ioutil.SubReader
-	action        ioutil.SubReader
-	valueMetadata ioutil.SubReader
-	value         ioutil.SubReader
-
-	// seek is a sparse checkpoint list built from all query columns, spaced
-	// seekStride ops apart. scanSnapshotRange uses it to jump near the target
-	// range without replaying from column position 0.
 	seek seekIndex
+}
+
+// isDone reports whether err signals that a column reader is exhausted.
+// RLE readers return io.EOF; GroupedOpIdReader returns column.ErrDone when
+// the group column is absent.
+func isDone(err error) bool {
+	return err == io.EOF || errors.Is(err, column.ErrDone)
 }
 
 // ApplyDocument loads all operations from a document snapshot.
 // The OpSet must be empty; applying a DocumentChunk on top of existing ops
 // is not supported.
 //
-// The SubReaders stored in the resulting snapshotStore point into the paged
-// reader's pages. The caller must not call Skip on the paged reader (past the
-// document chunk's bytes) while this OpSet is in use.
+// Column readers are set up once and iterated in a single pass to build both
+// the metadata structures and the seek index. Seek checkpoints are forks of
+// the live readers, so no second column scan is needed.
+//
+// The seek checkpoints hold column readers that reference the same underlying
+// bytes as the DocumentChunk's SubReaders. The caller must not call Skip on the
+// paged reader (past the document chunk's bytes) while this OpSet is in use.
 func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 	if s.snapshot != nil || s.delta != nil {
 		return fmt.Errorf("ApplyDocument called on non-empty OpSet")
@@ -82,21 +83,97 @@ func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 		byId:        make(map[types.OpId]uint32),
 	}
 
-	// Single pass to build all metadata structures.
+	// Set up all column readers in one shot. These are the only readers for
+	// this document chunk — no parallel set is needed.
+	objActor, e1 := column.Opt(doc.OpColumns.ObjectActorId, column.NewActorReader)
+	objCounter, e2 := column.Opt(doc.OpColumns.ObjectCounter, column.NewUlebReader)
+	keyActor, e3 := column.Opt(doc.OpColumns.KeyActorId, column.NewActorReader)
+	keyCounter, e4 := column.Opt(doc.OpColumns.KeyCounter, column.NewDeltaReader)
+	keyStr, e5 := column.Opt(doc.OpColumns.KeyString, column.NewStringReader)
+	opActor, e6 := column.Req(doc.OpColumns.ActorId, column.NewActorReader, "op.actorId")
+	opCounter, e7 := column.Req(doc.OpColumns.Counter, column.NewDeltaReader, "op.counter")
+	insertCol, e8 := column.Opt(doc.OpColumns.Insert, column.NewBoolReader)
+	actionKind, e9 := column.Req(doc.OpColumns.Action, column.NewUlebReader, "action")
+	valueMeta, e10 := column.Opt(doc.OpColumns.ValueMetadata, column.NewValueMetadataReader)
+	valueCol, e11 := column.Opt(doc.OpColumns.Value, column.NewValueReader)
+	succGroup, e12 := column.Opt(doc.OpColumns.SuccessorGroup, column.NewGroupReader)
+	succActor, e13 := column.Opt(doc.OpColumns.SuccessorActorId, column.NewActorReader)
+	succCounter, e14 := column.Opt(doc.OpColumns.SuccessorCounter, column.NewDeltaReader)
+	if err := errors.Join(e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14); err != nil {
+		return fmt.Errorf("column setup: %w", err)
+	}
+
+	objReader := column.NewObjectReader(objActor, objCounter)
+	keyReader := column.NewKeyReader(keyActor, keyCounter, keyStr)
+	opIdReader := column.NewOpIdReader(opActor, opCounter)
+	insertReader := column.NewInsertReader(insertCol)
+	actionReader := column.NewActionReader(actionKind, valueMeta, valueCol)
+	succReader := column.NewGroupedOpIdReader("successor", succGroup, succActor, succCounter)
+
+	// Checkpoint at op 0 before reading anything.
+	k0, ek := keyReader.Fork()
+	oi0, eoi := opIdReader.Fork()
+	a0, ea := actionReader.Fork()
+	if err := errors.Join(ek, eoi, ea); err != nil {
+		return fmt.Errorf("seek index initial checkpoint: %w", err)
+	}
+	var seek seekIndex
+
 	var opIdx uint32
-	for docOp, err := range doc.Operations() {
-		if err != nil {
-			return fmt.Errorf("reading operation: %w", err)
+	for {
+		// Checkpoint at stride boundaries before reading the next op.
+		// The readers are positioned exactly before op opIdx here.
+		if opIdx > 0 && opIdx%seekStride == 0 {
+			kf, err1 := keyReader.Fork()
+			oif, err2 := opIdReader.Fork()
+			af, err3 := actionReader.Fork()
+			if err := errors.Join(err1, err2, err3); err == nil {
+				seek = append(seek, seekPoint{opIdx: opIdx, key: kf, opId: oif, action: af})
+			}
 		}
 
-		ss.succCount = append(ss.succCount, uint32(len(docOp.Successors)))
-		if docOp.Insert {
+		// The action column drives iteration — its exhaustion signals end of ops.
+		action, err := actionReader.Next()
+		if isDone(err) {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("reading action at op %d: %w", opIdx, err)
+		}
+
+		obj, err := objReader.Next()
+		if err != nil && !isDone(err) {
+			return fmt.Errorf("reading object at op %d: %w", opIdx, err)
+		}
+
+		// Key is advanced to keep the reader in lockstep for seek checkpoints;
+		// the decoded value is not needed for metadata.
+		if _, err = keyReader.Next(); err != nil && !isDone(err) {
+			return fmt.Errorf("reading key at op %d: %w", opIdx, err)
+		}
+
+		id, err := opIdReader.Next()
+		if err != nil && !isDone(err) {
+			return fmt.Errorf("reading opId at op %d: %w", opIdx, err)
+		}
+
+		ins, err := insertReader.Next()
+		if err != nil && !isDone(err) {
+			return fmt.Errorf("reading insert at op %d: %w", opIdx, err)
+		}
+
+		succ, err := succReader.Next()
+		if err != nil && !isDone(err) {
+			return fmt.Errorf("reading successors at op %d: %w", opIdx, err)
+		}
+
+		ss.succCount = append(ss.succCount, uint32(len(succ)))
+		if ins {
 			ss.insert.Set(opIdx)
 		}
-		ss.byId[docOp.Id] = opIdx
+		ss.byId[id] = opIdx
 
-		// Extend the contiguous range for this object.
-		r := ss.objRanges[docOp.Object]
+		r := ss.objRanges[obj]
 		if r.end == opIdx {
 			r.end = opIdx + 1
 		} else if r.start == r.end {
@@ -104,29 +181,20 @@ func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 		} else {
 			r.end = opIdx + 1
 		}
-		ss.objRanges[docOp.Object] = r
+		ss.objRanges[obj] = r
 
-		// Cache action kind of Make* ops for ObjType() lookups.
-		switch docOp.Action.Kind {
+		switch action.Kind {
 		case types.ActionMakeMap, types.ActionMakeList, types.ActionMakeText:
-			ss.objCreators[types.ObjectId(docOp.Id)] = docOp.Action.Kind
+			ss.objCreators[types.ObjectId(id)] = action.Kind
 		}
 
 		opIdx++
 	}
 	ss.opCount = opIdx
 
-	// Store column SubReaders for query-time iteration (zero-copy page refs).
-	ss.keyActorId = doc.OpColumns.KeyActorId
-	ss.keyCounter = doc.OpColumns.KeyCounter
-	ss.keyString = doc.OpColumns.KeyString
-	ss.opActorId = doc.OpColumns.ActorId
-	ss.opCounter = doc.OpColumns.Counter
-	ss.action = doc.OpColumns.Action
-	ss.valueMetadata = doc.OpColumns.ValueMetadata
-	ss.value = doc.OpColumns.Value
-
-	ss.seek = buildSeekIndex(ss)
+	if opIdx > 0 {
+		ss.seek = append(seekIndex{seekPoint{opIdx: 0, key: k0, opId: oi0, action: a0}}, seek...)
+	}
 
 	s.snapshot = ss
 
@@ -137,28 +205,28 @@ func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 	return nil
 }
 
-// scanSnapshotRange iterates over operations [r.start, r.end) in the snapshot,
+// scanRange iterates over operations [r.start, r.end) in the snapshot,
 // calling fn for each with its position index and decoded Op. fn returns true
 // to continue, false to stop early. Decode errors abort the scan silently.
 //
 // The seek index lets us jump to within seekStride ops of r.start in O(1) and
 // then advance at most seekStride ops to reach the target.
-func scanSnapshotRange(ss *snapshotStore, r opRange, fn func(idx uint32, op Op) bool) {
+func (ss *snapshotStore) scanRange(r opRange, fn func(idx uint32, op Op) bool) {
 	if r.start >= r.end {
 		return
 	}
 
-	pt, skip := ss.seek.seek(r.start)
+	point, skip := ss.seek.seek(r.start)
 
-	keyIter, err := pt.key.Fork()
+	keyIter, err := point.key.Fork()
 	if err != nil {
 		return
 	}
-	opIdIter, err := pt.opId.Fork()
+	opIdIter, err := point.opId.Fork()
 	if err != nil {
 		return
 	}
-	actionIter, err := pt.action.Fork()
+	actionIter, err := point.action.Fork()
 	if err != nil {
 		return
 	}
