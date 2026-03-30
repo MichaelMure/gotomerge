@@ -33,6 +33,13 @@ func TestReadDocument(t *testing.T) {
 		{name: "two_change_chunks_compressed.automerge", chunks: 2},
 		{name: "two_change_chunks_out_of_order.automerge", chunks: 2},
 		{name: "text-edits.amrg", chunks: 259779},
+		{name: "list_sequential.automerge", chunks: 1},
+		{name: "list_concurrent_inserts.automerge", chunks: 1},
+		{name: "list_with_delete.automerge", chunks: 1},
+		{name: "list_insert_after_deleted.automerge", chunks: 1},
+		{name: "text_sequential.automerge", chunks: 1},
+		{name: "map_conflict.automerge", chunks: 1},
+		{name: "map_delete.automerge", chunks: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f, err := os.Open("../testdata/" + tc.name)

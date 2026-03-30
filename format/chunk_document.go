@@ -301,8 +301,8 @@ func (d DocumentChunk) Changes() iter.Seq2[types.DocChange, error] {
 // a document chunk stores operations grouped by the object they belong to.
 // This object-local ordering is part of the document chunk format definition.
 func (d DocumentChunk) Operations() iter.Seq2[types.DocOperation, error] {
-	objActor, e1 := column.Req(d.OpColumns.ObjectActorId, column.NewActorReader, "object.actorId")
-	objCounter, e2 := column.Req(d.OpColumns.ObjectCounter, column.NewUlebReader, "object.counter")
+	objActor, e1 := column.Opt(d.OpColumns.ObjectActorId, column.NewActorReader)
+	objCounter, e2 := column.Opt(d.OpColumns.ObjectCounter, column.NewUlebReader)
 	opActor, e3 := column.Req(d.OpColumns.ActorId, column.NewActorReader, "op.actorId")
 	opCounter, e4 := column.Req(d.OpColumns.Counter, column.NewDeltaReader, "op.counter")
 	actionKind, e5 := column.Req(d.OpColumns.Action, column.NewUlebReader, "action")

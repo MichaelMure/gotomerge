@@ -2,7 +2,6 @@ package opset
 
 import (
 	"bytes"
-	"io"
 
 	"gotomerge/types"
 )
@@ -18,11 +17,10 @@ import (
 func (s *OpSet) MapGet(obj types.ObjectId, key string) (Op, bool) {
 	var winner *Op
 
-	if s.doc != nil {
-		r, ok := s.doc.objRanges[obj]
-		if ok {
-			scanDocRange(s.doc, r, func(idx uint32, op Op) bool {
-				if s.doc.succCnt[idx] > 0 || op.Insert {
+	if s.snapshot != nil {
+		if r, ok := s.snapshot.objRanges[obj]; ok {
+			scanSnapshotRange(s.snapshot, r, func(idx uint32, op Op) bool {
+				if s.snapshot.succCount[idx] > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
 					return true
 				}
 				k, strKey := op.Key.(types.KeyString)
@@ -37,17 +35,19 @@ func (s *OpSet) MapGet(obj types.ObjectId, key string) (Op, bool) {
 		}
 	}
 
-	for _, idx := range s.changesByObj[obj] {
-		op := &s.changes[idx]
-		if op.SuccCnt > 0 || op.Insert {
-			continue
-		}
-		k, strKey := op.Key.(types.KeyString)
-		if !strKey || string(k) != key {
-			continue
-		}
-		if winner == nil || s.opIdGreater(op.Id, winner.Id) {
-			winner = op
+	if s.delta != nil {
+		for _, idx := range s.delta.byObj[obj] {
+			op := &s.delta.ops[idx]
+			if op.SuccCount > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
+				continue
+			}
+			k, strKey := op.Key.(types.KeyString)
+			if !strKey || string(k) != key {
+				continue
+			}
+			if winner == nil || s.opIdGreater(op.Id, winner.Id) {
+				winner = op
+			}
 		}
 	}
 
@@ -65,11 +65,10 @@ func (s *OpSet) MapGet(obj types.ObjectId, key string) (Op, bool) {
 func (s *OpSet) MapGetAll(obj types.ObjectId, key string) []Op {
 	var live []Op
 
-	if s.doc != nil {
-		r, ok := s.doc.objRanges[obj]
-		if ok {
-			scanDocRange(s.doc, r, func(idx uint32, op Op) bool {
-				if s.doc.succCnt[idx] > 0 || op.Insert {
+	if s.snapshot != nil {
+		if r, ok := s.snapshot.objRanges[obj]; ok {
+			scanSnapshotRange(s.snapshot, r, func(idx uint32, op Op) bool {
+				if s.snapshot.succCount[idx] > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
 					return true
 				}
 				k, strKey := op.Key.(types.KeyString)
@@ -82,16 +81,18 @@ func (s *OpSet) MapGetAll(obj types.ObjectId, key string) []Op {
 		}
 	}
 
-	for _, idx := range s.changesByObj[obj] {
-		op := s.changes[idx]
-		if op.SuccCnt > 0 || op.Insert {
-			continue
+	if s.delta != nil {
+		for _, idx := range s.delta.byObj[obj] {
+			op := s.delta.ops[idx]
+			if op.SuccCount > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
+				continue
+			}
+			k, strKey := op.Key.(types.KeyString)
+			if !strKey || string(k) != key {
+				continue
+			}
+			live = append(live, op)
 		}
-		k, strKey := op.Key.(types.KeyString)
-		if !strKey || string(k) != key {
-			continue
-		}
-		live = append(live, op)
 	}
 
 	sortOpsDesc(live, s)
@@ -103,11 +104,10 @@ func (s *OpSet) MapKeys(obj types.ObjectId) []string {
 	seen := make(map[string]struct{})
 	var keys []string
 
-	if s.doc != nil {
-		r, ok := s.doc.objRanges[obj]
-		if ok {
-			scanDocRange(s.doc, r, func(idx uint32, op Op) bool {
-				if s.doc.succCnt[idx] > 0 || op.Insert {
+	if s.snapshot != nil {
+		if r, ok := s.snapshot.objRanges[obj]; ok {
+			scanSnapshotRange(s.snapshot, r, func(idx uint32, op Op) bool {
+				if s.snapshot.succCount[idx] > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
 					return true
 				}
 				k, strKey := op.Key.(types.KeyString)
@@ -123,18 +123,20 @@ func (s *OpSet) MapKeys(obj types.ObjectId) []string {
 		}
 	}
 
-	for _, idx := range s.changesByObj[obj] {
-		op := &s.changes[idx]
-		if op.SuccCnt > 0 || op.Insert {
-			continue
-		}
-		k, strKey := op.Key.(types.KeyString)
-		if !strKey {
-			continue
-		}
-		if _, exists := seen[string(k)]; !exists {
-			seen[string(k)] = struct{}{}
-			keys = append(keys, string(k))
+	if s.delta != nil {
+		for _, idx := range s.delta.byObj[obj] {
+			op := &s.delta.ops[idx]
+			if op.SuccCount > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
+				continue
+			}
+			k, strKey := op.Key.(types.KeyString)
+			if !strKey {
+				continue
+			}
+			if _, exists := seen[string(k)]; !exists {
+				seen[string(k)] = struct{}{}
+				keys = append(keys, string(k))
+			}
 		}
 	}
 
@@ -148,82 +150,17 @@ func (s *OpSet) ObjType(obj types.ObjectId) (types.ActionKind, bool) {
 	if obj.IsRoot() {
 		return types.ActionMakeMap, true
 	}
-	if s.doc != nil {
-		if kind, ok := s.doc.objCreators[obj]; ok {
+	if s.snapshot != nil {
+		if kind, ok := s.snapshot.objCreators[obj]; ok {
 			return kind, true
 		}
 	}
-	if idx, ok := s.changesById[types.OpId(obj)]; ok {
-		return s.changes[idx].Action.Kind, true
+	if s.delta != nil {
+		if idx, ok := s.delta.byId[types.OpId(obj)]; ok {
+			return s.delta.ops[idx].Action.Kind, true
+		}
 	}
 	return 0, false
-}
-
-// scanDocRange iterates over operations [r.start, r.end) in the docStore,
-// calling fn for each with its index and decoded Op. fn returns true to
-// continue, false to stop early. Decode errors abort the scan silently.
-//
-// The seek index lets us jump to within seekStride ops of r.start in O(1)
-// and then advance at most seekStride ops to reach the target, instead of
-// scanning from the beginning of each column.
-func scanDocRange(ds *docStore, r opRange, fn func(idx uint32, op Op) bool) {
-	if r.start >= r.end {
-		return
-	}
-
-	pt, skip := ds.seekIdx.seek(r.start)
-
-	keyIter, err := pt.key.Fork()
-	if err != nil {
-		return
-	}
-	opIdIter, err := pt.opId.Fork()
-	if err != nil {
-		return
-	}
-	actionIter, err := pt.action.Fork()
-	if err != nil {
-		return
-	}
-
-	// Advance from the checkpoint to r.start (at most seekStride ops).
-	for i := uint32(0); i < skip; i++ {
-		if _, err := keyIter.Next(); err != nil && err != io.EOF {
-			return
-		}
-		if _, err := opIdIter.Next(); err != nil && err != io.EOF {
-			return
-		}
-		if _, err := actionIter.Next(); err != nil && err != io.EOF {
-			return
-		}
-	}
-
-	for idx := r.start; idx < r.end; idx++ {
-		key, err := keyIter.Next()
-		if err != nil {
-			return
-		}
-		id, err := opIdIter.Next()
-		if err != nil {
-			return
-		}
-		action, err := actionIter.Next()
-		if err != nil {
-			return
-		}
-		insert := idx < uint32(len(ds.insert)) && ds.insert[idx]
-
-		op := Op{
-			Id:     id,
-			Key:    key,
-			Insert: insert,
-			Action: action,
-		}
-		if !fn(idx, op) {
-			return
-		}
-	}
 }
 
 // opIdGreater reports whether a is greater than b.
@@ -243,4 +180,3 @@ func sortOpsDesc(ops []Op, s *OpSet) {
 		}
 	}
 }
-
