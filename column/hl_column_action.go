@@ -1,74 +1,105 @@
 package column
 
 import (
-	"iter"
+	"fmt"
+	"io"
 
-	"gotomerge/column/rle"
 	"gotomerge/types"
 )
 
-type ActionColumnIter struct {
-	nextKind  func() (rle.NullableValue[uint64], error, bool)
-	stopKind  func()
-	nextValue func() (any, error, bool)
-	stopValue func()
+// ActionReader is a stateful reader for action columns.
+type ActionReader struct {
+	kind  *UlebReader
+	meta  *ValueMetadataReader
+	value *ValueReader
 }
 
-func ActionColumn(kind UlebColumnIter, meta ValueMetadataColumnIter, values ValueColumnIterMaker) ActionColumnIter {
-	var res ActionColumnIter
-	if kind != nil {
-		res.nextKind, res.stopKind = iter.Pull2(kind)
-	}
-	if values == nil {
-		// if we don't have a value column, a column of null values is implied
-		values = NullValueColumn{}
-	}
-	if meta != nil {
-		res.nextValue, res.stopValue = iter.Pull2(values.Iter(meta))
-	}
-	return res
+func NewActionReader(kind *UlebReader, meta *ValueMetadataReader, value *ValueReader) *ActionReader {
+	return &ActionReader{kind: kind, meta: meta, value: value}
 }
 
-func (a ActionColumnIter) Next() (types.Action, error) {
-	if a.nextKind == nil {
+func (a *ActionReader) Next() (types.Action, error) {
+	if a.kind == nil {
+		return types.Action{}, ErrDone
+	}
+
+	nv, err := a.kind.Next()
+	if err == io.EOF {
 		// the action column has a special treatment. As all operations need an action,
 		// we consider that we can't have nil columns (== implied null), and therefore
 		// we consider the iteration done.
 		return types.Action{}, ErrDone
 	}
-
-	kind, nullKind, err := extract(a.nextKind)
 	if err != nil {
 		return types.Action{}, err
 	}
-	if nullKind {
+	kindVal, valid := nv.Value()
+	if !valid {
 		return types.Action{}, ErrUnexpectedNull("action kind")
 	}
 
-	value, err, ok := a.nextValue()
-	if err != nil {
-		return types.Action{}, err
-	}
-	if !ok {
-		return types.Action{}, ErrDone
+	var meta ValueMetadata
+	if a.meta != nil {
+		meta, err = a.meta.Next()
+		if err != nil && err != io.EOF {
+			return types.Action{}, err
+		}
 	}
 
-	err = types.ValidateAction(kind, value)
+	var value any
+	if a.value != nil {
+		value, err = a.value.Next(meta)
+		if err != nil {
+			return types.Action{}, err
+		}
+	} else {
+		// absent value column: Null/False/True are encoded in the metadata type itself.
+		switch meta.Type() {
+		case ValueTypeNull:
+			value = nil
+		case ValueTypeFalse:
+			value = false
+		case ValueTypeTrue:
+			value = true
+		default:
+			return types.Action{}, fmt.Errorf("value column absent for value type %v", meta.Type())
+		}
+	}
+
+	err = types.ValidateAction(kindVal, value)
 	if err != nil {
 		return types.Action{}, err
 	}
 
 	return types.Action{
-		Kind:  types.ActionKind(kind),
+		Kind:  types.ActionKind(kindVal),
 		Value: value,
 	}, nil
 }
 
-func (a ActionColumnIter) Stop() {
-	if a.stopKind != nil {
-		a.stopKind()
+func (a *ActionReader) Fork() (*ActionReader, error) {
+	var kind *UlebReader
+	var meta *ValueMetadataReader
+	var value *ValueReader
+	var err error
+
+	if a.kind != nil {
+		kind, err = a.kind.Fork()
+		if err != nil {
+			return nil, err
+		}
 	}
-	if a.stopValue != nil {
-		a.stopValue()
+	if a.meta != nil {
+		meta, err = a.meta.Fork()
+		if err != nil {
+			return nil, err
+		}
 	}
+	if a.value != nil {
+		value, err = a.value.Fork()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &ActionReader{kind: kind, meta: meta, value: value}, nil
 }

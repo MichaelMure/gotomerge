@@ -1,59 +1,72 @@
 package column
 
 import (
-	"iter"
 	"math"
 
-	"gotomerge/column/rle"
 	"gotomerge/types"
 )
 
-type GroupedOperationIdColumnIter struct {
-	column       string
-	nextGroup    func() (rle.NullableValue[uint64], error, bool)
-	stopGroup    func()
-	nextActorIdx func() (rle.NullableValue[uint64], error, bool)
-	stopActorIdx func()
-	nextCounter  func() (rle.NullableValue[int64], error, bool)
-	stopCounter  func()
+// GroupedOpIdReader is a stateful reader for grouped operation ID columns.
+type GroupedOpIdReader struct {
+	name    string
+	group   *GroupReader
+	actor   *ActorReader
+	counter *DeltaReader
 }
 
-func GroupedOperationIdColumn(column string, group GroupColumnIter, actorIdxs ActorColumnIter, counters DeltaColumnIter) GroupedOperationIdColumnIter {
-	var res GroupedOperationIdColumnIter
-	res.column = column
-	if group != nil {
-		res.nextGroup, res.stopGroup = iter.Pull2(group)
-	}
-	if actorIdxs != nil {
-		res.nextActorIdx, res.stopActorIdx = iter.Pull2(actorIdxs)
-	}
-	if counters != nil {
-		res.nextCounter, res.stopCounter = iter.Pull2(counters)
-	}
-	return res
+func NewGroupedOpIdReader(name string, group *GroupReader, actor *ActorReader, counter *DeltaReader) *GroupedOpIdReader {
+	return &GroupedOpIdReader{name: name, group: group, actor: actor, counter: counter}
 }
 
-func (o GroupedOperationIdColumnIter) Next() ([]types.OpId, error) {
-	count, nullCount, err := extract(o.nextGroup)
+func (g *GroupedOpIdReader) Next() ([]types.OpId, error) {
+	var count uint64
+	if g.group == nil {
+		return nil, ErrDone
+	}
+	nv, err := g.group.Next()
 	if err != nil {
-		// this includes ErrDone
 		return nil, err
 	}
-	if nullCount {
-		return nil, ErrUnexpectedNull(o.column + " group")
+	v, valid := nv.Value()
+	if !valid {
+		return nil, ErrUnexpectedNull(g.name + " group")
 	}
+	count = v
 
-	// prealloc, but limit the size as we can't trust count
 	res := make([]types.OpId, 0, min(count, 100))
 
 	for i := uint64(0); i < count; i++ {
-		actorIdx, nullActorIdx, err := extract(o.nextActorIdx)
-		if err != nil {
-			return nil, err
+		var actorIdx uint64
+		var nullActorIdx bool
+		var counter int64
+		var nullCounter bool
+
+		if g.actor == nil {
+			nullActorIdx = true
+		} else {
+			anv, e := g.actor.Next()
+			if e != nil {
+				return nil, e
+			}
+			if av, aValid := anv.Value(); aValid {
+				actorIdx = av
+			} else {
+				nullActorIdx = true
+			}
 		}
-		counter, nullCounter, err := extract(o.nextCounter)
-		if err != nil {
-			return nil, err
+
+		if g.counter == nil {
+			nullCounter = true
+		} else {
+			cnv, e := g.counter.Next()
+			if e != nil {
+				return nil, e
+			}
+			if cv, cValid := cnv.Value(); cValid {
+				counter = cv
+			} else {
+				nullCounter = true
+			}
 		}
 
 		switch {
@@ -62,10 +75,10 @@ func (o GroupedOperationIdColumnIter) Next() ([]types.OpId, error) {
 		case nullCounter:
 			return nil, ErrUnexpectedNull("actor index")
 		default:
-			if actorIdx < 0 || actorIdx >= math.MaxUint32 {
+			if actorIdx >= math.MaxUint32 {
 				return nil, ErrOutOfRange("actor index")
 			}
-			if counter < 0 || counter >= math.MaxUint32 {
+			if counter < 0 || counter >= math.MaxInt64 {
 				return nil, ErrOutOfRange("counter")
 			}
 			res = append(res, types.OpId{ActorIdx: uint32(actorIdx), Counter: uint32(counter)})
@@ -75,15 +88,29 @@ func (o GroupedOperationIdColumnIter) Next() ([]types.OpId, error) {
 	return res, nil
 }
 
-// Stop releases resources held by the iterator.
-func (o GroupedOperationIdColumnIter) Stop() {
-	if o.stopGroup != nil {
-		o.stopGroup()
+func (g *GroupedOpIdReader) Fork() (*GroupedOpIdReader, error) {
+	var group *GroupReader
+	var actor *ActorReader
+	var counter *DeltaReader
+	var err error
+
+	if g.group != nil {
+		group, err = g.group.Fork()
+		if err != nil {
+			return nil, err
+		}
 	}
-	if o.stopActorIdx != nil {
-		o.stopActorIdx()
+	if g.actor != nil {
+		actor, err = g.actor.Fork()
+		if err != nil {
+			return nil, err
+		}
 	}
-	if o.stopCounter != nil {
-		o.stopCounter()
+	if g.counter != nil {
+		counter, err = g.counter.Fork()
+		if err != nil {
+			return nil, err
+		}
 	}
+	return &GroupedOpIdReader{name: g.name, group: group, actor: actor, counter: counter}, nil
 }

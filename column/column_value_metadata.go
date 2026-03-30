@@ -2,30 +2,36 @@ package column
 
 import (
 	"fmt"
-	"io"
-	"iter"
 
 	"gotomerge/column/rle"
+	ioutil "gotomerge/utils/io"
 )
 
-type ValueMetadataColumnIter = iter.Seq2[ValueMetadata, error]
+// ValueMetadataReader is a stateful reader for value metadata columns.
+type ValueMetadataReader struct {
+	r *rle.Uint64Reader
+}
 
-func ReadValueMetadataColumn(r io.Reader) ValueMetadataColumnIter {
-	return func(yield func(ValueMetadata, error) bool) {
-		for nullableUint64, err := range rle.ReadUint64RLE(r) {
-			if err != nil {
-				yield(0, err)
-				return
-			}
-			val, valid := nullableUint64.Value()
-			if !valid {
-				// TODO: I think that's correct, need to update the spec if true
-				yield(0, fmt.Errorf("null value in value metadata column"))
-				return
-			}
-			if !yield(ValueMetadata(val), nil) {
-				return
-			}
-		}
+func NewValueMetadataReader(r ioutil.SubReader) *ValueMetadataReader {
+	return &ValueMetadataReader{r: rle.NewUint64Reader(r)}
+}
+
+func (vr *ValueMetadataReader) Next() (ValueMetadata, error) {
+	nv, err := vr.r.Next()
+	if err != nil {
+		return 0, err
 	}
+	val, valid := nv.Value()
+	if !valid {
+		return 0, fmt.Errorf("null value in value metadata column")
+	}
+	return ValueMetadata(val), nil
+}
+
+func (vr *ValueMetadataReader) Fork() (*ValueMetadataReader, error) {
+	forkedR, err := vr.r.Fork()
+	if err != nil {
+		return nil, err
+	}
+	return &ValueMetadataReader{r: forkedR}, nil
 }

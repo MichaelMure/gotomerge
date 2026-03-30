@@ -2,104 +2,53 @@ package column
 
 import (
 	"fmt"
-	"io"
-	"iter"
 	"math"
 
 	"gotomerge/column/rle"
+	ioutil "gotomerge/utils/io"
 )
 
-type DeltaColumnIter = iter.Seq2[rle.NullableValue[int64], error]
-
-func ReadDeltaColumn(r io.Reader) DeltaColumnIter {
-	return func(yield func(rle.NullableValue[int64], error) bool) {
-		var prev, res int64
-		for signed, err := range rle.ReadInt64RLE(r) {
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-			val, valid := signed.Value()
-
-			switch {
-			case !valid:
-				// automerge in rust consider null values as "stay the same" and yield null
-				if !yield(rle.NewNullInt64(), nil) {
-					return
-				}
-				continue
-			case val > 0:
-				if prev > math.MaxInt64-int64(val) {
-					yield(nil, fmt.Errorf("overflow in delta column"))
-					return
-				}
-				res = prev + val
-			case val < 0:
-				if prev < math.MinInt64-int64(val) {
-					yield(nil, fmt.Errorf("underflow in delta column"))
-					return
-				}
-				res = prev - -val
-			}
-			prev = res
-			if !yield(rle.NewNullableInt64(res), nil) {
-				return
-			}
-		}
-	}
+// DeltaReader is a stateful reader for delta-encoded int64 columns.
+type DeltaReader struct {
+	r   *rle.Int64Reader
+	acc int64
 }
 
-// type DeltaColumnIter struct {
-// 	next func() (rle.NullableValue[uint64], error)
-// 	stop func()
-// }
-//
-// func ReadDeltaColumn(r io.Reader) *DeltaColumnIter {
-// 	next, stop := iter.Pull2(func(yield func(rle.NullableValue[uint64], error) bool) {
-// 		var prev, res uint64
-// 		for signed, err := range rle.ReadInt64RLE(r) {
-// 			if err != nil {
-// 				yield(nil, err)
-// 				return
-// 			}
-// 			val, valid := signed.Value()
-//
-// 			switch {
-// 			case !valid:
-// 				// automerge in rust consider null values as "stay the same" and yield null
-// 				if !yield(rle.NewNullUint64(), nil) {
-// 					return
-// 				}
-// 				continue
-// 			case val > 0:
-// 				if prev > math.MaxUint64-uint64(val) {
-// 					yield(nil, fmt.Errorf("overflow in delta column"))
-// 					return
-// 				}
-// 				res = prev + uint64(val)
-// 			case val < 0:
-// 				if prev < uint64(-val) {
-// 					yield(nil, fmt.Errorf("underflow in delta column"))
-// 					return
-// 				}
-// 				res = prev - uint64(-val)
-// 			}
-// 			prev = res
-// 			if !yield(rle.NewNullableUint64(res), nil) {
-// 				return
-// 			}
-// 		}
-// 	})
-// 	return &DeltaColumnIter{
-// 		next: func() (rle.NullableValue[uint64], error) {
-// 			val, err, ok := next()
-// 			if !ok {
-// 				return rle.NewNullUint64(), ErrDone
-// 			}
-// 			if err != nil {
-// 				return rle.NewNullUint64(), err
-// 			}
-// 			return val, err
-// 		},
-// 	}
-// }
+func NewDeltaReader(r ioutil.SubReader) *DeltaReader {
+	return &DeltaReader{r: rle.NewInt64Reader(r)}
+}
+
+func (dr *DeltaReader) Next() (rle.NullableValue[int64], error) {
+	nv, err := dr.r.Next()
+	if err != nil {
+		return nil, err
+	}
+	val, valid := nv.Value()
+	if !valid {
+		// null: acc stays unchanged, return null
+		return rle.NewNullInt64(), nil
+	}
+	switch {
+	case val == 0:
+		// no change to acc
+	case val > 0:
+		if dr.acc > math.MaxInt64-val {
+			return nil, fmt.Errorf("overflow in delta column")
+		}
+		dr.acc += val
+	case val < 0:
+		if dr.acc < math.MinInt64-val {
+			return nil, fmt.Errorf("underflow in delta column")
+		}
+		dr.acc += val
+	}
+	return rle.NewNullableInt64(dr.acc), nil
+}
+
+func (dr *DeltaReader) Fork() (*DeltaReader, error) {
+	forkedR, err := dr.r.Fork()
+	if err != nil {
+		return nil, err
+	}
+	return &DeltaReader{r: forkedR, acc: dr.acc}, nil
+}

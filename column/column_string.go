@@ -1,14 +1,12 @@
 package column
 
 import (
-	"io"
-	"iter"
-
 	"gotomerge/column/rle"
+	ioutil "gotomerge/utils/io"
 )
 
-type StringColumnIter = iter.Seq2[rle.NullableValue[string], error]
+type StringReader = rle.StringReader
 
-func ReadStringColumn(r io.Reader) StringColumnIter {
-	return rle.ReadStringRLE(r)
+func NewStringReader(r ioutil.SubReader) *StringReader {
+	return rle.NewStringReader(r)
 }

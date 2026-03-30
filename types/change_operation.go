@@ -6,8 +6,9 @@ import (
 )
 
 type ChangeOperation struct {
-	// Id is the operation's OpId. ActorIdx is local to the change's actor table
-	// (0 = the change's own actor) and is resolved to the document's actor table in ToChange().
+	// Id is the operation's OpId. ActorIdx is local to the change (0 = the change's
+	// own actor, 1..N = OtherActors[i-1]) and is resolved to the global actor table
+	// when the change is applied to an OpSet.
 	Id           OpId
 	Object       ObjectId
 	Key          Key

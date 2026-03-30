@@ -1,38 +1,28 @@
 package column
 
-import (
-	"iter"
-)
-
-type InsertColumnIter struct {
-	next func() (bool, error, bool)
-	stop func()
+// InsertReader is a stateful reader for insert (bool) columns.
+type InsertReader struct {
+	r *BoolReader
 }
 
-func InsertColumn(col BooleanColumnIter) InsertColumnIter {
-	var res InsertColumnIter
-	if col != nil {
-		res.next, res.stop = iter.Pull2(col)
-	}
-	return res
+func NewInsertReader(r *BoolReader) *InsertReader {
+	return &InsertReader{r: r}
 }
 
-func (a InsertColumnIter) Next() (bool, error) {
-	if a.next == nil {
+func (i *InsertReader) Next() (bool, error) {
+	if i.r == nil {
 		return false, nil
 	}
-	val, err, ok := a.next()
-	if !ok {
-		return false, ErrDone
-	}
-	if err != nil {
-		return false, err
-	}
-	return val, nil
+	return i.r.Next()
 }
 
-func (a InsertColumnIter) Stop() {
-	if a.stop != nil {
-		a.stop()
+func (i *InsertReader) Fork() (*InsertReader, error) {
+	if i.r == nil {
+		return &InsertReader{}, nil
 	}
+	forked, err := i.r.Fork()
+	if err != nil {
+		return nil, err
+	}
+	return &InsertReader{r: forked}, nil
 }

@@ -1,39 +1,53 @@
 package column
 
 import (
-	"iter"
 	"math"
 
-	"gotomerge/column/rle"
 	"gotomerge/types"
 )
 
-type OperationIdColumnIter struct {
-	nextActorIdx func() (rle.NullableValue[uint64], error, bool)
-	stopActorIdx func()
-	nextCounter  func() (rle.NullableValue[int64], error, bool)
-	stopCounter  func()
+// OpIdReader is a stateful reader for operation ID columns.
+type OpIdReader struct {
+	actor   *ActorReader
+	counter *DeltaReader
 }
 
-func OperationIdColumn(actorIdxs ActorColumnIter, counters DeltaColumnIter) OperationIdColumnIter {
-	var res OperationIdColumnIter
-	if actorIdxs != nil {
-		res.nextActorIdx, res.stopActorIdx = iter.Pull2(actorIdxs)
-	}
-	if counters != nil {
-		res.nextCounter, res.stopCounter = iter.Pull2(counters)
-	}
-	return res
+func NewOpIdReader(actor *ActorReader, counter *DeltaReader) *OpIdReader {
+	return &OpIdReader{actor: actor, counter: counter}
 }
 
-func (o OperationIdColumnIter) Next() (types.OpId, error) {
-	actorIdx, nullActorIdx, err := extract(o.nextActorIdx)
-	if err != nil {
-		return types.OpId{}, err
+func (o *OpIdReader) Next() (types.OpId, error) {
+	var actorIdx uint64
+	var nullActorIdx bool
+	var counter int64
+	var nullCounter bool
+
+	if o.actor == nil {
+		nullActorIdx = true
+	} else {
+		nv, err := o.actor.Next()
+		if err != nil {
+			return types.OpId{}, err
+		}
+		if v, valid := nv.Value(); valid {
+			actorIdx = v
+		} else {
+			nullActorIdx = true
+		}
 	}
-	counter, nullCounter, err := extract(o.nextCounter)
-	if err != nil {
-		return types.OpId{}, err
+
+	if o.counter == nil {
+		nullCounter = true
+	} else {
+		nv, err := o.counter.Next()
+		if err != nil {
+			return types.OpId{}, err
+		}
+		if v, valid := nv.Value(); valid {
+			counter = v
+		} else {
+			nullCounter = true
+		}
 	}
 
 	switch {
@@ -42,21 +56,32 @@ func (o OperationIdColumnIter) Next() (types.OpId, error) {
 	case nullCounter:
 		return types.OpId{}, ErrUnexpectedNull("actor index")
 	default:
-		if actorIdx < 0 || actorIdx >= math.MaxUint32 {
+		if actorIdx >= math.MaxUint32 {
 			return types.OpId{}, ErrOutOfRange("actor index")
 		}
-		if counter < 0 || counter >= math.MaxUint32 {
+		if counter < 0 || counter >= math.MaxInt64 {
 			return types.OpId{}, ErrOutOfRange("counter")
 		}
 		return types.OpId{ActorIdx: uint32(actorIdx), Counter: uint32(counter)}, nil
 	}
 }
 
-func (o OperationIdColumnIter) Stop() {
-	if o.stopActorIdx != nil {
-		o.stopActorIdx()
+func (o *OpIdReader) Fork() (*OpIdReader, error) {
+	var actor *ActorReader
+	var counter *DeltaReader
+	var err error
+
+	if o.actor != nil {
+		actor, err = o.actor.Fork()
+		if err != nil {
+			return nil, err
+		}
 	}
-	if o.stopCounter != nil {
-		o.stopCounter()
+	if o.counter != nil {
+		counter, err = o.counter.Fork()
+		if err != nil {
+			return nil, err
+		}
 	}
+	return &OpIdReader{actor: actor, counter: counter}, nil
 }

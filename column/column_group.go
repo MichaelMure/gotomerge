@@ -1,14 +1,12 @@
 package column
 
 import (
-	"io"
-	"iter"
-
 	"gotomerge/column/rle"
+	ioutil "gotomerge/utils/io"
 )
 
-type GroupColumnIter = iter.Seq2[rle.NullableValue[uint64], error]
+type GroupReader = rle.Uint64Reader
 
-func ReadGroupColumn(r io.Reader) GroupColumnIter {
-	return rle.ReadUint64RLE(r)
+func NewGroupReader(r ioutil.SubReader) *GroupReader {
+	return rle.NewUint64Reader(r)
 }

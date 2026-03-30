@@ -2,9 +2,6 @@ package column
 
 import (
 	"fmt"
-	"iter"
-
-	"gotomerge/column/rle"
 )
 
 // RawChangeMeta is a single change's metadata decoded from change columns.
@@ -19,65 +16,87 @@ type RawChangeMeta struct {
 	Deps     []uint64
 }
 
-// ChangesIter reads change metadata from document chunk change columns simultaneously.
-// Follows the same pull-iterator pattern as OperationIdColumnIter, KeyColumnIter, etc.
-type ChangesIter struct {
-	nextActorIdx func() (rle.NullableValue[uint64], error, bool)
-	stopActorIdx func()
-	nextSeqNum   func() (rle.NullableValue[int64], error, bool)
-	stopSeqNum   func()
-	nextMaxOp    func() (rle.NullableValue[int64], error, bool)
-	stopMaxOp    func()
-	nextTime     func() (rle.NullableValue[int64], error, bool)
-	stopTime     func()
-	nextMessage  func() (rle.NullableValue[string], error, bool)
-	stopMessage  func()
-	nextDepGroup func() (rle.NullableValue[uint64], error, bool)
-	stopDepGroup func()
-	nextDepIdx   func() (rle.NullableValue[int64], error, bool)
-	stopDepIdx   func()
+// ChangesReader is a stateful reader for change columns.
+type ChangesReader struct {
+	actor     *ActorReader
+	seqNum    *DeltaReader
+	maxOp     *DeltaReader
+	time      *DeltaReader
+	message   *StringReader
+	depsGroup *GroupReader
+	depsIndex *DeltaReader
 }
 
-// NewChangesIter creates a ChangesIter from change column iterators.
-// Any iterator may be nil, in which case null/zero values are used for that column.
-func NewChangesIter(
-	actorIdx ActorColumnIter,
-	seqNum DeltaColumnIter,
-	maxOp DeltaColumnIter,
-	time DeltaColumnIter,
-	message StringColumnIter,
-	depGroup GroupColumnIter,
-	depIdx DeltaColumnIter,
-) *ChangesIter {
-	c := &ChangesIter{}
-	if actorIdx != nil {
-		c.nextActorIdx, c.stopActorIdx = iter.Pull2(actorIdx)
+func NewChangesReader(
+	actor *ActorReader,
+	seqNum *DeltaReader,
+	maxOp *DeltaReader,
+	time *DeltaReader,
+	message *StringReader,
+	depsGroup *GroupReader,
+	depsIndex *DeltaReader,
+) *ChangesReader {
+	return &ChangesReader{
+		actor:     actor,
+		seqNum:    seqNum,
+		maxOp:     maxOp,
+		time:      time,
+		message:   message,
+		depsGroup: depsGroup,
+		depsIndex: depsIndex,
 	}
-	if seqNum != nil {
-		c.nextSeqNum, c.stopSeqNum = iter.Pull2(seqNum)
-	}
-	if maxOp != nil {
-		c.nextMaxOp, c.stopMaxOp = iter.Pull2(maxOp)
-	}
-	if time != nil {
-		c.nextTime, c.stopTime = iter.Pull2(time)
-	}
-	if message != nil {
-		c.nextMessage, c.stopMessage = iter.Pull2(message)
-	}
-	if depGroup != nil {
-		c.nextDepGroup, c.stopDepGroup = iter.Pull2(depGroup)
-	}
-	if depIdx != nil {
-		c.nextDepIdx, c.stopDepIdx = iter.Pull2(depIdx)
-	}
-	return c
 }
 
-// Next returns the next change's metadata. Returns ErrDone when iteration is complete.
-func (c *ChangesIter) Next() (RawChangeMeta, error) {
-	// ActorIdx drives iteration: ErrDone here means no more changes.
-	actorIdx, isNull, err := extract(c.nextActorIdx)
+func (c *ChangesReader) nextUint64(r *ActorReader) (uint64, bool, error) {
+	if r == nil {
+		return 0, true, nil
+	}
+	nv, err := r.Next()
+	if err != nil {
+		return 0, true, err
+	}
+	v, valid := nv.Value()
+	return v, !valid, nil
+}
+
+func (c *ChangesReader) nextInt64(r *DeltaReader) (int64, bool, error) {
+	if r == nil {
+		return 0, true, nil
+	}
+	nv, err := r.Next()
+	if err != nil {
+		return 0, true, err
+	}
+	v, valid := nv.Value()
+	return v, !valid, nil
+}
+
+func (c *ChangesReader) nextString(r *StringReader) (string, bool, error) {
+	if r == nil {
+		return "", true, nil
+	}
+	nv, err := r.Next()
+	if err != nil {
+		return "", true, err
+	}
+	v, valid := nv.Value()
+	return v, !valid, nil
+}
+
+func (c *ChangesReader) nextGroup(r *GroupReader) (uint64, bool, error) {
+	if r == nil {
+		return 0, true, nil
+	}
+	nv, err := r.Next()
+	if err != nil {
+		return 0, true, err
+	}
+	v, valid := nv.Value()
+	return v, !valid, nil
+}
+
+func (c *ChangesReader) Next() (RawChangeMeta, error) {
+	actorIdx, isNull, err := c.nextUint64(c.actor)
 	if err != nil {
 		return RawChangeMeta{}, err
 	}
@@ -85,7 +104,7 @@ func (c *ChangesIter) Next() (RawChangeMeta, error) {
 		return RawChangeMeta{}, ErrUnexpectedNull("change actor")
 	}
 
-	seqNum, isNull, err := extract(c.nextSeqNum)
+	seqNum, isNull, err := c.nextInt64(c.seqNum)
 	if err != nil {
 		return RawChangeMeta{}, err
 	}
@@ -96,7 +115,7 @@ func (c *ChangesIter) Next() (RawChangeMeta, error) {
 		return RawChangeMeta{}, fmt.Errorf("negative sequence number: %d", seqNum)
 	}
 
-	maxOp, isNull, err := extract(c.nextMaxOp)
+	maxOp, isNull, err := c.nextInt64(c.maxOp)
 	if err != nil {
 		return RawChangeMeta{}, err
 	}
@@ -107,7 +126,7 @@ func (c *ChangesIter) Next() (RawChangeMeta, error) {
 		return RawChangeMeta{}, fmt.Errorf("negative max op: %d", maxOp)
 	}
 
-	rawTime, timeNull, err := extract(c.nextTime)
+	rawTime, timeNull, err := c.nextInt64(c.time)
 	if err != nil {
 		return RawChangeMeta{}, err
 	}
@@ -116,7 +135,7 @@ func (c *ChangesIter) Next() (RawChangeMeta, error) {
 		timePtr = &rawTime
 	}
 
-	message, msgNull, err := extract(c.nextMessage)
+	message, msgNull, err := c.nextString(c.message)
 	if err != nil {
 		return RawChangeMeta{}, err
 	}
@@ -125,7 +144,7 @@ func (c *ChangesIter) Next() (RawChangeMeta, error) {
 		msgPtr = &message
 	}
 
-	depCount, isNull, err := extract(c.nextDepGroup)
+	depCount, isNull, err := c.nextGroup(c.depsGroup)
 	if err != nil {
 		return RawChangeMeta{}, err
 	}
@@ -135,9 +154,9 @@ func (c *ChangesIter) Next() (RawChangeMeta, error) {
 
 	deps := make([]uint64, 0, min(depCount, 64))
 	for i := uint64(0); i < depCount; i++ {
-		depIdx, isNull, err := extract(c.nextDepIdx)
-		if err != nil {
-			return RawChangeMeta{}, fmt.Errorf("dep index: %w", err)
+		depIdx, isNull, e := c.nextInt64(c.depsIndex)
+		if e != nil {
+			return RawChangeMeta{}, fmt.Errorf("dep index: %w", e)
 		}
 		if isNull {
 			return RawChangeMeta{}, ErrUnexpectedNull("dep index")
@@ -158,14 +177,51 @@ func (c *ChangesIter) Next() (RawChangeMeta, error) {
 	}, nil
 }
 
-// Stop releases resources held by the iterator.
-func (c *ChangesIter) Stop() {
-	for _, stop := range []func(){
-		c.stopActorIdx, c.stopSeqNum, c.stopMaxOp, c.stopTime,
-		c.stopMessage, c.stopDepGroup, c.stopDepIdx,
-	} {
-		if stop != nil {
-			stop()
+func (c *ChangesReader) Fork() (*ChangesReader, error) {
+	fork := &ChangesReader{}
+	var err error
+
+	if c.actor != nil {
+		fork.actor, err = c.actor.Fork()
+		if err != nil {
+			return nil, err
 		}
 	}
+	if c.seqNum != nil {
+		fork.seqNum, err = c.seqNum.Fork()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if c.maxOp != nil {
+		fork.maxOp, err = c.maxOp.Fork()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if c.time != nil {
+		fork.time, err = c.time.Fork()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if c.message != nil {
+		fork.message, err = c.message.Fork()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if c.depsGroup != nil {
+		fork.depsGroup, err = c.depsGroup.Fork()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if c.depsIndex != nil {
+		fork.depsIndex, err = c.depsIndex.Fork()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return fork, nil
 }

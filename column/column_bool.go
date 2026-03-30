@@ -2,31 +2,59 @@ package column
 
 import (
 	"io"
-	"iter"
 
 	"github.com/jcalabro/leb128"
+
+	ioutil "gotomerge/utils/io"
 )
 
-type BooleanColumnIter = iter.Seq2[bool, error]
+// BoolReader is a stateful reader for bool columns using the alternating
+// run-length encoding: each LEB128 uint64 gives the count of the current
+// value, then the value toggles (starting at false).
+type BoolReader struct {
+	r         ioutil.SubReader
+	remaining uint64
+	val       bool
+	done      bool
+}
 
-func ReadBooleanColumn(r io.Reader) BooleanColumnIter {
-	return func(yield func(bool, error) bool) {
-		var val bool
-		for {
-			count, err := leb128.DecodeU64(r)
-			if err == io.EOF {
-				return
-			}
-			if err != nil {
-				yield(false, err)
-				return
-			}
-			for i := uint64(0); i < count; i++ {
-				if !yield(val, nil) {
-					return
-				}
-			}
-			val = !val
+func NewBoolReader(r ioutil.SubReader) *BoolReader {
+	return &BoolReader{r: r}
+}
+
+func (b *BoolReader) Next() (bool, error) {
+	for b.remaining == 0 {
+		if b.done {
+			return false, io.EOF
+		}
+		count, err := leb128.DecodeU64(b.r)
+		if err == io.EOF {
+			b.done = true
+			return false, io.EOF
+		}
+		if err != nil {
+			return false, err
+		}
+		b.remaining = count
+		if b.remaining == 0 {
+			// toggle even on zero-count run
+			b.val = !b.val
 		}
 	}
+	b.remaining--
+	v := b.val
+	if b.remaining == 0 {
+		b.val = !b.val
+	}
+	return v, nil
+}
+
+func (b *BoolReader) Fork() (*BoolReader, error) {
+	sub, err := b.r.SubReaderOffset(0)
+	if err != nil {
+		return nil, err
+	}
+	cp := *b
+	cp.r = sub
+	return &cp, nil
 }

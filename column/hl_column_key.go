@@ -2,48 +2,70 @@ package column
 
 import (
 	"fmt"
-	"iter"
 	"math"
 
-	"gotomerge/column/rle"
 	"gotomerge/types"
 )
 
-type KeyColumnIter struct {
-	nextActorIdx func() (rle.NullableValue[uint64], error, bool)
-	stopActorIdx func()
-	nextCounter  func() (rle.NullableValue[int64], error, bool)
-	stopCounter  func()
-	nextString   func() (rle.NullableValue[string], error, bool)
-	stopString   func()
+// KeyReader is a stateful reader for key columns.
+type KeyReader struct {
+	actor   *ActorReader
+	counter *DeltaReader
+	str     *StringReader
 }
 
-func KeyColumn(actorIdx ActorColumnIter, counter DeltaColumnIter, str StringColumnIter) KeyColumnIter {
-	var res KeyColumnIter
-	if actorIdx != nil {
-		res.nextActorIdx, res.stopActorIdx = iter.Pull2(actorIdx)
-	}
-	if counter != nil {
-		res.nextCounter, res.stopCounter = iter.Pull2(counter)
-	}
-	if str != nil {
-		res.nextString, res.stopString = iter.Pull2(str)
-	}
-	return res
+func NewKeyReader(actor *ActorReader, counter *DeltaReader, str *StringReader) *KeyReader {
+	return &KeyReader{actor: actor, counter: counter, str: str}
 }
 
-func (k KeyColumnIter) Next() (types.Key, error) {
-	actorIdx, nullActorIdx, err := extract(k.nextActorIdx)
-	if err != nil {
-		return nil, err
+func (k *KeyReader) Next() (types.Key, error) {
+	var actorIdx uint64
+	var nullActorIdx bool
+	var counter int64
+	var nullCounter bool
+	var str string
+	var nullString bool
+
+	if k.actor == nil {
+		nullActorIdx = true
+	} else {
+		nv, e := k.actor.Next()
+		if e != nil {
+			return nil, e
+		}
+		if v, valid := nv.Value(); valid {
+			actorIdx = v
+		} else {
+			nullActorIdx = true
+		}
 	}
-	counter, nullCounter, err := extract(k.nextCounter)
-	if err != nil {
-		return nil, err
+
+	if k.counter == nil {
+		nullCounter = true
+	} else {
+		nv, e := k.counter.Next()
+		if e != nil {
+			return nil, e
+		}
+		if v, valid := nv.Value(); valid {
+			counter = v
+		} else {
+			nullCounter = true
+		}
 	}
-	str, nullString, err := extract(k.nextString)
-	if err != nil {
-		return nil, err
+
+	if k.str == nil {
+		nullString = true
+	} else {
+		nv, e := k.str.Next()
+		if e != nil {
+			return nil, e
+		}
+		if v, valid := nv.Value(); valid {
+			str = v
+		} else {
+			nullString = true
+		}
 	}
 
 	if (!nullActorIdx || !nullCounter) && !nullString {
@@ -63,24 +85,39 @@ func (k KeyColumnIter) Next() (types.Key, error) {
 	case nullActorIdx:
 		return nil, ErrUnexpectedNull("actor index")
 	default:
-		if actorIdx < 0 || actorIdx >= math.MaxUint32 {
+		if actorIdx >= math.MaxUint32 {
 			return nil, ErrOutOfRange("actor index")
 		}
-		if counter < 0 || counter >= math.MaxUint32 {
+		if counter < 0 || counter >= math.MaxInt64 {
 			return nil, ErrOutOfRange("counter")
 		}
 		return types.KeyOpId{ActorIdx: uint32(actorIdx), Counter: uint32(counter)}, nil
 	}
 }
 
-func (k KeyColumnIter) Stop() {
-	if k.stopActorIdx != nil {
-		k.stopActorIdx()
+func (k *KeyReader) Fork() (*KeyReader, error) {
+	var actor *ActorReader
+	var counter *DeltaReader
+	var str *StringReader
+	var err error
+
+	if k.actor != nil {
+		actor, err = k.actor.Fork()
+		if err != nil {
+			return nil, err
+		}
 	}
-	if k.stopCounter != nil {
-		k.stopCounter()
+	if k.counter != nil {
+		counter, err = k.counter.Fork()
+		if err != nil {
+			return nil, err
+		}
 	}
-	if k.stopString != nil {
-		k.stopString()
+	if k.str != nil {
+		str, err = k.str.Fork()
+		if err != nil {
+			return nil, err
+		}
 	}
+	return &KeyReader{actor: actor, counter: counter, str: str}, nil
 }

@@ -1,40 +1,53 @@
 package column
 
 import (
-	"iter"
 	"math"
 
-	"gotomerge/column/rle"
 	"gotomerge/types"
 )
 
-type ObjectColumnIter struct {
-	nextActorIdx func() (rle.NullableValue[uint64], error, bool)
-	stopActorIdx func()
-	nextCounter  func() (rle.NullableValue[uint64], error, bool)
-	stopCounter  func()
+// ObjectReader is a stateful reader for object ID columns.
+type ObjectReader struct {
+	actor   *ActorReader
+	counter *UlebReader
 }
 
-func ObjectColumn(actorIdxs ActorColumnIter, counters UlebColumnIter) ObjectColumnIter {
-	var res ObjectColumnIter
-	if actorIdxs != nil {
-		res.nextActorIdx, res.stopActorIdx = iter.Pull2(actorIdxs)
-	}
-	if counters != nil {
-		res.nextCounter, res.stopCounter = iter.Pull2(counters)
-	}
-	return res
+func NewObjectReader(actor *ActorReader, counter *UlebReader) *ObjectReader {
+	return &ObjectReader{actor: actor, counter: counter}
 }
 
-func (o ObjectColumnIter) Next() (types.ObjectId, error) {
-	actorIdx, nullActorIdx, err := extract(o.nextActorIdx)
-	if err != nil {
-		return types.ObjectId{}, err
+func (o *ObjectReader) Next() (types.ObjectId, error) {
+	var actorIdx uint64
+	var nullActorIdx bool
+	var counter uint64
+	var nullCounter bool
+
+	if o.actor == nil {
+		nullActorIdx = true
+	} else {
+		nv, err := o.actor.Next()
+		if err != nil {
+			return types.ObjectId{}, err
+		}
+		if v, valid := nv.Value(); valid {
+			actorIdx = v
+		} else {
+			nullActorIdx = true
+		}
 	}
 
-	counter, nullCounter, err := extract(o.nextCounter)
-	if err != nil {
-		return types.ObjectId{}, err
+	if o.counter == nil {
+		nullCounter = true
+	} else {
+		nv, err := o.counter.Next()
+		if err != nil {
+			return types.ObjectId{}, err
+		}
+		if v, valid := nv.Value(); valid {
+			counter = v
+		} else {
+			nullCounter = true
+		}
 	}
 
 	switch {
@@ -45,43 +58,32 @@ func (o ObjectColumnIter) Next() (types.ObjectId, error) {
 	case nullActorIdx && nullCounter:
 		return types.RootObjectId(), nil
 	default:
-		if actorIdx < 0 || actorIdx >= math.MaxUint32 {
+		if actorIdx >= math.MaxUint32 {
 			return types.ObjectId{}, ErrOutOfRange("actor index")
 		}
-		if counter < 0 || counter >= math.MaxUint32 {
+		if counter >= math.MaxUint32 {
 			return types.ObjectId{}, ErrOutOfRange("counter")
 		}
 		return types.ObjectId{ActorIdx: uint32(actorIdx), Counter: uint32(counter)}, nil
 	}
 }
 
-func (o ObjectColumnIter) Stop() {
-	if o.stopActorIdx != nil {
-		o.stopActorIdx()
-	}
-	if o.stopCounter != nil {
-		o.stopCounter()
-	}
-}
+func (o *ObjectReader) Fork() (*ObjectReader, error) {
+	var actor *ActorReader
+	var counter *UlebReader
+	var err error
 
-// extract is a helper that pulls values from a possibly nil iterator that produces
-// nullable values and errors.
-// - iterator is nil --> return infinite null values
-// - iterator produces an error --> return the error
-// - iterator produces a value --> return the value, and isNull == false
-// - iterator produces a null value --> return the zero value, and isNull == true
-// - iterator is done --> return ErrDone
-func extract[T any](fn func() (rle.NullableValue[T], error, bool)) (val T, isNull bool, err error) {
-	if fn == nil {
-		return *new(T), true, nil
+	if o.actor != nil {
+		actor, err = o.actor.Fork()
+		if err != nil {
+			return nil, err
+		}
 	}
-	nullable, err, ok := fn()
-	if !ok {
-		return *new(T), true, ErrDone
+	if o.counter != nil {
+		counter, err = o.counter.Fork()
+		if err != nil {
+			return nil, err
+		}
 	}
-	if err != nil {
-		return *new(T), true, err
-	}
-	val, valid := nullable.Value()
-	return val, !valid, nil
+	return &ObjectReader{actor: actor, counter: counter}, nil
 }
