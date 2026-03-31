@@ -172,6 +172,15 @@ func (s *OpSet) opIdGreater(a, b types.OpId) bool {
 	return bytes.Compare(s.actors[a.ActorIdx], s.actors[b.ActorIdx]) > 0
 }
 
+// sortOpIdsDesc sorts OpIds in descending order (highest first).
+func sortOpIdsDesc(ids []types.OpId, s *OpSet) {
+	for i := 1; i < len(ids); i++ {
+		for j := i; j > 0 && s.opIdGreater(ids[j], ids[j-1]); j-- {
+			ids[j], ids[j-1] = ids[j-1], ids[j]
+		}
+	}
+}
+
 // sortOpsDesc sorts ops in descending OpId order (highest first).
 func sortOpsDesc(ops []Op, s *OpSet) {
 	for i := 1; i < len(ops); i++ {

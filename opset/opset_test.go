@@ -54,7 +54,7 @@ func changeChunkDelete(actor types.ActorId, seqNum, startOp uint64, deps []types
 	}
 }
 
-func applyFile(t *testing.T, path string) *OpSet {
+func applyFile(t testing.TB, path string) *OpSet {
 	t.Helper()
 
 	// Load the entire file into memory so that SubReaders can outlive Skip calls.
