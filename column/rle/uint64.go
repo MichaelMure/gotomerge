@@ -1,6 +1,9 @@
 package rle
 
 import (
+	"bytes"
+	"io"
+
 	"github.com/jcalabro/leb128"
 
 	ioutil "gotomerge/utils/io"
@@ -15,12 +18,28 @@ func NewUint64Reader(r ioutil.SubReader) *Uint64Reader {
 func NewNullableUint64(v uint64) NullableValue[uint64] { return nullable[uint64]{val: v} }
 func NewNullUint64() NullableValue[uint64]             { return nullable[uint64]{null: true} }
 
-// TODO: bad encoder
-// EncodeUint64 encodes vals as a single literal RLE run of uint64 values.
+func NewUint64Writer(w io.Writer) *Writer[uint64] {
+	return NewWriter(w, leb128.EncodeU64)
+}
+
+// EncodeUint64 encodes vals as an RLE uint64 sequence.
 func EncodeUint64(vals ...uint64) []byte {
-	b := leb128.EncodeS64(int64(-len(vals)))
+	var buf bytes.Buffer
+	w := NewUint64Writer(&buf)
 	for _, v := range vals {
-		b = append(b, leb128.EncodeU64(v)...)
+		w.Append(NewNullableUint64(v))
 	}
-	return b
+	_ = w.Flush()
+	return buf.Bytes()
+}
+
+// EncodeNullableUint64 encodes a slice of nullable uint64 values as RLE.
+func EncodeNullableUint64(vals []NullableValue[uint64]) []byte {
+	var buf bytes.Buffer
+	w := NewUint64Writer(&buf)
+	for _, nv := range vals {
+		w.Append(nv)
+	}
+	_ = w.Flush()
+	return buf.Bytes()
 }

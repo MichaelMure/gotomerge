@@ -1,6 +1,9 @@
 package rle
 
 import (
+	"bytes"
+	"io"
+
 	"github.com/jcalabro/leb128"
 
 	ioutil "gotomerge/utils/io"
@@ -15,12 +18,36 @@ func NewInt64Reader(r ioutil.SubReader) *Int64Reader {
 func NewNullableInt64(v int64) NullableValue[int64] { return nullable[int64]{val: v} }
 func NewNullInt64() NullableValue[int64]            { return nullable[int64]{null: true} }
 
-// TODO: bad encoder
-// EncodeInt64 encodes vals as a single literal RLE run of int64 values.
+func NewInt64Writer(w io.Writer) *Writer[int64] {
+	return NewWriter(w, func(v int64) []byte { return leb128.EncodeS64(v) })
+}
+
+// EncodeInt64 encodes vals as an RLE int64 sequence.
 func EncodeInt64(vals ...int64) []byte {
-	b := leb128.EncodeS64(int64(-len(vals)))
+	var buf bytes.Buffer
+	w := NewInt64Writer(&buf)
 	for _, v := range vals {
-		b = append(b, leb128.EncodeS64(v)...)
+		w.Append(NewNullableInt64(v))
 	}
-	return b
+	_ = w.Flush()
+	return buf.Bytes()
+}
+
+// EncodeInt64Delta delta-encodes a nullable int64 sequence using a Writer.
+// Each non-null value is stored as its delta from the previous non-null value
+// (accumulator starts at 0). Nulls do not advance the accumulator.
+func EncodeInt64Delta(vals []NullableValue[int64]) []byte {
+	var buf bytes.Buffer
+	w := NewInt64Writer(&buf)
+	var acc int64
+	for _, nv := range vals {
+		if v, ok := nv.Value(); ok {
+			w.Append(NewNullableInt64(v - acc))
+			acc = v
+		} else {
+			w.Append(NewNullInt64())
+		}
+	}
+	_ = w.Flush()
+	return buf.Bytes()
 }

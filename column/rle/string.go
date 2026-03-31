@@ -1,6 +1,7 @@
 package rle
 
 import (
+	"bytes"
 	"io"
 
 	"github.com/jcalabro/leb128"
@@ -17,6 +18,13 @@ func NewStringReader(r ioutil.SubReader) *StringReader {
 func NewNullableString(s string) NullableValue[string] { return nullable[string]{val: s} }
 func NewNullString() NullableValue[string]             { return nullable[string]{null: true} }
 
+func NewStringWriter(w io.Writer) *Writer[string] {
+	return NewWriter(w, func(s string) []byte {
+		// len || str
+		return append(leb128.EncodeU64(uint64(len(s))), s...)
+	})
+}
+
 func readStringValue(r io.Reader) (string, error) {
 	strLen, err := leb128.DecodeU64(r)
 	if err != nil {
@@ -30,13 +38,24 @@ func readStringValue(r io.Reader) (string, error) {
 	return string(buf), nil
 }
 
-// TODO: bad encoder
-// EncodeString encodes vals as a single literal RLE run of strings.
+// EncodeString encodes vals as an RLE string sequence.
 func EncodeString(vals ...string) []byte {
-	b := leb128.EncodeS64(int64(-len(vals)))
+	var buf bytes.Buffer
+	w := NewStringWriter(&buf)
 	for _, s := range vals {
-		b = append(b, leb128.EncodeU64(uint64(len(s)))...)
-		b = append(b, s...)
+		w.Append(NewNullableString(s))
 	}
-	return b
+	_ = w.Flush()
+	return buf.Bytes()
+}
+
+// EncodeNullableString encodes a slice of nullable strings as RLE.
+func EncodeNullableString(vals []NullableValue[string]) []byte {
+	var buf bytes.Buffer
+	w := NewStringWriter(&buf)
+	for _, nv := range vals {
+		w.Append(nv)
+	}
+	_ = w.Flush()
+	return buf.Bytes()
 }
