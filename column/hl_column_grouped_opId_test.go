@@ -10,6 +10,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGroupedOpIdHasPreds(t *testing.T) {
+	newWriter := func() *GroupedOpIdWriter {
+		var g, a, c bytes.Buffer
+		return NewGroupedOpIdWriter(&g, &a, &c)
+	}
+
+	t.Run("false when no entries", func(t *testing.T) {
+		require.False(t, newWriter().HasPreds())
+	})
+	t.Run("false when all groups empty", func(t *testing.T) {
+		w := newWriter()
+		for range 5 {
+			w.Append([]types.OpId{}, identityLocalOf)
+		}
+		require.False(t, w.HasPreds())
+	})
+	t.Run("true when any group non-empty", func(t *testing.T) {
+		w := newWriter()
+		w.Append([]types.OpId{}, identityLocalOf)
+		w.Append([]types.OpId{{ActorIdx: 0, Counter: 1}}, identityLocalOf)
+		require.True(t, w.HasPreds())
+	})
+}
+
 func TestGroupedOpIdRoundTrip(t *testing.T) {
 	cases := [][][]types.OpId{
 		{

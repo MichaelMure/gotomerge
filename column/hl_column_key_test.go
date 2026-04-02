@@ -10,6 +10,49 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestKeyHasFlags(t *testing.T) {
+	newWriter := func() (*KeyWriter, bytes.Buffer, bytes.Buffer, bytes.Buffer) {
+		var a, c, s bytes.Buffer
+		return NewKeyWriter(&a, &c, &s), a, c, s
+	}
+
+	t.Run("all false when no entries", func(t *testing.T) {
+		w, _, _, _ := newWriter()
+		require.False(t, w.HasOpId())
+		require.False(t, w.HasString())
+		require.False(t, w.HasNonNullActor())
+	})
+	t.Run("HasString only for string keys", func(t *testing.T) {
+		w, _, _, _ := newWriter()
+		w.Append(types.KeyString("x"), identityLocalOf)
+		require.False(t, w.HasOpId())
+		require.True(t, w.HasString())
+		require.False(t, w.HasNonNullActor())
+	})
+	t.Run("HasOpId without HasNonNullActor for head sentinel (counter=0)", func(t *testing.T) {
+		w, _, _, _ := newWriter()
+		w.Append(types.KeyOpId{ActorIdx: 0, Counter: 0}, identityLocalOf)
+		require.True(t, w.HasOpId())
+		require.False(t, w.HasString())
+		require.False(t, w.HasNonNullActor())
+	})
+	t.Run("HasOpId and HasNonNullActor for opId with non-zero counter", func(t *testing.T) {
+		w, _, _, _ := newWriter()
+		w.Append(types.KeyOpId{ActorIdx: 1, Counter: 5}, identityLocalOf)
+		require.True(t, w.HasOpId())
+		require.False(t, w.HasString())
+		require.True(t, w.HasNonNullActor())
+	})
+	t.Run("all true for mixed keys", func(t *testing.T) {
+		w, _, _, _ := newWriter()
+		w.Append(types.KeyString("a"), identityLocalOf)
+		w.Append(types.KeyOpId{ActorIdx: 0, Counter: 3}, identityLocalOf)
+		require.True(t, w.HasOpId())
+		require.True(t, w.HasString())
+		require.True(t, w.HasNonNullActor())
+	})
+}
+
 func TestKeyRoundTrip(t *testing.T) {
 	cases := [][]types.Key{
 		{

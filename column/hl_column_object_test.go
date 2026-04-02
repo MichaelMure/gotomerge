@@ -13,6 +13,29 @@ import (
 // identityLocalOf maps each global actor index to itself, used across HL column round-trip tests.
 var identityLocalOf = map[uint32]uint32{0: 0, 1: 1, 2: 2, 3: 3}
 
+func TestObjectHasNonRoot(t *testing.T) {
+	t.Run("false when no entries", func(t *testing.T) {
+		var a, c bytes.Buffer
+		w := NewObjectWriter(&a, &c)
+		require.False(t, w.HasNonRoot())
+	})
+	t.Run("false when all root", func(t *testing.T) {
+		var a, c bytes.Buffer
+		w := NewObjectWriter(&a, &c)
+		for range 5 {
+			w.Append(types.RootObjectId(), identityLocalOf)
+		}
+		require.False(t, w.HasNonRoot())
+	})
+	t.Run("true when any non-root", func(t *testing.T) {
+		var a, c bytes.Buffer
+		w := NewObjectWriter(&a, &c)
+		w.Append(types.RootObjectId(), identityLocalOf)
+		w.Append(types.ObjectId{ActorIdx: 1, Counter: 3}, identityLocalOf)
+		require.True(t, w.HasNonRoot())
+	})
+}
+
 func TestObjectRoundTrip(t *testing.T) {
 	cases := [][]types.ObjectId{
 		{types.RootObjectId(), {ActorIdx: 1, Counter: 5}, {ActorIdx: 2, Counter: 10}, types.RootObjectId()},

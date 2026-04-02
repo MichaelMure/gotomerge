@@ -10,6 +10,40 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestActionHasValues(t *testing.T) {
+	newWriter := func() *ActionWriter {
+		var k, m, v bytes.Buffer
+		return NewActionWriter(&k, &m, &v)
+	}
+
+	t.Run("false when no entries", func(t *testing.T) {
+		require.False(t, newWriter().HasValues())
+	})
+	t.Run("false for non-scalar actions only", func(t *testing.T) {
+		w := newWriter()
+		w.Append(types.Action{Kind: types.ActionMakeMap})
+		w.Append(types.Action{Kind: types.ActionDelete})
+		w.Append(types.Action{Kind: types.ActionMakeList})
+		require.False(t, w.HasValues())
+	})
+	t.Run("true for Set", func(t *testing.T) {
+		w := newWriter()
+		w.Append(types.Action{Kind: types.ActionSet, Value: "x"})
+		require.True(t, w.HasValues())
+	})
+	t.Run("true for Inc", func(t *testing.T) {
+		w := newWriter()
+		w.Append(types.Action{Kind: types.ActionInc, Value: int64(1)})
+		require.True(t, w.HasValues())
+	})
+	t.Run("true when mixed with non-scalar", func(t *testing.T) {
+		w := newWriter()
+		w.Append(types.Action{Kind: types.ActionDelete})
+		w.Append(types.Action{Kind: types.ActionSet, Value: nil})
+		require.True(t, w.HasValues())
+	})
+}
+
 func TestActionRoundTrip(t *testing.T) {
 	cases := [][]types.Action{
 		{
