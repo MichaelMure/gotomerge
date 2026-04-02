@@ -58,3 +58,51 @@ func (b *BoolReader) Fork() (*BoolReader, error) {
 	cp.r = sub
 	return &cp, nil
 }
+
+// BoolWriter is a stateful encoder for bool columns using the alternating-run
+// encoding (matching what BoolReader decodes). The sequence starts at false.
+type BoolWriter struct {
+	w       io.Writer
+	err     error
+	current bool
+	run     uint64
+	started bool
+}
+
+func NewBoolWriter(w io.Writer) *BoolWriter { return &BoolWriter{w: w} }
+
+func (bw *BoolWriter) Append(v bool) {
+	if bw.err != nil {
+		return
+	}
+	if !bw.started {
+		bw.started = true
+		// The sequence starts at false. If the first value is true, emit a
+		// zero-length false run to advance the toggle to the right position.
+		if v {
+			_, bw.err = bw.w.Write(leb128.EncodeU64(0))
+			bw.current = true
+		}
+		bw.run = 1
+		return
+	}
+	if v == bw.current {
+		bw.run++
+	} else {
+		_, bw.err = bw.w.Write(leb128.EncodeU64(bw.run))
+		bw.current = v
+		bw.run = 1
+	}
+}
+
+// Flush writes the final run and returns any accumulated error.
+func (bw *BoolWriter) Flush() error {
+	if bw.err != nil {
+		return bw.err
+	}
+	if bw.started {
+		_, bw.err = bw.w.Write(leb128.EncodeU64(bw.run))
+		bw.started = false
+	}
+	return bw.err
+}

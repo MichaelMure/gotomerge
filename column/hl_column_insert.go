@@ -1,5 +1,7 @@
 package column
 
+import "io"
+
 // InsertReader is a stateful reader for insert (bool) columns.
 type InsertReader struct {
 	r *BoolReader
@@ -26,3 +28,24 @@ func (i *InsertReader) Fork() (*InsertReader, error) {
 	}
 	return &InsertReader{r: forked}, nil
 }
+
+// InsertWriter is a stateful encoder for insert (bool) columns.
+type InsertWriter struct {
+	w          *BoolWriter
+	hasInserts bool
+}
+
+func NewInsertWriter(w io.Writer) *InsertWriter {
+	return &InsertWriter{w: NewBoolWriter(w)}
+}
+
+func (i *InsertWriter) Append(insert bool) {
+	i.w.Append(insert)
+	if insert {
+		i.hasInserts = true
+	}
+}
+
+func (i *InsertWriter) HasInserts() bool { return i.hasInserts }
+
+func (i *InsertWriter) Flush() error { return i.w.Flush() }

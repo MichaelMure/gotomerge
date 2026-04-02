@@ -2,8 +2,10 @@ package column
 
 import (
 	"fmt"
+	"io"
 	"math"
 
+	"gotomerge/column/rle"
 	"gotomerge/types"
 )
 
@@ -120,4 +122,62 @@ func (k *KeyReader) Fork() (*KeyReader, error) {
 		}
 	}
 	return &KeyReader{actor: actor, counter: counter, str: str}, nil
+}
+
+// KeyWriter is a stateful encoder for key columns.
+type KeyWriter struct {
+	actor           *ActorWriter
+	ctr             *DeltaWriter
+	str             *StringWriter
+	hasOpId         bool
+	hasStr          bool
+	hasNonNullActor bool
+}
+
+func NewKeyWriter(actor, ctr, str io.Writer) *KeyWriter {
+	return &KeyWriter{
+		actor: NewActorWriter(actor),
+		ctr:   NewDeltaWriter(ctr),
+		str:   NewStringWriter(str),
+	}
+}
+
+func (k *KeyWriter) Append(key types.Key, localOf map[uint32]uint32) {
+	switch v := key.(type) {
+	case types.KeyString:
+		k.hasStr = true
+		k.actor.Append(rle.NewNullUint64())
+		k.ctr.Append(rle.NewNullInt64())
+		k.str.Append(rle.NewNullableString(string(v)))
+	case types.KeyOpId:
+		k.hasOpId = true
+		k.str.Append(rle.NewNullString())
+		if v.Counter == 0 {
+			// head sentinel: null actor, counter = 0 (non-null)
+			k.actor.Append(rle.NewNullUint64())
+			k.ctr.Append(rle.NewNullableInt64(0))
+		} else {
+			k.hasNonNullActor = true
+			k.actor.Append(rle.NewNullableUint64(uint64(localOf[v.ActorIdx])))
+			k.ctr.Append(rle.NewNullableInt64(int64(v.Counter)))
+		}
+	default:
+		k.actor.Append(rle.NewNullUint64())
+		k.ctr.Append(rle.NewNullInt64())
+		k.str.Append(rle.NewNullString())
+	}
+}
+
+func (k *KeyWriter) HasOpId() bool         { return k.hasOpId }
+func (k *KeyWriter) HasString() bool        { return k.hasStr }
+func (k *KeyWriter) HasNonNullActor() bool  { return k.hasNonNullActor }
+
+func (k *KeyWriter) Flush() error {
+	if err := k.actor.Flush(); err != nil {
+		return err
+	}
+	if err := k.ctr.Flush(); err != nil {
+		return err
+	}
+	return k.str.Flush()
 }

@@ -2,6 +2,9 @@ package column
 
 import (
 	"fmt"
+	"io"
+
+	"gotomerge/column/rle"
 )
 
 // RawChangeMeta is a single change's metadata decoded from change columns.
@@ -224,4 +227,58 @@ func (c *ChangesReader) Fork() (*ChangesReader, error) {
 		}
 	}
 	return fork, nil
+}
+
+// ChangesWriter is a stateful encoder for change metadata columns in document chunks.
+type ChangesWriter struct {
+	actor     *ActorWriter
+	seqNum    *DeltaWriter
+	maxOp     *DeltaWriter
+	time      *DeltaWriter
+	message   *StringWriter
+	depsGroup *GroupWriter
+	depsIndex *DeltaWriter
+}
+
+func NewChangesWriter(actor, seqNum, maxOp, time, message, depsGroup, depsIndex io.Writer) *ChangesWriter {
+	return &ChangesWriter{
+		actor:     NewActorWriter(actor),
+		seqNum:    NewDeltaWriter(seqNum),
+		maxOp:     NewDeltaWriter(maxOp),
+		time:      NewDeltaWriter(time),
+		message:   NewStringWriter(message),
+		depsGroup: NewGroupWriter(depsGroup),
+		depsIndex: NewDeltaWriter(depsIndex),
+	}
+}
+
+func (c *ChangesWriter) Append(m RawChangeMeta) {
+	c.actor.Append(rle.NewNullableUint64(m.ActorIdx))
+	c.seqNum.Append(rle.NewNullableInt64(int64(m.SeqNum)))
+	c.maxOp.Append(rle.NewNullableInt64(int64(m.MaxOp)))
+	if m.Time != nil {
+		c.time.Append(rle.NewNullableInt64(*m.Time))
+	} else {
+		c.time.Append(rle.NewNullInt64())
+	}
+	if m.Message != nil {
+		c.message.Append(rle.NewNullableString(*m.Message))
+	} else {
+		c.message.Append(rle.NewNullString())
+	}
+	c.depsGroup.Append(rle.NewNullableUint64(uint64(len(m.Deps))))
+	for _, dep := range m.Deps {
+		c.depsIndex.Append(rle.NewNullableInt64(int64(dep)))
+	}
+}
+
+func (c *ChangesWriter) Flush() error {
+	for _, f := range []interface{ Flush() error }{
+		c.actor, c.seqNum, c.maxOp, c.time, c.message, c.depsGroup, c.depsIndex,
+	} {
+		if err := f.Flush(); err != nil {
+			return err
+		}
+	}
+	return nil
 }

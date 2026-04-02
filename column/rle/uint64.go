@@ -32,14 +32,3 @@ func EncodeUint64(vals ...uint64) []byte {
 	_ = w.Flush()
 	return buf.Bytes()
 }
-
-// EncodeNullableUint64 encodes a slice of nullable uint64 values as RLE.
-func EncodeNullableUint64(vals []NullableValue[uint64]) []byte {
-	var buf bytes.Buffer
-	w := NewUint64Writer(&buf)
-	for _, nv := range vals {
-		w.Append(nv)
-	}
-	_ = w.Flush()
-	return buf.Bytes()
-}

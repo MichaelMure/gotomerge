@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	"gotomerge/column/rle"
 	"gotomerge/types"
 )
 
@@ -102,4 +103,31 @@ func (a *ActionReader) Fork() (*ActionReader, error) {
 		}
 	}
 	return &ActionReader{kind: kind, meta: meta, value: value}, nil
+}
+
+// ActionWriter is a stateful encoder for action columns (kind + value metadata + value bytes).
+type ActionWriter struct {
+	kind  *UlebWriter
+	value *ValueWriter
+}
+
+func NewActionWriter(kind, meta, val io.Writer) *ActionWriter {
+	return &ActionWriter{
+		kind:  NewUlebWriter(kind),
+		value: NewValueWriter(meta, val),
+	}
+}
+
+func (a *ActionWriter) Append(action types.Action) {
+	a.kind.Append(rle.NewNullableUint64(uint64(action.Kind)))
+	a.value.Append(action)
+}
+
+func (a *ActionWriter) HasValues() bool { return a.value.HasValues() }
+
+func (a *ActionWriter) Flush() error {
+	if err := a.kind.Flush(); err != nil {
+		return err
+	}
+	return a.value.Flush()
 }

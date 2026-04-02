@@ -48,14 +48,3 @@ func EncodeString(vals ...string) []byte {
 	_ = w.Flush()
 	return buf.Bytes()
 }
-
-// EncodeNullableString encodes a slice of nullable strings as RLE.
-func EncodeNullableString(vals []NullableValue[string]) []byte {
-	var buf bytes.Buffer
-	w := NewStringWriter(&buf)
-	for _, nv := range vals {
-		w.Append(nv)
-	}
-	_ = w.Flush()
-	return buf.Bytes()
-}

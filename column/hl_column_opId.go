@@ -1,8 +1,10 @@
 package column
 
 import (
+	"io"
 	"math"
 
+	"gotomerge/column/rle"
 	"gotomerge/types"
 )
 
@@ -84,4 +86,26 @@ func (o *OpIdReader) Fork() (*OpIdReader, error) {
 		}
 	}
 	return &OpIdReader{actor: actor, counter: counter}, nil
+}
+
+// OpIdWriter is a stateful encoder for operation ID columns.
+type OpIdWriter struct {
+	actor *ActorWriter
+	ctr   *DeltaWriter
+}
+
+func NewOpIdWriter(actor, ctr io.Writer) *OpIdWriter {
+	return &OpIdWriter{actor: NewActorWriter(actor), ctr: NewDeltaWriter(ctr)}
+}
+
+func (o *OpIdWriter) Append(id types.OpId, localOf map[uint32]uint32) {
+	o.actor.Append(rle.NewNullableUint64(uint64(localOf[id.ActorIdx])))
+	o.ctr.Append(rle.NewNullableInt64(int64(id.Counter)))
+}
+
+func (o *OpIdWriter) Flush() error {
+	if err := o.actor.Flush(); err != nil {
+		return err
+	}
+	return o.ctr.Flush()
 }

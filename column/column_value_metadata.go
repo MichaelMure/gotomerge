@@ -2,6 +2,7 @@ package column
 
 import (
 	"fmt"
+	"io"
 
 	"gotomerge/column/rle"
 	ioutil "gotomerge/utils/io"
@@ -27,6 +28,21 @@ func (vr *ValueMetadataReader) Next() (ValueMetadata, error) {
 	}
 	return ValueMetadata(val), nil
 }
+
+// ValueMetadataWriter is a stateful encoder for value metadata columns.
+type ValueMetadataWriter struct {
+	w *rle.Writer[uint64]
+}
+
+func NewValueMetadataWriter(w io.Writer) *ValueMetadataWriter {
+	return &ValueMetadataWriter{w: rle.NewUint64Writer(w)}
+}
+
+func (vw *ValueMetadataWriter) Append(m ValueMetadata) {
+	vw.w.Append(rle.NewNullableUint64(uint64(m)))
+}
+
+func (vw *ValueMetadataWriter) Flush() error { return vw.w.Flush() }
 
 func (vr *ValueMetadataReader) Fork() (*ValueMetadataReader, error) {
 	forkedR, err := vr.r.Fork()

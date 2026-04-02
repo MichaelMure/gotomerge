@@ -2,6 +2,7 @@ package column
 
 import (
 	"encoding/binary"
+	"io"
 	"unicode/utf8"
 
 	"github.com/jcalabro/leb128"
@@ -75,4 +76,79 @@ func (vr *ValueReader) Fork() (*ValueReader, error) {
 		return nil, err
 	}
 	return &ValueReader{r: sub}, nil
+}
+
+// ValueWriter is a stateful encoder for value columns. It writes value metadata
+// (as RLE uint64) and raw value bytes to separate io.Writers, matching what
+// ValueReader decodes.
+type ValueWriter struct {
+	meta      *ValueMetadataWriter
+	val       io.Writer
+	err       error
+	hasValues bool
+}
+
+func NewValueWriter(meta io.Writer, val io.Writer) *ValueWriter {
+	return &ValueWriter{meta: NewValueMetadataWriter(meta), val: val}
+}
+
+func (vw *ValueWriter) Append(action types.Action) {
+	if vw.err != nil {
+		return
+	}
+	if HasScalarValue(action) {
+		vw.hasValues = true
+		m, b := EncodeValue(action)
+		vw.meta.Append(m)
+		if len(b) > 0 {
+			_, vw.err = vw.val.Write(b)
+		}
+	} else {
+		vw.meta.Append(NewValueMetadata(ValueTypeNull, 0))
+	}
+}
+
+// HasValues reports whether any appended action had a scalar value.
+func (vw *ValueWriter) HasValues() bool { return vw.hasValues }
+
+// Flush writes the final metadata run and returns any accumulated error.
+func (vw *ValueWriter) Flush() error {
+	if vw.err != nil {
+		return vw.err
+	}
+	return vw.meta.Flush()
+}
+
+// HasScalarValue reports whether the action carries a scalar value requiring
+// entries in the value metadata and value columns.
+func HasScalarValue(a types.Action) bool {
+	return a.Kind == types.ActionSet || a.Kind == types.ActionInc
+}
+
+// EncodeValue returns the ValueMetadata and raw value bytes for a Set or Inc
+// action. For actions without a scalar value, returns (Null metadata, nil).
+func EncodeValue(a types.Action) (ValueMetadata, []byte) {
+	if a.Kind != types.ActionSet && a.Kind != types.ActionInc {
+		return NewValueMetadata(ValueTypeNull, 0), nil
+	}
+	switch v := a.Value.(type) {
+	case nil:
+		return NewValueMetadata(ValueTypeNull, 0), nil
+	case bool:
+		if v {
+			return NewValueMetadata(ValueTypeTrue, 0), nil
+		}
+		return NewValueMetadata(ValueTypeFalse, 0), nil
+	case string:
+		b := []byte(v)
+		return NewValueMetadata(ValueTypeString, uint64(len(b))), b
+	case uint64:
+		b := leb128.EncodeU64(v)
+		return NewValueMetadata(ValueTypeUInt, uint64(len(b))), b
+	case int64:
+		b := leb128.EncodeS64(v)
+		return NewValueMetadata(ValueTypeInt, uint64(len(b))), b
+	default:
+		return NewValueMetadata(ValueTypeNull, 0), nil
+	}
 }

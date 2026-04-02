@@ -1,8 +1,10 @@
 package column
 
 import (
+	"io"
 	"math"
 
+	"gotomerge/column/rle"
 	"gotomerge/types"
 )
 
@@ -86,4 +88,35 @@ func (o *ObjectReader) Fork() (*ObjectReader, error) {
 		}
 	}
 	return &ObjectReader{actor: actor, counter: counter}, nil
+}
+
+// ObjectWriter is a stateful encoder for object ID columns.
+type ObjectWriter struct {
+	actor      *ActorWriter
+	ctr        *UlebWriter
+	hasNonRoot bool
+}
+
+func NewObjectWriter(actor, ctr io.Writer) *ObjectWriter {
+	return &ObjectWriter{actor: NewActorWriter(actor), ctr: NewUlebWriter(ctr)}
+}
+
+func (o *ObjectWriter) Append(obj types.ObjectId, localOf map[uint32]uint32) {
+	if obj.IsRoot() {
+		o.actor.Append(rle.NewNullUint64())
+		o.ctr.Append(rle.NewNullUint64())
+	} else {
+		o.hasNonRoot = true
+		o.actor.Append(rle.NewNullableUint64(uint64(localOf[obj.ActorIdx])))
+		o.ctr.Append(rle.NewNullableUint64(uint64(obj.Counter)))
+	}
+}
+
+func (o *ObjectWriter) HasNonRoot() bool { return o.hasNonRoot }
+
+func (o *ObjectWriter) Flush() error {
+	if err := o.actor.Flush(); err != nil {
+		return err
+	}
+	return o.ctr.Flush()
 }

@@ -2,6 +2,7 @@ package column
 
 import (
 	"fmt"
+	"io"
 	"math"
 
 	"gotomerge/column/rle"
@@ -52,3 +53,29 @@ func (dr *DeltaReader) Fork() (*DeltaReader, error) {
 	}
 	return &DeltaReader{r: forkedR, acc: dr.acc}, nil
 }
+
+// DeltaWriter is a stateful encoder for delta-encoded int64 columns (matching
+// what DeltaReader decodes). Values are stored as deltas from the previous
+// non-null value; the accumulator starts at 0.
+type DeltaWriter struct {
+	w   *rle.Writer[int64]
+	acc int64
+}
+
+func NewDeltaWriter(w io.Writer) *DeltaWriter {
+	return &DeltaWriter{w: rle.NewInt64Writer(w)}
+}
+
+func (dw *DeltaWriter) Append(nv rle.NullableValue[int64]) {
+	if v, ok := nv.Value(); ok {
+		dw.w.Append(rle.NewNullableInt64(v - dw.acc))
+		dw.acc = v
+	} else {
+		dw.w.Append(rle.NewNullInt64())
+	}
+}
+
+// Flush writes the final run and returns any accumulated error.
+func (dw *DeltaWriter) Flush() error { return dw.w.Flush() }
+
+

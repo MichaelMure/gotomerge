@@ -1,0 +1,43 @@
+package column
+
+import (
+	"bytes"
+	"testing"
+
+	ioutil "gotomerge/utils/io"
+	"gotomerge/types"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestKeyRoundTrip(t *testing.T) {
+	cases := [][]types.Key{
+		{
+			types.KeyString("foo"), types.KeyString("bar"),
+			types.KeyOpId{ActorIdx: 0, Counter: 3}, types.KeyOpId{ActorIdx: 1, Counter: 7},
+			types.KeyString("baz"),
+		},
+		repeat[types.Key](100, types.KeyString("name")),
+		repeat[types.Key](50, types.KeyOpId{ActorIdx: 0, Counter: 5}),
+		repeat[types.Key](200, types.KeyString("x"), types.KeyOpId{ActorIdx: 0, Counter: 1}),
+	}
+	for _, in := range cases {
+		var actorBuf, ctrBuf, strBuf bytes.Buffer
+		w := NewKeyWriter(&actorBuf, &ctrBuf, &strBuf)
+		for _, k := range in {
+			w.Append(k, identityLocalOf)
+		}
+		require.NoError(t, w.Flush())
+
+		r := NewKeyReader(
+			NewActorReader(ioutil.NewBytesReader(actorBuf.Bytes())),
+			NewDeltaReader(ioutil.NewBytesReader(ctrBuf.Bytes())),
+			NewStringReader(ioutil.NewBytesReader(strBuf.Bytes())),
+		)
+		for i, want := range in {
+			got, err := r.Next()
+			require.NoError(t, err, "index %d", i)
+			require.Equal(t, want, got, "index %d", i)
+		}
+	}
+}

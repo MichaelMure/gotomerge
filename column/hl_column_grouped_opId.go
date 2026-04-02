@@ -1,8 +1,10 @@
 package column
 
 import (
+	"io"
 	"math"
 
+	"gotomerge/column/rle"
 	"gotomerge/types"
 )
 
@@ -113,4 +115,42 @@ func (g *GroupedOpIdReader) Fork() (*GroupedOpIdReader, error) {
 		}
 	}
 	return &GroupedOpIdReader{name: g.name, group: group, actor: actor, counter: counter}, nil
+}
+
+// GroupedOpIdWriter is a stateful encoder for grouped operation ID columns
+// (e.g. predecessors: a count followed by that many actor+counter pairs).
+type GroupedOpIdWriter struct {
+	group    *GroupWriter
+	actor    *ActorWriter
+	ctr      *DeltaWriter
+	hasPreds bool
+}
+
+func NewGroupedOpIdWriter(group, actor, ctr io.Writer) *GroupedOpIdWriter {
+	return &GroupedOpIdWriter{
+		group: NewGroupWriter(group),
+		actor: NewActorWriter(actor),
+		ctr:   NewDeltaWriter(ctr),
+	}
+}
+
+func (g *GroupedOpIdWriter) Append(ids []types.OpId, localOf map[uint32]uint32) {
+	g.group.Append(rle.NewNullableUint64(uint64(len(ids))))
+	for _, id := range ids {
+		g.hasPreds = true
+		g.actor.Append(rle.NewNullableUint64(uint64(localOf[id.ActorIdx])))
+		g.ctr.Append(rle.NewNullableInt64(int64(id.Counter)))
+	}
+}
+
+func (g *GroupedOpIdWriter) HasPreds() bool { return g.hasPreds }
+
+func (g *GroupedOpIdWriter) Flush() error {
+	if err := g.group.Flush(); err != nil {
+		return err
+	}
+	if err := g.actor.Flush(); err != nil {
+		return err
+	}
+	return g.ctr.Flush()
 }
