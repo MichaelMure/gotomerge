@@ -3,6 +3,7 @@ package column
 import (
 	"encoding/binary"
 	"io"
+	"math"
 	"unicode/utf8"
 
 	"github.com/jcalabro/leb128"
@@ -148,6 +149,18 @@ func EncodeValue(a types.Action) (ValueMetadata, []byte) {
 	case int64:
 		b := leb128.EncodeS64(v)
 		return NewValueMetadata(ValueTypeInt, uint64(len(b))), b
+	case float64:
+		b := make([]byte, 8)
+		binary.LittleEndian.PutUint64(b, math.Float64bits(v))
+		return NewValueMetadata(ValueTypeFloat, 8), b
+	case []byte:
+		return NewValueMetadata(ValueTypeBytes, uint64(len(v))), v
+	case types.Counter:
+		b := leb128.EncodeS64(int64(v))
+		return NewValueMetadata(ValueTypeCounter, uint64(len(b))), b
+	case types.Timestamp:
+		b := leb128.EncodeS64(int64(v))
+		return NewValueMetadata(ValueTypeTimestamp, uint64(len(b))), b
 	default:
 		return NewValueMetadata(ValueTypeNull, 0), nil
 	}
