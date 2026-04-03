@@ -172,6 +172,9 @@ func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 			ss.insert.Set(opIdx)
 		}
 		ss.byId[id] = opIdx
+		if id.Counter > s.maxOpCounter[id.ActorIdx] {
+			s.maxOpCounter[id.ActorIdx] = id.Counter
+		}
 
 		r := ss.objRanges[obj]
 		if r.end == opIdx {

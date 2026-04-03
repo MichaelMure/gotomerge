@@ -103,6 +103,9 @@ func (s *OpSet) ApplyChange(cc *format.ChangeChunk) error {
 		s.delta.ops = append(s.delta.ops, op)
 		s.delta.byId[op.Id] = idx
 		s.delta.byObj[op.Object] = append(s.delta.byObj[op.Object], idx)
+		if op.Id.Counter > s.maxOpCounter[op.Id.ActorIdx] {
+			s.maxOpCounter[op.Id.ActorIdx] = op.Id.Counter
+		}
 	}
 
 	// Update heads: remove deps (they now have a descendant), add this change.

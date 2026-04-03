@@ -172,6 +172,19 @@ func (s *OpSet) opIdGreater(a, b types.OpId) bool {
 	return bytes.Compare(s.actors[a.ActorIdx], s.actors[b.ActorIdx]) > 0
 }
 
+// Materialize converts an Op to a plain Go value. For scalar ops it returns
+// op.Action.Value directly. For Make* ops it returns the ObjectId of the
+// created object so the caller can wrap it in a reader — the docproxy layer
+// does this wrapping, keeping opset free of view types.
+func (s *OpSet) Materialize(op Op) any {
+	switch op.Action.Kind {
+	case types.ActionMakeMap, types.ActionMakeList, types.ActionMakeText:
+		return types.ObjectId(op.Id)
+	default:
+		return op.Action.Value
+	}
+}
+
 // sortOpIdsDesc sorts OpIds in descending order (highest first).
 func sortOpIdsDesc(ids []types.OpId, s *OpSet) {
 	for i := 1; i < len(ids); i++ {

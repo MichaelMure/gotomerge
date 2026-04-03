@@ -1,8 +1,6 @@
 package opset
 
 import (
-	"encoding/hex"
-
 	"gotomerge/types"
 )
 
@@ -15,7 +13,7 @@ type OpSet struct {
 	// actors is the document-wide actor table. OpId.ActorIdx values throughout
 	// this OpSet are indices into this slice.
 	actors   []types.ActorId
-	actorIdx map[string]uint32 // hex(actorId) → index in actors
+	actorIdx map[string]uint32 // string(actorId) → index in actors
 
 	// snapshot holds operations from the most recently applied DocumentChunk,
 	// stored as column references plus sparse metadata. Nil if no DocumentChunk
@@ -34,6 +32,10 @@ type OpSet struct {
 	// validation. Changes in a DocumentChunk are not enumerated here; the
 	// presence of snapshot implies all pre-snapshot deps are satisfied.
 	appliedHashes map[types.ChangeHash]struct{}
+
+	// maxOpCounter tracks the highest counter seen per actor (global index).
+	// Used by Begin to compute startOp for new transactions.
+	maxOpCounter map[uint32]uint32
 }
 
 func New() *OpSet {
@@ -41,6 +43,7 @@ func New() *OpSet {
 		actorIdx:      make(map[string]uint32),
 		heads:         make(map[types.ChangeHash]struct{}),
 		appliedHashes: make(map[types.ChangeHash]struct{}),
+		maxOpCounter:  make(map[uint32]uint32),
 	}
 }
 
@@ -62,7 +65,7 @@ func (s *OpSet) Heads() []types.ChangeHash {
 // internActor registers an actor and returns its index in the OpSet actor table.
 // If the actor is already registered, the existing index is returned.
 func (s *OpSet) internActor(id types.ActorId) uint32 {
-	key := hex.EncodeToString(id)
+	key := string(id)
 	if idx, ok := s.actorIdx[key]; ok {
 		return idx
 	}
