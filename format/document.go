@@ -12,12 +12,6 @@ import (
 	ioutil "gotomerge/utils/io"
 )
 
-// isDone reports whether err signals iterator exhaustion.
-// Stateful readers return io.EOF; iter.Pull2-based iters return column.ErrDone.
-func isDone(err error) bool {
-	return errors.Is(err, column.ErrDone) || errors.Is(err, io.EOF)
-}
-
 // DocumentChunk is the parsed form of an Automerge document snapshot chunk.
 //
 // A document chunk is a merged representation of an entire document's history.
@@ -58,7 +52,12 @@ type DocumentChunk struct {
 	OpMetadata column.Metadata
 	OpColumns  OperationColumns
 
-	unknownColumns []rawColumn
+	// rawChangeColumns and rawOpColumns hold the original wire bytes for every
+	// column in the respective section, in metadata order. Deflated columns are
+	// stored compressed (as they appear on the wire) so WriteDocument can write
+	// them back unchanged without re-compressing.
+	rawChangeColumns []rawColumn
+	rawOpColumns     []rawColumn
 }
 
 func (DocumentChunk) chunk() {}
@@ -123,113 +122,123 @@ func readDocumentChunk(r ioutil.SubReader) (*DocumentChunk, error) {
 
 	var offset uint64
 	for _, metadatum := range res.ChangeMetadata {
-		rawCol, err := r.SubReader(offset, metadatum.Length)
+		rawBytes, err := r.SubReader(offset, metadatum.Length)
 		if err != nil {
 			return nil, fmt.Errorf("error reading change column: %w", err)
 		}
 		offset += metadatum.Length
 
+		var col ioutil.SubReader = rawBytes
 		if metadatum.Spec.Deflate() {
-			rawCol, err = rawCol.Deflate()
+			col, _, err = rawBytes.Deflate()
 			if err != nil {
 				return nil, fmt.Errorf("error deflating change column: %w", err)
 			}
 		}
 
+		colData, err := io.ReadAll(col)
+		if err != nil {
+			return nil, fmt.Errorf("error reading change column bytes: %w", err)
+		}
+		res.rawChangeColumns = append(res.rawChangeColumns, rawColumn{
+			specBits: uint32(metadatum.Spec) &^ 8, // clear deflate bit
+			data:     colData,
+		})
+
+		colReader := ioutil.NewBytesReader(colData)
 		switch metadatum.Spec {
-		case 1:
-			res.ChangesColumns.ActorId = rawCol
-		case 3:
-			res.ChangesColumns.SeqNum = rawCol
-		case 19:
-			res.ChangesColumns.MaxOp = rawCol
-		case 35:
-			res.ChangesColumns.Time = rawCol
-		case 53:
-			res.ChangesColumns.Message = rawCol
-		case 64:
-			res.ChangesColumns.DependenciesGroup = rawCol
-		case 67:
-			res.ChangesColumns.DependenciesIndex = rawCol
-		case 86:
-			res.ChangesColumns.ExtraMetadata = rawCol
-		case 87:
-			res.ChangesColumns.ExtraData = rawCol
-		default:
-			data, err := io.ReadAll(rawCol)
-			if err != nil {
-				return nil, fmt.Errorf("error reading unknown change column: %w", err)
-			}
-			res.unknownColumns = append(res.unknownColumns, rawColumn{
-				specBits: uint32(metadatum.Spec),
-				data:     data,
-			})
+		case colDocChgActor:
+			res.ChangesColumns.ActorId = colReader
+		case colDocChgSeqNum:
+			res.ChangesColumns.SeqNum = colReader
+		case colDocChgMaxOp:
+			res.ChangesColumns.MaxOp = colReader
+		case colDocChgTime:
+			res.ChangesColumns.Time = colReader
+		case colDocChgMessage:
+			res.ChangesColumns.Message = colReader
+		case colDocChgDepsGrp:
+			res.ChangesColumns.DependenciesGroup = colReader
+		case colDocChgDepsIdx:
+			res.ChangesColumns.DependenciesIndex = colReader
+		case colValMeta:
+			res.ChangesColumns.ExtraMetadata = colReader
+		case colVal:
+			res.ChangesColumns.ExtraData = colReader
 		}
 	}
 
 	for _, metadatum := range res.OpMetadata {
-		rawCol, err := r.SubReader(offset, metadatum.Length)
+		rawBytes, err := r.SubReader(offset, metadatum.Length)
 		if err != nil {
 			return nil, fmt.Errorf("error reading op column: %w", err)
 		}
 		offset += metadatum.Length
 
+		var col ioutil.SubReader = rawBytes
 		if metadatum.Spec.Deflate() {
-			rawCol, err = rawCol.Deflate()
+			col, _, err = rawBytes.Deflate()
 			if err != nil {
 				return nil, fmt.Errorf("error deflating op column: %w", err)
 			}
 		}
 
-		switch metadatum.Spec {
-		case 1: // ID: 0, type: actor
-			res.OpColumns.ObjectActorId = rawCol
-		case 2: // ID: 0, type: uleb128
-			res.OpColumns.ObjectCounter = rawCol
-		case 17: // ID: 1, type: actor
-			res.OpColumns.KeyActorId = rawCol
-		case 19: // ID: 1, type: delta
-			res.OpColumns.KeyCounter = rawCol
-		case 21: // ID: 1, type: string
-			res.OpColumns.KeyString = rawCol
-		case 33: // ID: 2, type: actor
-			res.OpColumns.ActorId = rawCol
-		case 35: // ID: 2, type: delta
-			res.OpColumns.Counter = rawCol
-		case 52: // ID: 3, type: bool
-			res.OpColumns.Insert = rawCol
-		case 66: // ID: 4, type: uleb128
-			res.OpColumns.Action = rawCol
-		case 86: // ID: 5, type: value_metadata
-			res.OpColumns.ValueMetadata = rawCol
-		case 87: // ID: 5, type: value
-			res.OpColumns.Value = rawCol
-		case 112: // ID: 7, type: group
-			res.OpColumns.PredecessorGroup = rawCol
-		case 113: // ID: 7, type: actor
-			res.OpColumns.PredecessorActorId = rawCol
-		case 115: // ID: 7, type: delta
-			res.OpColumns.PredecessorCounter = rawCol
-		case 128: // ID: 8, type: group
-			res.OpColumns.SuccessorGroup = rawCol
-		case 129: // ID: 8, type: actor
-			res.OpColumns.SuccessorActorId = rawCol
-		case 131: // ID: 8, type: delta
-			res.OpColumns.SuccessorCounter = rawCol
-		case 148: // ID: 9, type: bool
-			res.OpColumns.ExpandControl = rawCol
-		case 165: // ID: 10, type: string
-			res.OpColumns.Mark = rawCol
-		default:
-			data, err := io.ReadAll(rawCol)
-			if err != nil {
-				return nil, fmt.Errorf("error reading unknown op column: %w", err)
-			}
-			res.unknownColumns = append(res.unknownColumns, rawColumn{
-				specBits: uint32(metadatum.Spec),
-				data:     data,
-			})
+		colData, err := io.ReadAll(col)
+		if err != nil {
+			return nil, fmt.Errorf("error reading op column bytes: %w", err)
 		}
+		res.rawOpColumns = append(res.rawOpColumns, rawColumn{
+			specBits: uint32(metadatum.Spec) &^ 8, // clear deflate bit
+			data:     colData,
+		})
+
+		colReader := ioutil.NewBytesReader(colData)
+		switch metadatum.Spec {
+		case colObjActor:
+			res.OpColumns.ObjectActorId = colReader
+		case colObjCtr:
+			res.OpColumns.ObjectCounter = colReader
+		case colKeyActor:
+			res.OpColumns.KeyActorId = colReader
+		case colKeyCtr:
+			res.OpColumns.KeyCounter = colReader
+		case colKeyStr:
+			res.OpColumns.KeyString = colReader
+		case colDocOpActor:
+			res.OpColumns.ActorId = colReader
+		case colDocOpCtr:
+			res.OpColumns.Counter = colReader
+		case colInsert:
+			res.OpColumns.Insert = colReader
+		case colAction:
+			res.OpColumns.Action = colReader
+		case colValMeta:
+			res.OpColumns.ValueMetadata = colReader
+		case colVal:
+			res.OpColumns.Value = colReader
+		case colPredGrp:
+			res.OpColumns.PredecessorGroup = colReader
+		case colPredActor:
+			res.OpColumns.PredecessorActorId = colReader
+		case colPredCtr:
+			res.OpColumns.PredecessorCounter = colReader
+		case colDocSuccGrp:
+			res.OpColumns.SuccessorGroup = colReader
+		case colDocSuccActor:
+			res.OpColumns.SuccessorActorId = colReader
+		case colDocSuccCtr:
+			res.OpColumns.SuccessorCounter = colReader
+		case colExpandControl:
+			res.OpColumns.ExpandControl = colReader
+		case colMark:
+			res.OpColumns.Mark = colReader
+		}
+	}
+
+	// SubReader() calls do not advance r, so r is still at the start of the
+	// column data. Skip past all column bytes before reading HeadIndexes.
+	if err := r.Skip(int(offset)); err != nil {
+		return nil, fmt.Errorf("error skipping column data: %w", err)
 	}
 
 	res.HeadIndexes, err = readHeadIndexes(r, len(res.Heads))

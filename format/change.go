@@ -144,43 +144,43 @@ func readChangeChunk(r ioutil.SubReader) (*ChangeChunk, error) {
 		}
 
 		switch metadatum.Spec {
-		case 1: // ID: 0, type: actor
+		case colObjActor:
 			res.OpColumns.ObjectActorId = rawCol
-		case 2: // ID: 0, type: uleb128
+		case colObjCtr:
 			res.OpColumns.ObjectCounter = rawCol
-		case 17: // ID: 1, type: actor
+		case colKeyActor:
 			res.OpColumns.KeyActorId = rawCol
-		case 19: // ID: 1, type: delta
+		case colKeyCtr:
 			res.OpColumns.KeyCounter = rawCol
-		case 21: // ID: 1, type: string
+		case colKeyStr:
 			res.OpColumns.KeyString = rawCol
-		case 33: // ID: 2, type: actor
+		case colDocOpActor:
 			res.OpColumns.ActorId = rawCol
-		case 35: // ID: 2, type: delta
+		case colDocOpCtr:
 			res.OpColumns.Counter = rawCol
-		case 52: // ID: 3, type: bool
+		case colInsert:
 			res.OpColumns.Insert = rawCol
-		case 66: // ID: 4, type: uleb128
+		case colAction:
 			res.OpColumns.Action = rawCol
-		case 86: // ID: 5, type: value_metadata
+		case colValMeta:
 			res.OpColumns.ValueMetadata = rawCol
-		case 87: // ID: 5, type: value
+		case colVal:
 			res.OpColumns.Value = rawCol
-		case 112: // ID: 7, type: group
+		case colPredGrp:
 			res.OpColumns.PredecessorGroup = rawCol
-		case 113: // ID: 7, type: actor
+		case colPredActor:
 			res.OpColumns.PredecessorActorId = rawCol
-		case 115: // ID: 7, type: delta
+		case colPredCtr:
 			res.OpColumns.PredecessorCounter = rawCol
-		case 128: // ID: 8, type: group
+		case colDocSuccGrp:
 			res.OpColumns.SuccessorGroup = rawCol
-		case 129: // ID: 8, type: actor
+		case colDocSuccActor:
 			res.OpColumns.SuccessorActorId = rawCol
-		case 131: // ID: 8, type: delta
+		case colDocSuccCtr:
 			res.OpColumns.SuccessorCounter = rawCol
-		case 148: // ID: 9, type: bool
+		case colExpandControl:
 			res.OpColumns.ExpandControl = rawCol
-		case 165: // ID: 10, type: string
+		case colMark:
 			res.OpColumns.Mark = rawCol
 		default:
 			data, err := io.ReadAll(rawCol)
