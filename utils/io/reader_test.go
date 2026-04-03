@@ -919,8 +919,9 @@ func TestBytesReader_Deflate_AfterPartialRead(t *testing.T) {
 	_, err := io.ReadFull(r, make([]byte, 4))
 	require.NoError(t, err)
 
-	got, err := r.Deflate()
+	got, n, err := r.Deflate()
 	require.NoError(t, err)
+	require.Equal(t, len(plain), n)
 	result, err := io.ReadAll(got)
 	require.NoError(t, err)
 	require.Equal(t, plain, result)

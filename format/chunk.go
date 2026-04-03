@@ -2,7 +2,6 @@ package format
 
 import (
 	"bytes"
-	"compress/flate"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -134,26 +133,19 @@ func ReadChunk(r ioutil.SubReader) (Chunk, int, error) {
 		//
 		// Benchmarks show this costs roughly +11% time, +7% allocation count, +2% allocation size
 		// compared to plain changes.
-		decompressed, err := io.ReadAll(flate.NewReader(sub))
+		decompressed, decompressedLen, err := sub.Deflate()
 		if err != nil {
 			return nil, toSkip, fmt.Errorf("error reading compressed change: %w", err)
 		}
 
 		h = sha256.New()
-		_, err = h.Write([]byte{byte(ChunkTypeChange)})
-		if err != nil {
-			return nil, toSkip, err
-		}
-		_, err = h.Write(leb128.EncodeU64(uint64(len(decompressed))))
-		if err != nil {
-			return nil, toSkip, err
-		}
-		_, err = h.Write(decompressed)
-		if err != nil {
-			return nil, toSkip, err
+		h.Write([]byte{byte(ChunkTypeChange)})
+		h.Write(leb128.EncodeU64(uint64(decompressedLen)))
+		if err = decompressed.Peek(h, decompressedLen); err != nil {
+			return nil, toSkip, fmt.Errorf("error hashing compressed change: %w", err)
 		}
 
-		res, err = readChangeChunk(ioutil.NewBytesReader(decompressed))
+		res, err = readChangeChunk(decompressed)
 	default:
 		return nil, toSkip, fmt.Errorf("invalid chunk type: %d", chunkType)
 	}

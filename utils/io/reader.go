@@ -30,8 +30,9 @@ type SubReader interface {
 	Peek(w io.Writer, n int) error
 
 	// Deflate decompresses the remaining bytes of this SubReader using DEFLATE
-	// and returns a new SubReader over the decompressed data.
-	Deflate() (SubReader, error)
+	// and returns a new SubReader over the decompressed data along with the
+	// decompressed size.
+	Deflate() (SubReader, int, error)
 }
 
 const pageSize = 16 * 1024 // 16KB pages
@@ -205,7 +206,7 @@ func (r *pagedReader) Peek(w io.Writer, n int) error {
 	return nil
 }
 
-func (r *pagedReader) Deflate() (SubReader, error) { return deflate(r) }
+func (r *pagedReader) Deflate() (SubReader, int, error) { return deflate(r) }
 
 // grow ensures we have at least minBytes available for reading
 func (r *pagedReader) grow(minBytes int) error {
@@ -492,7 +493,7 @@ func (s *subReader) Peek(w io.Writer, n int) error {
 	return err
 }
 
-func (s *subReader) Deflate() (SubReader, error) { return deflate(s) }
+func (s *subReader) Deflate() (SubReader, int, error) { return deflate(s) }
 
 var _ SubReader = &subReaderOffset{}
 
@@ -701,7 +702,7 @@ func (s *subReaderOffset) SubReaderOffset(offset uint64) (SubReader, error) {
 	}, nil
 }
 
-func (s *subReaderOffset) Deflate() (SubReader, error) { return deflate(s) }
+func (s *subReaderOffset) Deflate() (SubReader, int, error) { return deflate(s) }
 
 func (s *subReaderOffset) Skip(n int) error {
 	// if the current page is empty, try to load
@@ -863,22 +864,18 @@ func (b *bytesReader) Peek(w io.Writer, n int) error {
 	return err
 }
 
-func (b *bytesReader) Deflate() (SubReader, error) { return deflate(b) }
+func (b *bytesReader) Deflate() (SubReader, int, error) { return deflate(b) }
 
-// deflate decompresses the remaining bytes of r using DEFLATE and returns a
-// new SubReader over the result. It forks r via SubReaderOffset(0) so the
-// caller's position is not advanced. The strategy (eager in-memory) can be
-// changed here without touching any call site.
-func deflate(r SubReader) (SubReader, error) {
+func deflate(r SubReader) (SubReader, int, error) {
 	fork, err := r.SubReaderOffset(0)
 	if err != nil {
-		return nil, fmt.Errorf("deflate: fork: %w", err)
+		return nil, 0, fmt.Errorf("deflate: fork: %w", err)
 	}
 	fr := flate.NewReader(fork)
 	defer fr.Close()
 	decompressed, err := io.ReadAll(fr)
 	if err != nil {
-		return nil, fmt.Errorf("deflate: %w", err)
+		return nil, 0, fmt.Errorf("deflate: %w", err)
 	}
-	return NewBytesReader(decompressed), nil
+	return NewBytesReader(decompressed), len(decompressed), nil
 }
