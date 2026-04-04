@@ -50,7 +50,15 @@ func (w *Writer[T]) Flush() error {
 	case rleStateNull:
 		w.flushNull()
 	case rleStateRepeated:
-		w.flushRepeat()
+		if w.repeatCount == 1 {
+			// Match Rust: a lone trailing value is flushed as a literal run (-1),
+			// not a repeat run (+1). Both decode identically, but only the literal
+			// form produces stable hashes that interoperate with Rust.
+			w.literals = append(w.literals, w.repeatVal)
+			w.flushLiteral()
+		} else {
+			w.flushRepeat()
+		}
 	case rleStateLiteral:
 		w.flushLiteral()
 	}
