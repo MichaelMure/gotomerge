@@ -16,16 +16,18 @@ import (
 type Writer[T comparable] struct {
 	w        io.Writer
 	err      error
-	encodeFn func(T) []byte
+	encodeFn func([]byte, T) []byte
 
 	state       rleState
 	nullCount   uint64
 	repeatVal   T
 	repeatCount int64
 	literals    []T
+
+	scratch [10]byte // stack buffer for leb128 encoding
 }
 
-func NewWriter[T comparable](w io.Writer, encodeFn func(T) []byte) *Writer[T] {
+func NewWriter[T comparable](w io.Writer, encodeFn func([]byte, T) []byte) *Writer[T] {
 	return &Writer[T]{w: w, encodeFn: encodeFn}
 }
 
@@ -136,15 +138,15 @@ func (w *Writer[T]) write(b []byte) {
 }
 
 func (w *Writer[T]) flushNull() {
-	w.write(leb128.EncodeS64(0))
-	w.write(leb128.EncodeU64(w.nullCount))
+	w.write(leb128.AppendS64(w.scratch[:0], 0))
+	w.write(leb128.AppendU64(w.scratch[:0], w.nullCount))
 	w.nullCount = 0
 	w.state = rleStateIdle
 }
 
 func (w *Writer[T]) flushRepeat() {
-	w.write(leb128.EncodeS64(w.repeatCount))
-	w.write(w.encodeFn(w.repeatVal))
+	w.write(leb128.AppendS64(w.scratch[:0], w.repeatCount))
+	w.write(w.encodeFn(w.scratch[:0], w.repeatVal))
 	w.repeatCount = 0
 	w.state = rleStateIdle
 }
@@ -153,9 +155,9 @@ func (w *Writer[T]) flushLiteral() {
 	if len(w.literals) == 0 {
 		return
 	}
-	w.write(leb128.EncodeS64(int64(-len(w.literals))))
+	w.write(leb128.AppendS64(w.scratch[:0], int64(-len(w.literals))))
 	for _, v := range w.literals {
-		w.write(w.encodeFn(v))
+		w.write(w.encodeFn(w.scratch[:0], v))
 	}
 	w.literals = w.literals[:0]
 	w.state = rleStateIdle

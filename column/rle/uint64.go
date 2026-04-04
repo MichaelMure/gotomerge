@@ -15,11 +15,11 @@ func NewUint64Reader(r ioutil.SubReader) *Uint64Reader {
 	return NewReader[uint64](r, leb128.DecodeU64)
 }
 
-func NewNullableUint64(v uint64) NullableValue[uint64] { return nullable[uint64]{val: v} }
-func NewNullUint64() NullableValue[uint64]             { return nullable[uint64]{null: true} }
+func NewNullableUint64(v uint64) NullableValue[uint64] { return NullableValue[uint64]{val: v} }
+func NewNullUint64() NullableValue[uint64]             { return NullableValue[uint64]{null: true} }
 
 func NewUint64Writer(w io.Writer) *Writer[uint64] {
-	return NewWriter(w, leb128.EncodeU64)
+	return NewWriter(w, leb128.AppendU64)
 }
 
 // EncodeUint64 encodes vals as an RLE uint64 sequence.

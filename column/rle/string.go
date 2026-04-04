@@ -15,13 +15,13 @@ func NewStringReader(r ioutil.SubReader) *StringReader {
 	return NewReader[string](r, readStringValue)
 }
 
-func NewNullableString(s string) NullableValue[string] { return nullable[string]{val: s} }
-func NewNullString() NullableValue[string]             { return nullable[string]{null: true} }
+func NewNullableString(s string) NullableValue[string] { return NullableValue[string]{val: s} }
+func NewNullString() NullableValue[string]             { return NullableValue[string]{null: true} }
 
 func NewStringWriter(w io.Writer) *Writer[string] {
-	return NewWriter(w, func(s string) []byte {
+	return NewWriter(w, func(buf []byte, s string) []byte {
 		// len || str
-		return append(leb128.EncodeU64(uint64(len(s))), s...)
+		return append(leb128.AppendU64(buf, uint64(len(s))), s...)
 	})
 }
 

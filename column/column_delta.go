@@ -22,24 +22,25 @@ func NewDeltaReader(r ioutil.SubReader) *DeltaReader {
 func (dr *DeltaReader) Next() (rle.NullableValue[int64], error) {
 	nv, err := dr.r.Next()
 	if err != nil {
-		return nil, err
+		return rle.NullableValue[int64]{}, err
 	}
 	val, valid := nv.Value()
 	if !valid {
 		// null: acc stays unchanged, return null
 		return rle.NewNullInt64(), nil
 	}
+	var zero rle.NullableValue[int64]
 	switch {
 	case val == 0:
 		// no change to acc
 	case val > 0:
 		if dr.acc > math.MaxInt64-val {
-			return nil, fmt.Errorf("overflow in delta column")
+			return zero, fmt.Errorf("overflow in delta column")
 		}
 		dr.acc += val
 	case val < 0:
 		if dr.acc < math.MinInt64-val {
-			return nil, fmt.Errorf("underflow in delta column")
+			return zero, fmt.Errorf("underflow in delta column")
 		}
 		dr.acc += val
 	}

@@ -18,18 +18,12 @@ const (
 )
 
 // NullableValue represents a value that may be absent (null).
-type NullableValue[T any] interface {
-	// Value returns (val, true) when present, (_, false) when null.
-	Value() (T, bool)
-}
-
-// nullable is the unexported concrete NullableValue implementation shared by all readers.
-type nullable[T any] struct {
+type NullableValue[T any] struct {
 	val  T
 	null bool
 }
 
-func (n nullable[T]) Value() (T, bool) { return n.val, !n.null }
+func (n NullableValue[T]) Value() (T, bool) { return n.val, !n.null }
 
 // Reader is a generic stateful reader for RLE-encoded columns.
 // T is the element type; readFn decodes one non-null value from an io.Reader.
@@ -47,21 +41,22 @@ func NewReader[T any](r ioutil.SubReader, readFn func(io.Reader) (T, error)) *Re
 }
 
 func (rd *Reader[T]) Next() (NullableValue[T], error) {
+	var zero NullableValue[T]
 	for {
 		switch rd.state {
 		case rleStateIdle:
 			L, err := leb128.DecodeS64(rd.r)
 			if err == io.EOF {
-				return nil, io.EOF
+				return zero, io.EOF
 			}
 			if err != nil {
-				return nil, err
+				return zero, err
 			}
 			switch {
 			case L > 1:
 				val, err := rd.readFn(rd.r)
 				if err != nil {
-					return nil, err
+					return zero, err
 				}
 				rd.state = rleStateRepeated
 				rd.remaining = L
@@ -71,7 +66,7 @@ func (rd *Reader[T]) Next() (NullableValue[T], error) {
 			case L == 0:
 				count, err := leb128.DecodeU64(rd.r)
 				if err != nil {
-					return nil, err
+					return zero, err
 				}
 				rd.state = rleStateNull
 				rd.remaining = int64(count)
@@ -80,7 +75,7 @@ func (rd *Reader[T]) Next() (NullableValue[T], error) {
 				if L == 1 {
 					val, err := rd.readFn(rd.r)
 					if err != nil {
-						return nil, err
+						return zero, err
 					}
 					rd.state = rleStateRepeated
 					rd.remaining = 1
@@ -97,23 +92,23 @@ func (rd *Reader[T]) Next() (NullableValue[T], error) {
 			if rd.remaining == 0 {
 				rd.state = rleStateIdle
 			}
-			return nullable[T]{val: rd.cachedVal, null: rd.cachedNull}, nil
+			return NullableValue[T]{val: rd.cachedVal, null: rd.cachedNull}, nil
 		case rleStateNull:
 			rd.remaining--
 			if rd.remaining == 0 {
 				rd.state = rleStateIdle
 			}
-			return nullable[T]{null: true}, nil
+			return NullableValue[T]{null: true}, nil
 		case rleStateLiteral:
 			val, err := rd.readFn(rd.r)
 			if err != nil {
-				return nil, err
+				return zero, err
 			}
 			rd.remaining--
 			if rd.remaining == 0 {
 				rd.state = rleStateIdle
 			}
-			return nullable[T]{val: val}, nil
+			return NullableValue[T]{val: val}, nil
 		}
 	}
 }
