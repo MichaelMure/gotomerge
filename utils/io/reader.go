@@ -33,6 +33,12 @@ type SubReader interface {
 	// and returns a new SubReader over the decompressed data along with the
 	// decompressed size.
 	Deflate() (SubReader, int, error)
+
+	// HasAtLeast reports whether at least n bytes remain to be read.
+	// For bounded readers (subReader, bytesReader) this is an O(1) check.
+	// For unbounded readers (pagedReader, subReaderOffset) it may load pages
+	// from the underlying source as a side-effect.
+	HasAtLeast(n int) bool
 }
 
 const pageSize = 16 * 1024 // 16KB pages
@@ -204,6 +210,15 @@ func (r *pagedReader) Peek(w io.Writer, n int) error {
 	}
 
 	return nil
+}
+
+func (r *pagedReader) HasAtLeast(n int) bool {
+	if r.available >= n {
+		return true
+	}
+	// may hit EOF or an actual error, but available still reflects what was loaded
+	_ = r.grow(n)
+	return r.available >= n
 }
 
 func (r *pagedReader) Deflate() (SubReader, int, error) { return deflate(r) }
@@ -493,6 +508,8 @@ func (s *subReader) Peek(w io.Writer, n int) error {
 	return err
 }
 
+func (s *subReader) HasAtLeast(n int) bool { return s.allowed >= n }
+
 func (s *subReader) Deflate() (SubReader, int, error) { return deflate(s) }
 
 var _ SubReader = &subReaderOffset{}
@@ -702,6 +719,28 @@ func (s *subReaderOffset) SubReaderOffset(offset uint64) (SubReader, error) {
 	}, nil
 }
 
+func (s *subReaderOffset) HasAtLeast(n int) bool {
+	head := s.head
+	position := s.position
+	for n > 0 {
+		frontier := (s.r.head + s.r.count) % len(s.r.pages)
+		if head == frontier {
+			loaded, _ := s.r.loadPage()
+			if loaded == 0 {
+				return false
+			}
+		}
+		avail := len(s.r.pages[head]) - position
+		if avail >= n {
+			return true
+		}
+		n -= avail
+		head = (head + 1) % len(s.r.pages)
+		position = 0
+	}
+	return true
+}
+
 func (s *subReaderOffset) Deflate() (SubReader, int, error) { return deflate(s) }
 
 func (s *subReaderOffset) Skip(n int) error {
@@ -863,6 +902,8 @@ func (b *bytesReader) Peek(w io.Writer, n int) error {
 	_, err := w.Write(b.data[b.position : b.position+n])
 	return err
 }
+
+func (b *bytesReader) HasAtLeast(n int) bool { return len(b.data)-b.position >= n }
 
 func (b *bytesReader) Deflate() (SubReader, int, error) { return deflate(b) }
 

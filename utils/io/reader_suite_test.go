@@ -559,4 +559,77 @@ func suiteSubReader(t *testing.T, newReader func(data []byte) SubReader) {
 		require.NoError(t, err)
 		require.Equal(t, data, got)
 	})
+
+	// --- HasAtLeast ---
+
+	t.Run("HasAtLeast_Zero_AlwaysTrue", func(t *testing.T) {
+		r := newReader([]byte{1, 2, 3})
+		require.True(t, r.HasAtLeast(0))
+	})
+
+	t.Run("HasAtLeast_Zero_OnEmpty", func(t *testing.T) {
+		r := newReader([]byte{})
+		require.True(t, r.HasAtLeast(0))
+	})
+
+	t.Run("HasAtLeast_ExactSize_True", func(t *testing.T) {
+		data := []byte{1, 2, 3, 4, 5}
+		r := newReader(data)
+		require.True(t, r.HasAtLeast(len(data)))
+	})
+
+	t.Run("HasAtLeast_OneBeyondSize_False", func(t *testing.T) {
+		data := []byte{1, 2, 3, 4, 5}
+		r := newReader(data)
+		require.False(t, r.HasAtLeast(len(data)+1))
+	})
+
+	t.Run("HasAtLeast_One_OnSingleByte", func(t *testing.T) {
+		r := newReader([]byte{42})
+		require.True(t, r.HasAtLeast(1))
+	})
+
+	t.Run("HasAtLeast_One_OnEmpty", func(t *testing.T) {
+		r := newReader([]byte{})
+		require.False(t, r.HasAtLeast(1))
+	})
+
+	t.Run("HasAtLeast_DoesNotAdvancePosition", func(t *testing.T) {
+		data := []byte{1, 2, 3, 4, 5}
+		r := newReader(data)
+		require.True(t, r.HasAtLeast(3))
+		got, err := io.ReadAll(r)
+		require.NoError(t, err)
+		require.Equal(t, data, got)
+	})
+
+	t.Run("HasAtLeast_AfterPartialRead", func(t *testing.T) {
+		data := []byte{1, 2, 3, 4, 5, 6}
+		r := newReader(data)
+		_, err := io.ReadFull(r, make([]byte, 3))
+		require.NoError(t, err)
+		require.True(t, r.HasAtLeast(3))
+		require.False(t, r.HasAtLeast(4))
+	})
+
+	t.Run("HasAtLeast_AfterFullRead_False", func(t *testing.T) {
+		r := newReader([]byte{1, 2, 3})
+		_, err := io.ReadAll(r)
+		require.NoError(t, err)
+		require.False(t, r.HasAtLeast(1))
+	})
+
+	t.Run("HasAtLeast_CrossPageBoundary", func(t *testing.T) {
+		data := make([]byte, pageSize+50)
+		for i := range data {
+			data[i] = byte(i % 251)
+		}
+		r := newReader(data)
+		require.True(t, r.HasAtLeast(pageSize+50))
+		require.False(t, r.HasAtLeast(pageSize+51))
+		// position must be unchanged
+		got, err := io.ReadAll(r)
+		require.NoError(t, err)
+		require.Equal(t, data, got)
+	})
 }

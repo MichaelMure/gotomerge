@@ -927,6 +927,47 @@ func TestBytesReader_Deflate_AfterPartialRead(t *testing.T) {
 	require.Equal(t, plain, result)
 }
 
+func TestPagedReader_HasAtLeast_LoadsPages(t *testing.T) {
+	// pagedReader starts with nothing buffered; HasAtLeast must load pages to answer.
+	data := make([]byte, 2*pageSize+100)
+	for i := range data {
+		data[i] = byte(i % 251)
+	}
+	r := NewPagedReader(bytes.NewReader(data))
+	pr := r.(*pagedReader)
+
+	// Nothing loaded yet.
+	require.Equal(t, 0, pr.available)
+	require.True(t, r.HasAtLeast(pageSize+1))
+	// Pages were loaded as a side effect.
+	require.Greater(t, pr.available, 0)
+
+	// Position must be unchanged: we can still read all the data.
+	got, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, data, got)
+}
+
+func TestSubReaderOffset_HasAtLeast_LoadsPages(t *testing.T) {
+	// subReaderOffset has no upper bound, so HasAtLeast must scan/load pages.
+	data := make([]byte, 2*pageSize+100)
+	for i := range data {
+		data[i] = byte(i % 251)
+	}
+	r := NewPagedReader(bytes.NewReader(data))
+	sub, err := r.SubReaderOffset(0)
+	require.NoError(t, err)
+
+	require.True(t, sub.HasAtLeast(pageSize+1))
+	require.True(t, sub.HasAtLeast(2*pageSize+100))
+	require.False(t, sub.HasAtLeast(2*pageSize+101))
+
+	// Position must be unchanged.
+	got, err := io.ReadAll(sub)
+	require.NoError(t, err)
+	require.Equal(t, data, got)
+}
+
 // Helper type for testing writer errors
 type failingWriter struct {
 	written   int
