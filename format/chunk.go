@@ -196,20 +196,6 @@ func readChangeHashes(r io.Reader) ([]types.ChangeHash, error) {
 	return res, nil
 }
 
-func writeChangeHashes(w io.Writer, hashes []types.ChangeHash) error {
-	_, err := w.Write(leb128.EncodeU64(uint64(len(hashes))))
-	if err != nil {
-		return err
-	}
-	for _, h := range hashes {
-		_, err = w.Write(h[:])
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func readActorIds(r io.Reader) ([]types.ActorId, error) {
 	n, err := leb128.DecodeU64(r)
 	if err != nil {
@@ -241,24 +227,6 @@ func readActorIds(r io.Reader) ([]types.ActorId, error) {
 	return res, nil
 }
 
-func writeActorIds(w io.Writer, ids []types.ActorId) error {
-	_, err := w.Write(leb128.EncodeU64(uint64(len(ids))))
-	if err != nil {
-		return err
-	}
-	for _, id := range ids {
-		_, err = w.Write(leb128.EncodeU64(uint64(len(id))))
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(id)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func readHeadIndexes(r io.Reader, count int) ([]uint64, error) {
 	res := make([]uint64, count)
 	for i := 0; i < count; i++ {
@@ -275,14 +243,4 @@ func readHeadIndexes(r io.Reader, count int) ([]uint64, error) {
 		res[i] = index
 	}
 	return res, nil
-}
-
-func writeHeadIndexes(w io.Writer, indexes []uint64) error {
-	for _, index := range indexes {
-		_, err := w.Write(leb128.EncodeU64(index))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }

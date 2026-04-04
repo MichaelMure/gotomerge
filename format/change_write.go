@@ -2,7 +2,6 @@ package format
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"fmt"
 	"io"
 
@@ -13,26 +12,27 @@ import (
 	ioutil "gotomerge/utils/io"
 )
 
-
 // WriteChange serialises cc as a complete Automerge change chunk and writes it
-// to w. It buffers the payload internally (required by the wire format, which
-// places the checksum before the payload bytes), computes the SHA-256 hash,
-// stores it in cc.Hash, and then writes magic + checksum + type + len + payload.
+// to w. Payloads larger than deflateMinSize bytes are written as
+// ChunkTypeCompressedChange; smaller ones as plain ChunkTypeChange.
 //
 // After WriteChange returns, cc.Hash is set and cc is ready for ApplyChange.
 func WriteChange(w io.Writer, cc *ChangeChunk, enc *ChangeOpsWriter) error {
 	cc.OpColumns = enc.opColumns()
 
 	var payload bytes.Buffer
-	if err := writeChangePayload(&payload, cc, enc.writePayloadColumns); err != nil {
+	if err := writeChangePayload(&payload, cc, enc); err != nil {
 		return err
 	}
 
+	if payload.Len() > deflateMinSize {
+		return writeChangeChunkCompressed(w, payload.Bytes(), &cc.Hash)
+	}
 	return writeChunk(w, ChunkTypeChange, payload.Bytes(), &cc.Hash)
 }
 
 // writeChangePayload writes the serialised payload of a ChangeChunk to w.
-func writeChangePayload(w io.Writer, cc *ChangeChunk, writeColumns func(io.Writer) error) error {
+func writeChangePayload(w io.Writer, cc *ChangeChunk, enc *ChangeOpsWriter) error {
 	// Dependencies
 	if _, err := w.Write(leb128.EncodeU64(uint64(len(cc.Dependencies)))); err != nil {
 		return err
@@ -81,37 +81,7 @@ func writeChangePayload(w io.Writer, cc *ChangeChunk, writeColumns func(io.Write
 		}
 	}
 
-	return writeColumns(w)
-}
-
-// writeChunk writes a framed Automerge chunk to w:
-// magic(4) + checksum(4) + type(1) + leb128(len) + payload.
-// The checksum is the first 4 bytes of sha256(type || leb128(len) || payload).
-// If hash is non-nil, the computed digest is stored there.
-func writeChunk(w io.Writer, chunkType ChunkType, payload []byte, hash *types.ChangeHash) error {
-	h := sha256.New()
-	h.Write([]byte{byte(chunkType)})
-	h.Write(leb128.EncodeU64(uint64(len(payload))))
-	h.Write(payload)
-	digest := h.Sum(nil)
-	if hash != nil {
-		copy(hash[:], digest)
-	}
-
-	if _, err := w.Write(magicBytes); err != nil {
-		return err
-	}
-	if _, err := w.Write(digest[:4]); err != nil {
-		return err
-	}
-	if _, err := w.Write([]byte{byte(chunkType)}); err != nil {
-		return err
-	}
-	if _, err := w.Write(leb128.EncodeU64(uint64(len(payload)))); err != nil {
-		return err
-	}
-	_, err := w.Write(payload)
-	return err
+	return enc.writePayloadColumns(w)
 }
 
 // ChangeOpsWriter streams operations into per-column writers for a change chunk.
@@ -192,16 +162,19 @@ func (w *ChangeOpsWriter) writePayloadColumns(out io.Writer) error {
 	if w.key.HasString() {
 		add(colKeyStr, w.keyStrBuf.Bytes())
 	}
-	if w.insert.HasInserts() {
-		add(colInsert, w.insertBuf.Bytes())
-	}
+	// insert, value metadata, and predecessor group are written unconditionally
+	// even when trivially empty (all-false / all-null / all-zero). The Rust
+	// reference implementation always emits them, so omitting them would produce
+	// a different hash for the same logical content, breaking cross-implementation
+	// compatibility.
+	add(colInsert, w.insertBuf.Bytes())
 	add(colAction, w.actionBuf.Bytes())
+	add(colValMeta, w.valueMetaBuf.Bytes())
 	if w.action.HasValues() {
-		add(colValMeta, w.valueMetaBuf.Bytes())
 		add(colVal, w.valueBuf.Bytes())
 	}
+	add(colPredGrp, w.predGrpBuf.Bytes())
 	if w.preds.HasPreds() {
-		add(colPredGrp, w.predGrpBuf.Bytes())
 		add(colPredActor, w.predActorBuf.Bytes())
 		add(colPredCtr, w.predCtrBuf.Bytes())
 	}
@@ -242,16 +215,16 @@ func (w *ChangeOpsWriter) opColumns() OperationColumns {
 	if w.key.HasString() {
 		oc.KeyString = maybeReader(w.keyStrBuf.Bytes())
 	}
-	if w.insert.HasInserts() {
-		oc.Insert = maybeReader(w.insertBuf.Bytes())
-	}
+	// Unconditional — see writePayloadColumns for rationale.
+	oc.Insert = maybeReader(w.insertBuf.Bytes())
 	oc.Action = maybeReader(w.actionBuf.Bytes())
+	oc.ValueMetadata = maybeReader(w.valueMetaBuf.Bytes())
 	if w.action.HasValues() {
-		oc.ValueMetadata = maybeReader(w.valueMetaBuf.Bytes())
 		oc.Value = maybeReader(w.valueBuf.Bytes())
 	}
+	// Unconditional — see writePayloadColumns for rationale.
+	oc.PredecessorGroup = maybeReader(w.predGrpBuf.Bytes())
 	if w.preds.HasPreds() {
-		oc.PredecessorGroup = maybeReader(w.predGrpBuf.Bytes())
 		oc.PredecessorActorId = maybeReader(w.predActorBuf.Bytes())
 		oc.PredecessorCounter = maybeReader(w.predCtrBuf.Bytes())
 	}

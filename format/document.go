@@ -3,7 +3,6 @@ package format
 import (
 	"errors"
 	"fmt"
-	"io"
 	"iter"
 	"strings"
 
@@ -51,13 +50,6 @@ type DocumentChunk struct {
 
 	OpMetadata column.Metadata
 	OpColumns  OperationColumns
-
-	// rawChangeColumns and rawOpColumns hold the original wire bytes for every
-	// column in the respective section, in metadata order. Deflated columns are
-	// stored compressed (as they appear on the wire) so WriteDocument can write
-	// them back unchanged without re-compressing.
-	rawChangeColumns []rawColumn
-	rawOpColumns     []rawColumn
 }
 
 func (DocumentChunk) chunk() {}
@@ -122,30 +114,19 @@ func readDocumentChunk(r ioutil.SubReader) (*DocumentChunk, error) {
 
 	var offset uint64
 	for _, metadatum := range res.ChangeMetadata {
-		rawBytes, err := r.SubReader(offset, metadatum.Length)
+		colReader, err := r.SubReader(offset, metadatum.Length)
 		if err != nil {
 			return nil, fmt.Errorf("error reading change column: %w", err)
 		}
 		offset += metadatum.Length
 
-		var col ioutil.SubReader = rawBytes
 		if metadatum.Spec.Deflate() {
-			col, _, err = rawBytes.Deflate()
+			colReader, _, err = colReader.Deflate()
 			if err != nil {
 				return nil, fmt.Errorf("error deflating change column: %w", err)
 			}
 		}
 
-		colData, err := io.ReadAll(col)
-		if err != nil {
-			return nil, fmt.Errorf("error reading change column bytes: %w", err)
-		}
-		res.rawChangeColumns = append(res.rawChangeColumns, rawColumn{
-			specBits: uint32(metadatum.Spec) &^ 8, // clear deflate bit
-			data:     colData,
-		})
-
-		colReader := ioutil.NewBytesReader(colData)
 		switch metadatum.Spec {
 		case colDocChgActor:
 			res.ChangesColumns.ActorId = colReader
@@ -169,30 +150,19 @@ func readDocumentChunk(r ioutil.SubReader) (*DocumentChunk, error) {
 	}
 
 	for _, metadatum := range res.OpMetadata {
-		rawBytes, err := r.SubReader(offset, metadatum.Length)
+		colReader, err := r.SubReader(offset, metadatum.Length)
 		if err != nil {
 			return nil, fmt.Errorf("error reading op column: %w", err)
 		}
 		offset += metadatum.Length
 
-		var col ioutil.SubReader = rawBytes
 		if metadatum.Spec.Deflate() {
-			col, _, err = rawBytes.Deflate()
+			colReader, _, err = colReader.Deflate()
 			if err != nil {
 				return nil, fmt.Errorf("error deflating op column: %w", err)
 			}
 		}
 
-		colData, err := io.ReadAll(col)
-		if err != nil {
-			return nil, fmt.Errorf("error reading op column bytes: %w", err)
-		}
-		res.rawOpColumns = append(res.rawOpColumns, rawColumn{
-			specBits: uint32(metadatum.Spec) &^ 8, // clear deflate bit
-			data:     colData,
-		})
-
-		colReader := ioutil.NewBytesReader(colData)
 		switch metadatum.Spec {
 		case colObjActor:
 			res.OpColumns.ObjectActorId = colReader
