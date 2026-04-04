@@ -5,7 +5,7 @@ import (
 	"compress/flate"
 	"io"
 
-	"github.com/jcalabro/leb128"
+	"github.com/MichaelMure/leb128"
 
 	"gotomerge/column"
 	ioutil "gotomerge/utils/io"

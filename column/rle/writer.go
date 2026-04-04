@@ -3,7 +3,7 @@ package rle
 import (
 	"io"
 
-	"github.com/jcalabro/leb128"
+	"github.com/MichaelMure/leb128"
 )
 
 // Writer is a stateful RLE encoder that streams encoded runs to an io.Writer

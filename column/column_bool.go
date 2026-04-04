@@ -3,7 +3,7 @@ package column
 import (
 	"io"
 
-	"github.com/jcalabro/leb128"
+	"github.com/MichaelMure/leb128"
 
 	ioutil "gotomerge/utils/io"
 )

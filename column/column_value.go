@@ -6,7 +6,7 @@ import (
 	"math"
 	"unicode/utf8"
 
-	"github.com/jcalabro/leb128"
+	"github.com/MichaelMure/leb128"
 
 	"gotomerge/types"
 	ioutil "gotomerge/utils/io"

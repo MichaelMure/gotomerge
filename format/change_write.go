@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/jcalabro/leb128"
+	"github.com/MichaelMure/leb128"
 
 	"gotomerge/column"
 	"gotomerge/types"

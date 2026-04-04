@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/jcalabro/leb128"
+	"github.com/MichaelMure/leb128"
 )
 
 const maxSpecificationId = 0x0fffffff

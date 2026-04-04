@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/jcalabro/leb128"
+	"github.com/MichaelMure/leb128"
 )
 
 // ActorId is a random byte string that uniquely identifies a peer (an instance

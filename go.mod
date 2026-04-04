@@ -2,12 +2,9 @@ module gotomerge
 
 go 1.23.1
 
-// https://github.com/jcalabro/leb128/pull/1
-replace github.com/jcalabro/leb128 => github.com/MichaelMure/leb128 v0.0.0-20250814184739-322f3011eb35
-
 require (
 	github.com/DmitriyVTitov/size v1.5.0
-	github.com/jcalabro/leb128 v1.0.2
+	github.com/MichaelMure/leb128 v0.0.0-20260404163821-3c88553516fd
 	github.com/stretchr/testify v1.11.1
 )
 

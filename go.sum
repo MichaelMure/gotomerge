@@ -1,7 +1,7 @@
 github.com/DmitriyVTitov/size v1.5.0 h1:/PzqxYrOyOUX1BXj6J9OuVRVGe+66VL4D9FlUaW515g=
 github.com/DmitriyVTitov/size v1.5.0/go.mod h1:le6rNI4CoLQV1b9gzp1+3d7hMAD/uu2QcJ+aYbNgiU0=
-github.com/MichaelMure/leb128 v0.0.0-20250814184739-322f3011eb35 h1:YEQX6fFLojG+wHno7aGrqUmVozJa82ud8csX3+Ftjp4=
-github.com/MichaelMure/leb128 v0.0.0-20250814184739-322f3011eb35/go.mod h1:sFCvumupMy7uUrKgPmPipgyM8HifD51l9L8aQtgp6/Q=
+github.com/MichaelMure/leb128 v0.0.0-20260404163821-3c88553516fd h1:3WGeHjFc5sXfVepW5mTobzjw+1x2wpZHy354+o9S5PE=
+github.com/MichaelMure/leb128 v0.0.0-20260404163821-3c88553516fd/go.mod h1:y/OrmS63bN4R5o1Cw3jxn3JrHvi1/Xa2vpAI38RK7Qw=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da h1:oI5xCqsCo564l8iNU+DwB5epxmsaqB+rhGL0m5jtYqE=
