@@ -165,7 +165,7 @@ func TestTxnRoundTrip(t *testing.T) {
 	require.NoError(t, txn.Commit(&buf))
 
 	// Parse the chunk back from the wire bytes.
-	r := ioutil.NewBytesReader(buf.Bytes())
+	r := ioutil.NewSubReader(buf.Bytes())
 	parsed, toSkip, err := format.ReadChunk(r)
 	require.NoError(t, err)
 	require.NoError(t, r.Skip(toSkip))

@@ -88,7 +88,7 @@ func (d DocumentChunk) String() string {
 	return res.String()
 }
 
-func readDocumentChunk(r ioutil.SubReader) (*DocumentChunk, error) {
+func readDocumentChunk(r *ioutil.SubReader) (*DocumentChunk, error) {
 	var res DocumentChunk
 	var err error
 

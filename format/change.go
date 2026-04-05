@@ -83,7 +83,7 @@ func (cc ChangeChunk) String() string {
 	return res.String()
 }
 
-func readChangeChunk(r ioutil.SubReader) (*ChangeChunk, error) {
+func readChangeChunk(r *ioutil.SubReader) (*ChangeChunk, error) {
 	var res ChangeChunk
 	var err error
 

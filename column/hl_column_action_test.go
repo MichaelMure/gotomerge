@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"testing"
 
-	ioutil "gotomerge/utils/io"
 	"gotomerge/types"
+	ioutil "gotomerge/utils/io"
 
 	"github.com/stretchr/testify/require"
 )
@@ -69,9 +69,9 @@ func TestActionRoundTrip(t *testing.T) {
 		require.NoError(t, w.Flush())
 
 		r := NewActionReader(
-			NewUlebReader(ioutil.NewBytesReader(kindBuf.Bytes())),
-			NewValueMetadataReader(ioutil.NewBytesReader(metaBuf.Bytes())),
-			NewValueReader(ioutil.NewBytesReader(valBuf.Bytes())),
+			NewUlebReader(ioutil.NewSubReader(kindBuf.Bytes())),
+			NewValueMetadataReader(ioutil.NewSubReader(metaBuf.Bytes())),
+			NewValueReader(ioutil.NewSubReader(valBuf.Bytes())),
 		)
 		var out []types.Action
 		for {

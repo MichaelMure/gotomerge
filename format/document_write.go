@@ -54,7 +54,7 @@ func writeDocumentPayload(w io.Writer, dc *DocumentChunk) error {
 
 // encodeColumns iterates metadata, reads each SubReader, optionally compresses,
 // and writes (spec, len) pairs to meta and raw bytes to data.
-func encodeColumns(meta, data *bytes.Buffer, cols column.Metadata, readerFor func(uint32) ioutil.SubReader) error {
+func encodeColumns(meta, data *bytes.Buffer, cols column.Metadata, readerFor func(uint32) *ioutil.SubReader) error {
 	meta.Write(leb128.EncodeU64(uint64(len(cols))))
 	for _, m := range cols {
 		spec := uint32(m.Spec) &^ 8 // canonical spec without deflate bit
@@ -92,8 +92,8 @@ func encodeColumns(meta, data *bytes.Buffer, cols column.Metadata, readerFor fun
 
 // changeColumnReader returns a function that maps a column spec to the
 // corresponding SubReader in ChangesColumns.
-func changeColumnReader(cols *ChangeColumns) func(uint32) ioutil.SubReader {
-	return func(spec uint32) ioutil.SubReader {
+func changeColumnReader(cols *ChangeColumns) func(uint32) *ioutil.SubReader {
+	return func(spec uint32) *ioutil.SubReader {
 		switch spec {
 		case colDocChgActor:
 			return cols.ActorId
@@ -120,8 +120,8 @@ func changeColumnReader(cols *ChangeColumns) func(uint32) ioutil.SubReader {
 
 // opColumnReader returns a function that maps a column spec to the
 // corresponding SubReader in OperationColumns.
-func opColumnReader(cols *OperationColumns) func(uint32) ioutil.SubReader {
-	return func(spec uint32) ioutil.SubReader {
+func opColumnReader(cols *OperationColumns) func(uint32) *ioutil.SubReader {
+	return func(spec uint32) *ioutil.SubReader {
 		switch spec {
 		case colObjActor:
 			return cols.ObjectActorId

@@ -101,13 +101,13 @@ func TestChangesRoundTrip(t *testing.T) {
 		require.NoError(t, w.Flush())
 
 		r := NewChangesReader(
-			NewActorReader(ioutil.NewBytesReader(actorBuf.Bytes())),
-			NewDeltaReader(ioutil.NewBytesReader(seqBuf.Bytes())),
-			NewDeltaReader(ioutil.NewBytesReader(maxOpBuf.Bytes())),
-			NewDeltaReader(ioutil.NewBytesReader(timeBuf.Bytes())),
-			NewStringReader(ioutil.NewBytesReader(msgBuf.Bytes())),
-			NewGroupReader(ioutil.NewBytesReader(grpBuf.Bytes())),
-			NewDeltaReader(ioutil.NewBytesReader(idxBuf.Bytes())),
+			NewActorReader(ioutil.NewSubReader(actorBuf.Bytes())),
+			NewDeltaReader(ioutil.NewSubReader(seqBuf.Bytes())),
+			NewDeltaReader(ioutil.NewSubReader(maxOpBuf.Bytes())),
+			NewDeltaReader(ioutil.NewSubReader(timeBuf.Bytes())),
+			NewStringReader(ioutil.NewSubReader(msgBuf.Bytes())),
+			NewGroupReader(ioutil.NewSubReader(grpBuf.Bytes())),
+			NewDeltaReader(ioutil.NewSubReader(idxBuf.Bytes())),
 		)
 		for i, want := range in {
 			got, err := r.Next()

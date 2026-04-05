@@ -49,7 +49,7 @@ func TestRoundTrip(t *testing.T) {
 			original, err := os.ReadFile("../testdata/" + tc.name)
 			require.NoError(t, err)
 
-			r := ioutil.NewBytesReader(original)
+			r := ioutil.NewSubReader(original)
 			var out bytes.Buffer
 
 			for !r.Empty() {
@@ -91,7 +91,7 @@ func TestRoundTrip(t *testing.T) {
 
 			if !bytes.Equal(original, out.Bytes()) {
 				printChunks := func(data []byte) string {
-					r := ioutil.NewBytesReader(data)
+					r := ioutil.NewSubReader(data)
 					var res strings.Builder
 					for !r.Empty() {
 						chunk, toSkip, err := ReadChunk(r)

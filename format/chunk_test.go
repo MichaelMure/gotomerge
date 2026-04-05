@@ -46,7 +46,8 @@ func TestReadDocument(t *testing.T) {
 			require.NoError(t, err)
 			defer f.Close()
 
-			r := ioutil.NewPagedReader(f)
+			r, err := ioutil.ReadFrom(f)
+			require.NoError(t, err)
 
 			var chunks int
 			for {
@@ -75,7 +76,9 @@ func TestReadDocument(t *testing.T) {
 func TestLarge(t *testing.T) {
 	f, err := os.Open("../testdata/text-edits.amrg")
 	require.NoError(t, err)
-	r := ioutil.NewPagedReader(f)
+	defer f.Close()
+	r, err := ioutil.ReadFrom(f)
+	require.NoError(t, err)
 
 	var chunks []Chunk
 	for {
@@ -100,7 +103,8 @@ func BenchmarkReadExamplar(b *testing.B) {
 	var chunkCount int
 	for i := 0; i < b.N; i++ {
 		f, _ := os.Open("../testdata/exemplar")
-		r := ioutil.NewPagedReader(f)
+		r, _ := ioutil.ReadFrom(f)
+		_ = f.Close()
 		for {
 			chunksExemplar = nil
 			c, toSkip, err := ReadChunk(r)
@@ -111,7 +115,6 @@ func BenchmarkReadExamplar(b *testing.B) {
 			chunkCount++
 			_ = r.Skip(toSkip)
 		}
-		_ = f.Close()
 	}
 	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
 }
@@ -126,7 +129,8 @@ func BenchmarkReadLarge(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		chunksLarge = nil
 		f, _ := os.Open("../testdata/text-edits.amrg")
-		r := ioutil.NewPagedReader(f)
+		r, _ := ioutil.ReadFrom(f)
+		_ = f.Close()
 		for {
 			c, toSkip, err := ReadChunk(r)
 			if errors.Is(err, io.EOF) {
@@ -136,7 +140,6 @@ func BenchmarkReadLarge(b *testing.B) {
 			chunkCount++
 			_ = r.Skip(toSkip)
 		}
-		_ = f.Close()
 	}
 	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
 }
@@ -151,7 +154,8 @@ func BenchmarkCompressed(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		chunkCompressed = nil
 		f, _ := os.Open("../testdata/two_change_chunks_compressed.automerge")
-		r := ioutil.NewPagedReader(f)
+		r, _ := ioutil.ReadFrom(f)
+		_ = f.Close()
 		for {
 			c, toSkip, err := ReadChunk(r)
 			if errors.Is(err, io.EOF) {
@@ -161,7 +165,6 @@ func BenchmarkCompressed(b *testing.B) {
 			chunkCount++
 			_ = r.Skip(toSkip)
 		}
-		_ = f.Close()
 	}
 	b.ReportMetric(float64(chunkCount)/float64(b.N), "chunks")
 }
@@ -175,7 +178,9 @@ func TestInvalidChunks(t *testing.T) {
 		require.NoError(t, err)
 		defer f.Close()
 
-		c, _, err := ReadChunk(ioutil.NewPagedReader(f))
+		r, err := ioutil.ReadFrom(f)
+		require.NoError(t, err)
+		c, _, err := ReadChunk(r)
 		require.NoError(t, err)
 		cc := c.(*ChangeChunk)
 
@@ -198,7 +203,9 @@ func TestInvalidChunks(t *testing.T) {
 		require.NoError(t, err)
 		defer f.Close()
 
-		c, _, err := ReadChunk(ioutil.NewPagedReader(f))
+		r, err := ioutil.ReadFrom(f)
+		require.NoError(t, err)
+		c, _, err := ReadChunk(r)
 		require.NoError(t, err)
 		cc := c.(*ChangeChunk)
 
@@ -220,7 +227,9 @@ func TestDocumentChunkChanges(t *testing.T) {
 	require.NoError(t, err)
 	defer f.Close()
 
-	c, _, err := ReadChunk(ioutil.NewPagedReader(f))
+	r, err := ioutil.ReadFrom(f)
+	require.NoError(t, err)
+	c, _, err := ReadChunk(r)
 	require.NoError(t, err)
 	doc := c.(*DocumentChunk)
 
@@ -240,15 +249,13 @@ func TestDocumentChunkChanges(t *testing.T) {
 
 // TestChangeChunkOperationIds verifies that Operations() on a change chunk sets
 // correct Id values: ActorIdx=0 (change's own actor) and Counter=startOp+i.
-//
-// Operations must be iterated before calling r.Skip(), because column iterators
-// hold lazy references into the paged reader's ring buffer.
 func TestChangeChunkOperationIds(t *testing.T) {
 	f, err := os.Open("../testdata/two_change_chunks.automerge")
 	require.NoError(t, err)
 	defer f.Close()
 
-	r := ioutil.NewPagedReader(f)
+	r, err := ioutil.ReadFrom(f)
+	require.NoError(t, err)
 
 	var totalChunks int
 	for !r.Empty() {
@@ -274,7 +281,7 @@ func TestChangeChunkOperationIds(t *testing.T) {
 
 func TestEmptyDocumentRead(t *testing.T) {
 	buf := []byte{0x85, 0x6f, 0x4a, 0x83, 0xb8, 0x1a, 0x95, 0x44, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00}
-	r := ioutil.NewBytesReader(buf)
+	r := ioutil.NewSubReader(buf)
 	c, toSkip, err := ReadChunk(r)
 	require.NoError(t, err)
 	require.NoError(t, r.Skip(toSkip))
@@ -338,7 +345,8 @@ func TestChangeChunkHashes(t *testing.T) {
 		require.NoError(t, err)
 		defer f.Close()
 		var hashes []types.ChangeHash
-		r := ioutil.NewPagedReader(f)
+		r, err := ioutil.ReadFrom(f)
+		require.NoError(t, err)
 		for !r.Empty() {
 			c, toSkip, err := ReadChunk(r)
 			require.NoError(t, err)

@@ -13,7 +13,7 @@ type ValueMetadataReader struct {
 	r *rle.Uint64Reader
 }
 
-func NewValueMetadataReader(r ioutil.SubReader) *ValueMetadataReader {
+func NewValueMetadataReader(r *ioutil.SubReader) *ValueMetadataReader {
 	return &ValueMetadataReader{r: rle.NewUint64Reader(r)}
 }
 

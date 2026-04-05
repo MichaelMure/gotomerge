@@ -12,13 +12,13 @@ import (
 // run-length encoding: each LEB128 uint64 gives the count of the current
 // value, then the value toggles (starting at false).
 type BoolReader struct {
-	r         ioutil.SubReader
+	r         *ioutil.SubReader
 	remaining uint64
 	val       bool
 	done      bool
 }
 
-func NewBoolReader(r ioutil.SubReader) *BoolReader {
+func NewBoolReader(r *ioutil.SubReader) *BoolReader {
 	return &BoolReader{r: r}
 }
 

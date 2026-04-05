@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"testing"
 
-	ioutil "gotomerge/utils/io"
 	"gotomerge/types"
+	ioutil "gotomerge/utils/io"
 
 	"github.com/stretchr/testify/require"
 )
@@ -52,8 +52,8 @@ func TestObjectRoundTrip(t *testing.T) {
 		require.NoError(t, w.Flush())
 
 		r := NewObjectReader(
-			NewActorReader(ioutil.NewBytesReader(actorBuf.Bytes())),
-			NewUlebReader(ioutil.NewBytesReader(ctrBuf.Bytes())),
+			NewActorReader(ioutil.NewSubReader(actorBuf.Bytes())),
+			NewUlebReader(ioutil.NewSubReader(ctrBuf.Bytes())),
 		)
 		for i, want := range in {
 			got, err := r.Next()

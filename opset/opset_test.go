@@ -27,10 +27,10 @@ func changeChunkSetKey(actor types.ActorId, seqNum, startOp uint64, deps []types
 		SeqNum:       seqNum,
 		StartOp:      startOp,
 		OpColumns: format.OperationColumns{
-			KeyString:     ioutil.NewBytesReader(rle.EncodeString(key)),
-			Action:        ioutil.NewBytesReader(rle.EncodeUint64(uint64(types.ActionSet))),
-			ValueMetadata: ioutil.NewBytesReader(rle.EncodeUint64(valueMetaString(len(value)))),
-			Value:         ioutil.NewBytesReader([]byte(value)),
+			KeyString:     ioutil.NewSubReader(rle.EncodeString(key)),
+			Action:        ioutil.NewSubReader(rle.EncodeUint64(uint64(types.ActionSet))),
+			ValueMetadata: ioutil.NewSubReader(rle.EncodeUint64(valueMetaString(len(value)))),
+			Value:         ioutil.NewSubReader([]byte(value)),
 		},
 	}
 }
@@ -45,11 +45,11 @@ func changeChunkDelete(actor types.ActorId, seqNum, startOp uint64, deps []types
 		SeqNum:       seqNum,
 		StartOp:      startOp,
 		OpColumns: format.OperationColumns{
-			KeyString:          ioutil.NewBytesReader(rle.EncodeString(key)),
-			Action:             ioutil.NewBytesReader(rle.EncodeUint64(uint64(types.ActionDelete))),
-			PredecessorGroup:   ioutil.NewBytesReader(rle.EncodeUint64(1)),
-			PredecessorActorId: ioutil.NewBytesReader(rle.EncodeUint64(uint64(predActorIdx))),
-			PredecessorCounter: ioutil.NewBytesReader(rle.EncodeInt64(predCounter)),
+			KeyString:          ioutil.NewSubReader(rle.EncodeString(key)),
+			Action:             ioutil.NewSubReader(rle.EncodeUint64(uint64(types.ActionDelete))),
+			PredecessorGroup:   ioutil.NewSubReader(rle.EncodeUint64(1)),
+			PredecessorActorId: ioutil.NewSubReader(rle.EncodeUint64(uint64(predActorIdx))),
+			PredecessorCounter: ioutil.NewSubReader(rle.EncodeInt64(predCounter)),
 		},
 	}
 }
@@ -65,7 +65,7 @@ func applyFile(t testing.TB, path string) *OpSet {
 	require.NoError(t, err)
 
 	s := New()
-	r := ioutil.NewBytesReader(data)
+	r := ioutil.NewSubReader(data)
 	for !r.Empty() {
 		c, toSkip, err := format.ReadChunk(r)
 		require.NoError(t, err)

@@ -54,33 +54,33 @@ import (
 // ExpandControl and Mark support rich-text mark operations (bold, italic, etc.)
 // and are only relevant for text objects.
 type OperationColumns struct {
-	ObjectActorId ioutil.SubReader
-	ObjectCounter ioutil.SubReader
+	ObjectActorId *ioutil.SubReader
+	ObjectCounter *ioutil.SubReader
 
-	KeyActorId ioutil.SubReader
-	KeyCounter ioutil.SubReader
-	KeyString  ioutil.SubReader
+	KeyActorId *ioutil.SubReader
+	KeyCounter *ioutil.SubReader
+	KeyString  *ioutil.SubReader
 
-	ActorId ioutil.SubReader
-	Counter ioutil.SubReader
+	ActorId *ioutil.SubReader
+	Counter *ioutil.SubReader
 
-	Insert ioutil.SubReader
+	Insert *ioutil.SubReader
 
-	Action        ioutil.SubReader
-	ValueMetadata ioutil.SubReader
-	Value         ioutil.SubReader
+	Action        *ioutil.SubReader
+	ValueMetadata *ioutil.SubReader
+	Value         *ioutil.SubReader
 
-	PredecessorGroup   ioutil.SubReader
-	PredecessorActorId ioutil.SubReader
-	PredecessorCounter ioutil.SubReader
+	PredecessorGroup   *ioutil.SubReader
+	PredecessorActorId *ioutil.SubReader
+	PredecessorCounter *ioutil.SubReader
 
-	SuccessorGroup   ioutil.SubReader
-	SuccessorActorId ioutil.SubReader
-	SuccessorCounter ioutil.SubReader
+	SuccessorGroup   *ioutil.SubReader
+	SuccessorActorId *ioutil.SubReader
+	SuccessorCounter *ioutil.SubReader
 
-	ExpandControl ioutil.SubReader
+	ExpandControl *ioutil.SubReader
 
-	Mark ioutil.SubReader
+	Mark *ioutil.SubReader
 }
 
 // ChangeColumns holds SubReader references for the change summary table
@@ -95,20 +95,20 @@ type OperationColumns struct {
 //
 // ExtraMetadata / ExtraData are a reserved extension point in the format.
 type ChangeColumns struct {
-	ActorId ioutil.SubReader
-	SeqNum  ioutil.SubReader
+	ActorId *ioutil.SubReader
+	SeqNum  *ioutil.SubReader
 
-	MaxOp ioutil.SubReader
+	MaxOp *ioutil.SubReader
 
-	Time ioutil.SubReader
+	Time *ioutil.SubReader
 
-	Message ioutil.SubReader
+	Message *ioutil.SubReader
 
-	DependenciesGroup ioutil.SubReader
-	DependenciesIndex ioutil.SubReader
+	DependenciesGroup *ioutil.SubReader
+	DependenciesIndex *ioutil.SubReader
 
-	ExtraMetadata ioutil.SubReader
-	ExtraData     ioutil.SubReader
+	ExtraMetadata *ioutil.SubReader
+	ExtraData     *ioutil.SubReader
 }
 
 // isDone reports whether err signals iterator exhaustion.

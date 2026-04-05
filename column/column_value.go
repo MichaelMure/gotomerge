@@ -14,10 +14,10 @@ import (
 
 // ValueReader is a stateful reader for value columns.
 type ValueReader struct {
-	r ioutil.SubReader
+	r *ioutil.SubReader
 }
 
-func NewValueReader(r ioutil.SubReader) *ValueReader {
+func NewValueReader(r *ioutil.SubReader) *ValueReader {
 	return &ValueReader{r: r}
 }
 

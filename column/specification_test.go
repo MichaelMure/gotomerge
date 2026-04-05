@@ -79,7 +79,7 @@ func BenchmarkWriteSpecification(b *testing.B) {
 
 func FuzzSpecificationRoundTrip(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
-		r := ioutil.NewBytesReader(data)
+		r := ioutil.NewSubReader(data)
 		spec, err := readSpecification(r)
 		if err != nil {
 			return // ignore invalid input

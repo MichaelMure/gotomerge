@@ -11,7 +11,7 @@ import (
 
 type StringReader = Reader[string]
 
-func NewStringReader(r ioutil.SubReader) *StringReader {
+func NewStringReader(r *ioutil.SubReader) *StringReader {
 	return NewReader[string](r, readStringValue)
 }
 

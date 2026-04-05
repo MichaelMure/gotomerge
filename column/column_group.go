@@ -9,7 +9,7 @@ import (
 
 type GroupReader = rle.Uint64Reader
 
-func NewGroupReader(r ioutil.SubReader) *GroupReader {
+func NewGroupReader(r *ioutil.SubReader) *GroupReader {
 	return rle.NewUint64Reader(r)
 }
 

@@ -231,9 +231,9 @@ func (w *ChangeOpsWriter) opColumns() OperationColumns {
 	return oc
 }
 
-func maybeReader(b []byte) ioutil.SubReader {
+func maybeReader(b []byte) *ioutil.SubReader {
 	if len(b) == 0 {
 		return nil
 	}
-	return ioutil.NewBytesReader(b)
+	return ioutil.NewSubReader(b)
 }

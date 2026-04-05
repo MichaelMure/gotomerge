@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"testing"
 
-	ioutil "gotomerge/utils/io"
 	"gotomerge/types"
+	ioutil "gotomerge/utils/io"
 
 	"github.com/stretchr/testify/require"
 )
@@ -55,9 +55,9 @@ func TestGroupedOpIdRoundTrip(t *testing.T) {
 		require.NoError(t, w.Flush())
 
 		r := NewGroupedOpIdReader("preds",
-			NewGroupReader(ioutil.NewBytesReader(grpBuf.Bytes())),
-			NewActorReader(ioutil.NewBytesReader(actorBuf.Bytes())),
-			NewDeltaReader(ioutil.NewBytesReader(ctrBuf.Bytes())),
+			NewGroupReader(ioutil.NewSubReader(grpBuf.Bytes())),
+			NewActorReader(ioutil.NewSubReader(actorBuf.Bytes())),
+			NewDeltaReader(ioutil.NewSubReader(ctrBuf.Bytes())),
 		)
 		for i, want := range in {
 			got, err := r.Next()

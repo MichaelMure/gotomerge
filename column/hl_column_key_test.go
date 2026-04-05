@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"testing"
 
-	ioutil "gotomerge/utils/io"
 	"gotomerge/types"
+	ioutil "gotomerge/utils/io"
 
 	"github.com/stretchr/testify/require"
 )
@@ -73,9 +73,9 @@ func TestKeyRoundTrip(t *testing.T) {
 		require.NoError(t, w.Flush())
 
 		r := NewKeyReader(
-			NewActorReader(ioutil.NewBytesReader(actorBuf.Bytes())),
-			NewDeltaReader(ioutil.NewBytesReader(ctrBuf.Bytes())),
-			NewStringReader(ioutil.NewBytesReader(strBuf.Bytes())),
+			NewActorReader(ioutil.NewSubReader(actorBuf.Bytes())),
+			NewDeltaReader(ioutil.NewSubReader(ctrBuf.Bytes())),
+			NewStringReader(ioutil.NewSubReader(strBuf.Bytes())),
 		)
 		for i, want := range in {
 			got, err := r.Next()

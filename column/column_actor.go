@@ -9,7 +9,7 @@ import (
 
 type ActorReader = rle.Uint64Reader
 
-func NewActorReader(r ioutil.SubReader) *ActorReader {
+func NewActorReader(r *ioutil.SubReader) *ActorReader {
 	return rle.NewUint64Reader(r)
 }
 

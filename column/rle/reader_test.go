@@ -200,7 +200,7 @@ func suiteRLEReader[T comparable](
 //   s64(3)=0x03  u64(42)=0x2a  s64(0)=0x00  u64(2)=0x02  s64(-3)=0x7d
 
 func newUint64Reader(data []byte) *Reader[uint64] {
-	return NewUint64Reader(ioutil.NewBytesReader(data))
+	return NewUint64Reader(ioutil.NewSubReader(data))
 }
 
 func TestUint64Reader(t *testing.T) {
@@ -239,7 +239,7 @@ func BenchmarkUint64Reader(b *testing.B) {
 	buf := []byte{0x03, 0x00, 0x00, 0x02, 0x7d, 0x01, 0x02, 0x03}
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		r := NewUint64Reader(ioutil.NewBytesReader(buf))
+		r := NewUint64Reader(ioutil.NewSubReader(buf))
 		for {
 			if _, err := r.Next(); err != nil {
 				break
@@ -255,7 +255,7 @@ func BenchmarkUint64Reader(b *testing.B) {
 //   s64(0)=0x00  u64(2)=0x02  s64(-3)=0x7d  s64(-2)=0x7e
 
 func newInt64Reader(data []byte) *Reader[int64] {
-	return NewInt64Reader(ioutil.NewBytesReader(data))
+	return NewInt64Reader(ioutil.NewSubReader(data))
 }
 
 func TestInt64Reader(t *testing.T) {
@@ -294,7 +294,7 @@ func BenchmarkInt64Reader(b *testing.B) {
 	buf := []byte{0x7f, 0x03, 0x03, 0x01, 0x7d, 0x03, 0x7e, 0x01}
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		r := NewInt64Reader(ioutil.NewBytesReader(buf))
+		r := NewInt64Reader(ioutil.NewSubReader(buf))
 		for {
 			if _, err := r.Next(); err != nil {
 				break
@@ -312,7 +312,7 @@ func BenchmarkInt64Reader(b *testing.B) {
 //   literal ["a","bb"]: [0x7e, 0x01,'a', 0x02,'b','b']
 
 func newStringReader(data []byte) *Reader[string] {
-	return NewStringReader(ioutil.NewBytesReader(data))
+	return NewStringReader(ioutil.NewSubReader(data))
 }
 
 func TestStringReader(t *testing.T) {
@@ -351,7 +351,7 @@ func BenchmarkStringReader(b *testing.B) {
 	buf := []byte{0x7e, 0x01, 'a', 0x00, 0x00, 0x01, 0x02, 0x03, 'b', 'o', 'o'}
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		r := NewStringReader(ioutil.NewBytesReader(buf))
+		r := NewStringReader(ioutil.NewSubReader(buf))
 		for {
 			if _, err := r.Next(); err != nil {
 				break

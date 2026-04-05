@@ -16,7 +16,7 @@ func TestReadBooleanColumn(t *testing.T) {
 	expected := []bool{true, true, false, false, false}
 	var res []bool
 
-	r := NewBoolReader(ioutil.NewBytesReader(buf))
+	r := NewBoolReader(ioutil.NewSubReader(buf))
 	for {
 		b, err := r.Next()
 		if err == io.EOF {
@@ -59,7 +59,7 @@ func TestBoolRoundTrip(t *testing.T) {
 		}
 		require.NoError(t, w.Flush())
 
-		r := NewBoolReader(ioutil.NewBytesReader(buf.Bytes()))
+		r := NewBoolReader(ioutil.NewSubReader(buf.Bytes()))
 		var out []bool
 		for {
 			v, err := r.Next()

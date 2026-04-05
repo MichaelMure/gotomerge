@@ -58,7 +58,7 @@ type rawColumn struct {
 //
 // The checksum is the first 4 bytes of SHA-256(type || length || payload).
 // ReadChunk verifies the checksum before returning.
-func ReadChunk(r ioutil.SubReader) (Chunk, int, error) {
+func ReadChunk(r *ioutil.SubReader) (Chunk, int, error) {
 	// Open a sub-reader so we can track exactly how many bytes we consume
 	// and return an accurate skip count independent of parsing success.
 	r, err := r.SubReaderOffset(0)

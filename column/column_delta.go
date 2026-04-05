@@ -15,7 +15,7 @@ type DeltaReader struct {
 	acc int64
 }
 
-func NewDeltaReader(r ioutil.SubReader) *DeltaReader {
+func NewDeltaReader(r *ioutil.SubReader) *DeltaReader {
 	return &DeltaReader{r: rle.NewInt64Reader(r)}
 }
 

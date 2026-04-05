@@ -31,7 +31,7 @@ func (e ErrOutOfRange) Error() string {
 // Opt creates a typed column reader from an optional SubReader.
 // Returns (nil, nil) if r is nil (column absent in the binary).
 // Returns (nil, err) if forking fails.
-func Opt[T any](r ioutil.SubReader, ctor func(ioutil.SubReader) *T) (*T, error) {
+func Opt[T any](r *ioutil.SubReader, ctor func(*ioutil.SubReader) *T) (*T, error) {
 	if r == nil {
 		return nil, nil
 	}
@@ -44,7 +44,7 @@ func Opt[T any](r ioutil.SubReader, ctor func(ioutil.SubReader) *T) (*T, error) 
 
 // Req creates a typed column reader from a required SubReader.
 // Returns an error if r is nil (column absent) or if forking fails.
-func Req[T any](r ioutil.SubReader, ctor func(ioutil.SubReader) *T, name string) (*T, error) {
+func Req[T any](r *ioutil.SubReader, ctor func(*ioutil.SubReader) *T, name string) (*T, error) {
 	if r == nil {
 		return nil, fmt.Errorf("missing required column: %s", name)
 	}

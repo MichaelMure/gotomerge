@@ -50,7 +50,7 @@ func TestInsertRoundTrip(t *testing.T) {
 		}
 		require.NoError(t, w.Flush())
 
-		r := NewInsertReader(NewBoolReader(ioutil.NewBytesReader(buf.Bytes())))
+		r := NewInsertReader(NewBoolReader(ioutil.NewSubReader(buf.Bytes())))
 		var out []bool
 		for {
 			v, err := r.Next()

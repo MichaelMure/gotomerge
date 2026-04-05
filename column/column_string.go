@@ -9,7 +9,7 @@ import (
 
 type StringReader = rle.StringReader
 
-func NewStringReader(r ioutil.SubReader) *StringReader {
+func NewStringReader(r *ioutil.SubReader) *StringReader {
 	return rle.NewStringReader(r)
 }
 
