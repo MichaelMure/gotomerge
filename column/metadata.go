@@ -8,7 +8,7 @@ import (
 )
 
 type Metadata []struct {
-	Spec   specification
+	Spec   Specification
 	Length uint64 // in bytes
 }
 
@@ -29,7 +29,7 @@ func ReadMetadata(r io.Reader) (Metadata, error) {
 		allocate = 128
 	}
 
-	var prevSpec specification
+	var prevSpec Specification
 	res := make(Metadata, 0, allocate)
 	for i := uint64(0); i < n; i++ {
 		spec, err := readSpecification(r)
@@ -62,7 +62,7 @@ func ReadMetadata(r io.Reader) (Metadata, error) {
 			return nil, fmt.Errorf("error reading column metadata length: %w", err)
 		}
 		res = append(res, struct {
-			Spec   specification
+			Spec   Specification
 			Length uint64
 		}{Spec: spec, Length: length})
 	}

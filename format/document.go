@@ -127,7 +127,7 @@ func readDocumentChunk(r *ioutil.SubReader) (*DocumentChunk, error) {
 			}
 		}
 
-		switch metadatum.Spec {
+		switch metadatum.Spec.WithoutDeflate() {
 		case colDocChgActor:
 			res.ChangesColumns.ActorId = colReader
 		case colDocChgSeqNum:
@@ -163,7 +163,7 @@ func readDocumentChunk(r *ioutil.SubReader) (*DocumentChunk, error) {
 			}
 		}
 
-		switch metadatum.Spec {
+		switch metadatum.Spec.WithoutDeflate() {
 		case colObjActor:
 			res.OpColumns.ObjectActorId = colReader
 		case colObjCtr:
@@ -221,11 +221,13 @@ func readDocumentChunk(r *ioutil.SubReader) (*DocumentChunk, error) {
 
 // Changes iterates over the change summaries embedded in this document snapshot.
 //
-// Each yielded DocChange has actor IDs resolved from the document's Actors table,
-// but dependency references remain as integer indices (DocChange.Deps) rather than
-// hashes. This is because the document chunk does not store per-change hashes;
-// computing them requires re-serializing each change's content.
-func (d DocumentChunk) Changes() iter.Seq2[types.DocChange, error] {
+// Changes iterates over every change's raw metadata as stored in the column data.
+// ActorIdx is an index into d.Actors; Time and Message are nil when absent.
+// Dependency references are indices into the document's change array (not hashes).
+func (d DocumentChunk) Changes() iter.Seq2[column.RawChangeMeta, error] {
+	if d.ChangesColumns.ActorId == nil {
+		return func(yield func(column.RawChangeMeta, error) bool) {}
+	}
 	actor, e1 := column.Req(d.ChangesColumns.ActorId, column.NewActorReader, "changes.actorId")
 	seqNum, e2 := column.Req(d.ChangesColumns.SeqNum, column.NewDeltaReader, "changes.seqNum")
 	maxOp, e3 := column.Req(d.ChangesColumns.MaxOp, column.NewDeltaReader, "changes.maxOp")
@@ -234,40 +236,17 @@ func (d DocumentChunk) Changes() iter.Seq2[types.DocChange, error] {
 	depsGroup, e6 := column.Opt(d.ChangesColumns.DependenciesGroup, column.NewGroupReader)
 	depsIndex, e7 := column.Opt(d.ChangesColumns.DependenciesIndex, column.NewDeltaReader)
 	if err := errors.Join(e1, e2, e3, e4, e5, e6, e7); err != nil {
-		return errSeq[types.DocChange](err)
+		return errSeq[column.RawChangeMeta](err)
 	}
 	cr := column.NewChangesReader(actor, seqNum, maxOp, time, message, depsGroup, depsIndex)
 
-	return func(yield func(types.DocChange, error) bool) {
+	return func(yield func(column.RawChangeMeta, error) bool) {
 		for {
 			raw, err := cr.Next()
 			if isDone(err) {
 				return
 			}
-			if err != nil {
-				yield(types.DocChange{}, err)
-				return
-			}
-
-			if raw.ActorIdx >= uint64(len(d.Actors)) {
-				yield(types.DocChange{}, fmt.Errorf("actor index out of range: %d (have %d actors)", raw.ActorIdx, len(d.Actors)))
-				return
-			}
-			actor := d.Actors[raw.ActorIdx]
-
-			var t types.Timestamp
-			if raw.Time != nil {
-				t = types.Timestamp(*raw.Time)
-			}
-
-			if !yield(types.DocChange{
-				ActorId: actor,
-				SeqNum:  raw.SeqNum,
-				MaxOp:   raw.MaxOp,
-				Deps:    raw.Deps,
-				Time:    t,
-				Message: raw.Message,
-			}, nil) {
+			if !yield(raw, err) || err != nil {
 				return
 			}
 		}

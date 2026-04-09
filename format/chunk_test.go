@@ -12,6 +12,7 @@ import (
 	"github.com/DmitriyVTitov/size"
 	"github.com/stretchr/testify/require"
 
+	"gotomerge/column"
 	"gotomerge/types"
 	ioutil "gotomerge/utils/io"
 )
@@ -233,7 +234,7 @@ func TestDocumentChunkChanges(t *testing.T) {
 	require.NoError(t, err)
 	doc := c.(*DocumentChunk)
 
-	var changes []types.DocChange
+	var changes []column.RawChangeMeta
 	for ch, err := range doc.Changes() {
 		require.NoError(t, err)
 		changes = append(changes, ch)
@@ -242,7 +243,8 @@ func TestDocumentChunkChanges(t *testing.T) {
 	require.NotEmpty(t, changes, "exemplar should have at least one change")
 	// The exemplar has one change from one actor
 	require.Len(t, changes, 1)
-	require.NotEmpty(t, changes[0].ActorId, "actor ID must be resolved")
+	require.Less(t, changes[0].ActorIdx, uint64(len(doc.Actors)), "actor index must be valid")
+	require.NotEmpty(t, doc.Actors[changes[0].ActorIdx], "actor ID must be non-empty")
 	require.Equal(t, uint64(1), changes[0].SeqNum)
 	require.Greater(t, changes[0].MaxOp, uint64(0))
 }

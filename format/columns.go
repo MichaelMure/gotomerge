@@ -9,6 +9,43 @@ import (
 	ioutil "gotomerge/utils/io"
 )
 
+// Column spec IDs: spec = col_num*8 + data_type
+//
+// data_type: 0=group, 1=actor, 2=uleb128, 3=delta, 4=bool, 5=string, 6=value_meta, 7=value
+const (
+	// Shared operation columns — present in both change chunks and the op section of document chunks.
+	colObjActor      = 1   // ID: 0, type: actor
+	colObjCtr        = 2   // ID: 0, type: uleb128
+	colKeyActor      = 17  // ID: 1, type: actor
+	colKeyCtr        = 19  // ID: 1, type: delta
+	colKeyStr        = 21  // ID: 1, type: string
+	colInsert        = 52  // ID: 3, type: bool
+	colAction        = 66  // ID: 4, type: uleb128
+	colValMeta       = 86  // ID: 5, type: value_metadata
+	colVal           = 87  // ID: 5, type: value
+	colPredGrp       = 112 // ID: 7, type: group
+	colPredActor     = 113 // ID: 7, type: actor
+	colPredCtr       = 115 // ID: 7, type: delta
+	colExpandControl = 148 // ID: 9, type: bool
+	colMark          = 165 // ID: 10, type: string
+
+	// Document op section only — explicit op identity and successor info; absent in change chunks.
+	colDocOpActor   = 33  // ID: 2, type: actor
+	colDocOpCtr     = 35  // ID: 2, type: delta
+	colDocSuccGrp   = 128 // ID: 8, type: group
+	colDocSuccActor = 129 // ID: 8, type: actor
+	colDocSuccCtr   = 131 // ID: 8, type: delta
+
+	// Document change-metadata section only — the per-change summary table inside a document chunk.
+	colDocChgActor   = 1  // ID: 0, type: actor
+	colDocChgSeqNum  = 3  // ID: 0, type: delta
+	colDocChgMaxOp   = 19 // ID: 2, type: delta
+	colDocChgTime    = 35 // ID: 4, type: delta
+	colDocChgMessage = 53 // ID: 6, type: string
+	colDocChgDepsGrp = 64 // ID: 8, type: group
+	colDocChgDepsIdx = 67 // ID: 8, type: delta
+)
+
 // OperationColumns holds SubReader references for a set of operations,
 // used by both ChangeChunk and DocumentChunk.
 //
@@ -123,40 +160,3 @@ func errSeq[T any](err error) iter.Seq2[T, error] {
 		yield(zero, err)
 	}
 }
-
-// Column spec IDs: spec = col_num*8 + data_type
-//
-// data_type: 0=group, 1=actor, 2=uleb128, 3=delta, 4=bool, 5=string, 6=value_meta, 7=value
-const (
-	// Shared operation columns — present in both change chunks and the op section of document chunks.
-	colObjActor      = 1   // ID: 0, type: actor
-	colObjCtr        = 2   // ID: 0, type: uleb128
-	colKeyActor      = 17  // ID: 1, type: actor
-	colKeyCtr        = 19  // ID: 1, type: delta
-	colKeyStr        = 21  // ID: 1, type: string
-	colInsert        = 52  // ID: 3, type: bool
-	colAction        = 66  // ID: 4, type: uleb128
-	colValMeta       = 86  // ID: 5, type: value_metadata
-	colVal           = 87  // ID: 5, type: value
-	colPredGrp       = 112 // ID: 7, type: group
-	colPredActor     = 113 // ID: 7, type: actor
-	colPredCtr       = 115 // ID: 7, type: delta
-	colExpandControl = 148 // ID: 9, type: bool
-	colMark          = 165 // ID: 10, type: string
-
-	// Document op section only — explicit op identity and successor info; absent in change chunks.
-	colDocOpActor  = 33  // ID: 2, type: actor
-	colDocOpCtr    = 35  // ID: 2, type: delta
-	colDocSuccGrp  = 128 // ID: 8, type: group
-	colDocSuccActor = 129 // ID: 8, type: actor
-	colDocSuccCtr  = 131 // ID: 8, type: delta
-
-	// Document change-metadata section only — the per-change summary table inside a document chunk.
-	colDocChgActor   = 1  // ID: 0, type: actor
-	colDocChgSeqNum  = 3  // ID: 0, type: delta
-	colDocChgMaxOp   = 19 // ID: 2, type: delta
-	colDocChgTime    = 35 // ID: 4, type: delta
-	colDocChgMessage = 53 // ID: 6, type: string
-	colDocChgDepsGrp = 64 // ID: 8, type: group
-	colDocChgDepsIdx = 67 // ID: 8, type: delta
-)

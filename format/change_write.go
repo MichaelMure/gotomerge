@@ -9,7 +9,6 @@ import (
 
 	"gotomerge/column"
 	"gotomerge/types"
-	ioutil "gotomerge/utils/io"
 )
 
 // WriteChange serialises cc as a complete Automerge change chunk and writes it
@@ -17,11 +16,9 @@ import (
 // ChunkTypeCompressedChange; smaller ones as plain ChunkTypeChange.
 //
 // After WriteChange returns, cc.Hash is set and cc is ready for ApplyChange.
-func WriteChange(w io.Writer, cc *ChangeChunk, enc *ChangeOpsWriter) error {
-	cc.OpColumns = enc.opColumns()
-
+func WriteChange(w io.Writer, cc *ChangeChunk, ops *ChangeOpsWriter) error {
 	var payload bytes.Buffer
-	if err := writeChangePayload(&payload, cc, enc); err != nil {
+	if err := writeChangePayload(&payload, cc, ops); err != nil {
 		return err
 	}
 
@@ -32,7 +29,7 @@ func WriteChange(w io.Writer, cc *ChangeChunk, enc *ChangeOpsWriter) error {
 }
 
 // writeChangePayload writes the serialised payload of a ChangeChunk to w.
-func writeChangePayload(w io.Writer, cc *ChangeChunk, enc *ChangeOpsWriter) error {
+func writeChangePayload(w io.Writer, cc *ChangeChunk, ops *ChangeOpsWriter) error {
 	// Dependencies
 	if _, err := w.Write(leb128.EncodeU64(uint64(len(cc.Dependencies)))); err != nil {
 		return err
@@ -81,21 +78,17 @@ func writeChangePayload(w io.Writer, cc *ChangeChunk, enc *ChangeOpsWriter) erro
 		}
 	}
 
-	return enc.writePayloadColumns(w)
+	return ops.writePayloadColumns(w)
 }
 
 // ChangeOpsWriter streams operations into per-column writers for a change chunk.
-// Call Append for each operation, then Finalise once, then pass to WriteChange.
+// Call Append for each operation, then flush once, then pass to WriteChange.
 type ChangeOpsWriter struct {
-	objActorBuf, objCtrBuf bytes.Buffer
-	keyActorBuf, keyCtrBuf bytes.Buffer
-	keyStrBuf              bytes.Buffer
-	insertBuf              bytes.Buffer
-	actionBuf              bytes.Buffer
-	valueMetaBuf, valueBuf bytes.Buffer
-	predGrpBuf             bytes.Buffer
-	predActorBuf           bytes.Buffer
-	predCtrBuf             bytes.Buffer
+	objActorBuf, objCtrBuf               bytes.Buffer // obj
+	keyActorBuf, keyCtrBuf, keyStrBuf    bytes.Buffer // key
+	insertBuf                            bytes.Buffer // insert
+	actionBuf, valueMetaBuf, valueBuf    bytes.Buffer // action
+	predGrpBuf, predActorBuf, predCtrBuf bytes.Buffer // preds
 
 	obj    *column.ObjectWriter
 	key    *column.KeyWriter
@@ -124,8 +117,8 @@ func (w *ChangeOpsWriter) Append(obj types.ObjectId, key types.Key, insert bool,
 	w.preds.Append(preds, localOf)
 }
 
-// Finalise flushes all column writers. Must be called once before WriteChange.
-func (w *ChangeOpsWriter) Finalise() error {
+// flush flushes all column writers.
+func (w *ChangeOpsWriter) flush() error {
 	for _, f := range []interface{ Flush() error }{
 		w.obj, w.key, w.insert, w.action, w.preds,
 	} {
@@ -140,6 +133,10 @@ func (w *ChangeOpsWriter) Finalise() error {
 // column count (LEB128), then (spec, length) metadata pairs, then column bytes
 // — all in ascending spec order. Only non-empty columns are included.
 func (w *ChangeOpsWriter) writePayloadColumns(out io.Writer) error {
+	if err := w.flush(); err != nil {
+		return fmt.Errorf("ops writer finalize: %w", err)
+	}
+
 	type col struct {
 		spec uint32
 		data []byte
@@ -196,44 +193,4 @@ func (w *ChangeOpsWriter) writePayloadColumns(out io.Writer) error {
 		}
 	}
 	return nil
-}
-
-// opColumns builds OperationColumns SubReaders from the finalised buffers.
-// Absent columns are nil, treated as all-null by readers.
-func (w *ChangeOpsWriter) opColumns() OperationColumns {
-	var oc OperationColumns
-	if w.obj.HasNonRoot() {
-		oc.ObjectActorId = maybeReader(w.objActorBuf.Bytes())
-		oc.ObjectCounter = maybeReader(w.objCtrBuf.Bytes())
-	}
-	if w.key.HasOpId() {
-		if w.key.HasNonNullActor() {
-			oc.KeyActorId = maybeReader(w.keyActorBuf.Bytes())
-		}
-		oc.KeyCounter = maybeReader(w.keyCtrBuf.Bytes())
-	}
-	if w.key.HasString() {
-		oc.KeyString = maybeReader(w.keyStrBuf.Bytes())
-	}
-	// Unconditional — see writePayloadColumns for rationale.
-	oc.Insert = maybeReader(w.insertBuf.Bytes())
-	oc.Action = maybeReader(w.actionBuf.Bytes())
-	oc.ValueMetadata = maybeReader(w.valueMetaBuf.Bytes())
-	if w.action.HasValues() {
-		oc.Value = maybeReader(w.valueBuf.Bytes())
-	}
-	// Unconditional — see writePayloadColumns for rationale.
-	oc.PredecessorGroup = maybeReader(w.predGrpBuf.Bytes())
-	if w.preds.HasPreds() {
-		oc.PredecessorActorId = maybeReader(w.predActorBuf.Bytes())
-		oc.PredecessorCounter = maybeReader(w.predCtrBuf.Bytes())
-	}
-	return oc
-}
-
-func maybeReader(b []byte) *ioutil.SubReader {
-	if len(b) == 0 {
-		return nil
-	}
-	return ioutil.NewSubReader(b)
 }
