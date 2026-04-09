@@ -75,7 +75,12 @@ func (w *Writer[T]) appendNull() {
 	case rleStateNull:
 		w.nullCount++
 	case rleStateRepeated:
-		w.flushRepeat()
+		if w.repeatCount == 1 {
+			w.literals = append(w.literals, w.repeatVal)
+			w.flushLiteral()
+		} else {
+			w.flushRepeat()
+		}
 		w.state = rleStateNull
 		w.nullCount = 1
 	case rleStateLiteral:
