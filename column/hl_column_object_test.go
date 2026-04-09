@@ -11,7 +11,7 @@ import (
 )
 
 // identityLocalOf maps each global actor index to itself, used across HL column round-trip tests.
-var identityLocalOf = map[uint32]uint32{0: 0, 1: 1, 2: 2, 3: 3}
+var identityLocalOf = types.IdentityActorMapper(4)
 
 func TestObjectHasNonRoot(t *testing.T) {
 	t.Run("false when no entries", func(t *testing.T) {

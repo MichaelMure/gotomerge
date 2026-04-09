@@ -101,13 +101,13 @@ func NewObjectWriter(actor, ctr io.Writer) *ObjectWriter {
 	return &ObjectWriter{actor: NewActorWriter(actor), ctr: NewUlebWriter(ctr)}
 }
 
-func (o *ObjectWriter) Append(obj types.ObjectId, localOf map[uint32]uint32) {
+func (o *ObjectWriter) Append(obj types.ObjectId, mapper types.ActorMapper) {
 	if obj.IsRoot() {
 		o.actor.Append(rle.NewNullUint64())
 		o.ctr.Append(rle.NewNullUint64())
 	} else {
 		o.hasNonRoot = true
-		o.actor.Append(rle.NewNullableUint64(uint64(localOf[obj.ActorIdx])))
+		o.actor.Append(rle.NewNullableUint64(uint64(mapper.Map(obj.ActorIdx))))
 		o.ctr.Append(rle.NewNullableUint64(uint64(obj.Counter)))
 	}
 }

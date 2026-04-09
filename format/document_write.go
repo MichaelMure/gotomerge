@@ -164,14 +164,14 @@ func NewDocOpsWriter() *DocOpsWriter {
 }
 
 // Append encodes one operation into the per-column writers.
-// localOf maps global actor indices to local indices in the document chunk.
-func (w *DocOpsWriter) Append(obj types.ObjectId, key types.Key, id types.OpId, insert bool, action types.Action, succs []types.OpId, localOf map[uint32]uint32) {
-	w.obj.Append(obj, localOf)
-	w.key.Append(key, localOf)
-	w.opId.Append(id, localOf)
+// m maps global actor indices to local indices in the document chunk.
+func (w *DocOpsWriter) Append(obj types.ObjectId, key types.Key, id types.OpId, insert bool, action types.Action, succs []types.OpId, mapper types.ActorMapper) {
+	w.obj.Append(obj, mapper)
+	w.key.Append(key, mapper)
+	w.opId.Append(id, mapper)
 	w.insert.Append(insert)
 	w.action.Append(action)
-	w.succs.Append(succs, localOf)
+	w.succs.Append(succs, mapper)
 }
 
 // flush finalises all column writers.

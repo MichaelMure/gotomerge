@@ -31,19 +31,19 @@ func (s *OpSet) ExportDocument(changes []*format.ChangeChunk, w io.Writer) error
 	// Build delta successor map: predecessor OpId → list of successor OpIds.
 	deltaSuccessors := buildDeltaSuccessors(s, changes)
 
-	opsWriter := format.NewDocOpsWriter()
+	ops := format.NewDocOpsWriter()
 
 	if s.snapshot != nil {
-		if err := exportSnapshotOps(s, opsWriter, localOf, deltaSuccessors); err != nil {
+		if err := exportSnapshotOps(s, ops, localOf, deltaSuccessors); err != nil {
 			return fmt.Errorf("export snapshot ops: %w", err)
 		}
 	}
 
 	if s.delta != nil {
-		exportDeltaOps(s, opsWriter, localOf, deltaSuccessors)
+		exportDeltaOps(s, ops, localOf, deltaSuccessors)
 	}
 
-	return format.WriteDocument(w, sortedActors, s.Heads(), nil, nil, opsWriter)
+	return format.WriteDocument(w, sortedActors, s.Heads(), nil, nil, ops)
 }
 
 // buildDeltaSuccessors builds a map from each predecessor OpId to the list of
@@ -52,22 +52,19 @@ func buildDeltaSuccessors(s *OpSet, changes []*format.ChangeChunk) map[types.OpI
 	result := make(map[types.OpId][]types.OpId)
 	for _, cc := range changes {
 		// Rebuild the local → global actor index mapping used in ApplyChange.
-		changeActors := make([]uint32, 1+len(cc.OtherActors))
-		changeActors[0] = s.actorIdx[string(cc.Actor)]
+		cam := make(changeActorMap, 1+len(cc.OtherActors))
+		cam[0] = s.actorIdx[string(cc.Actor)]
 		for i, a := range cc.OtherActors {
-			changeActors[i+1] = s.actorIdx[string(a)]
-		}
-		translateId := func(id types.OpId) types.OpId {
-			return types.OpId{ActorIdx: changeActors[id.ActorIdx], Counter: id.Counter}
+			cam[i+1] = s.actorIdx[string(a)]
 		}
 
 		for changeOp, err := range cc.Operations() {
 			if err != nil {
 				continue // best-effort; ApplyChange already validated these
 			}
-			myId := translateId(changeOp.Id)
+			myId := cam.opId(changeOp.Id)
 			for _, pred := range changeOp.Predecessors {
-				predGlobal := translateId(pred)
+				predGlobal := cam.opId(pred)
 				result[predGlobal] = append(result[predGlobal], myId)
 			}
 		}
@@ -77,7 +74,7 @@ func buildDeltaSuccessors(s *OpSet, changes []*format.ChangeChunk) map[types.OpI
 
 // exportSnapshotOps re-emits all snapshot ops in their original document order,
 // augmenting each op's successor list with any new delta successors.
-func exportSnapshotOps(s *OpSet, ops *format.DocOpsWriter, localOf map[uint32]uint32, deltaSuccessors map[types.OpId][]types.OpId) error {
+func exportSnapshotOps(s *OpSet, ops *format.DocOpsWriter, mapper types.ActorMapper, deltaSuccessors map[types.OpId][]types.OpId) error {
 	ss := s.snapshot
 	dc := ss.docChunk
 	if dc == nil {
@@ -96,14 +93,14 @@ func exportSnapshotOps(s *OpSet, ops *format.DocOpsWriter, localOf map[uint32]ui
 		if ds := deltaSuccessors[docOp.Id]; len(ds) > 0 {
 			allSuccessors = append(allSuccessors, ds...)
 		}
-		ops.Append(docOp.Object, docOp.Key, docOp.Id, docOp.Insert, docOp.Action, allSuccessors, localOf)
+		ops.Append(docOp.Object, docOp.Key, docOp.Id, docOp.Insert, docOp.Action, allSuccessors, mapper)
 	}
 	return nil
 }
 
 // exportDeltaOps emits all delta ops sorted by object (ObjectId creation order),
 // then by their position within each object (delta application order).
-func exportDeltaOps(s *OpSet, enc *format.DocOpsWriter, localOf map[uint32]uint32, deltaSuccessors map[types.OpId][]types.OpId) {
+func exportDeltaOps(s *OpSet, enc *format.DocOpsWriter, mapper types.ActorMapper, deltaSuccessors map[types.OpId][]types.OpId) {
 	// Collect all unique objects that have delta ops.
 	objects := make([]types.ObjectId, 0, len(s.delta.byObj))
 	for obj := range s.delta.byObj {
@@ -115,7 +112,7 @@ func exportDeltaOps(s *OpSet, enc *format.DocOpsWriter, localOf map[uint32]uint3
 		for _, idx := range s.delta.byObj[obj] {
 			op := s.delta.ops[idx]
 			succs := deltaSuccessors[op.Id]
-			enc.Append(op.Object, op.Key, op.Id, op.Insert, op.Action, succs, localOf)
+			enc.Append(op.Object, op.Key, op.Id, op.Insert, op.Action, succs, mapper)
 		}
 	}
 }
@@ -139,10 +136,10 @@ func sortObjects(objects []types.ObjectId) {
 	})
 }
 
-// sortedActorTable returns a lexicographically sorted copy of actors and a
-// localOf map that translates original OpSet actor indices to their new sorted
+// sortedActorTable returns a lexicographically sorted copy of actors and an
+// ActorMapper that translates original OpSet actor indices to their new sorted
 // positions. The document format requires actors in sorted order.
-func sortedActorTable(actors []types.ActorId) ([]types.ActorId, map[uint32]uint32) {
+func sortedActorTable(actors []types.ActorId) ([]types.ActorId, types.ActorMapper) {
 	n := len(actors)
 	// Build index slice, sort it by actor bytes.
 	indices := make([]uint32, n)
@@ -154,10 +151,10 @@ func sortedActorTable(actors []types.ActorId) ([]types.ActorId, map[uint32]uint3
 	})
 
 	sorted := make([]types.ActorId, n)
-	localOf := make(map[uint32]uint32, n)
+	mapper := types.NewActorMapper(n)
 	for newIdx, oldIdx := range indices {
 		sorted[newIdx] = actors[oldIdx]
-		localOf[oldIdx] = uint32(newIdx)
+		mapper.Add(oldIdx)
 	}
-	return sorted, localOf
+	return sorted, mapper
 }

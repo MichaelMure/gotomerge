@@ -134,11 +134,11 @@ func NewGroupedOpIdWriter(group, actor, ctr io.Writer) *GroupedOpIdWriter {
 	}
 }
 
-func (g *GroupedOpIdWriter) Append(ids []types.OpId, localOf map[uint32]uint32) {
+func (g *GroupedOpIdWriter) Append(ids []types.OpId, mapper types.ActorMapper) {
 	g.group.Append(rle.NewNullableUint64(uint64(len(ids))))
 	for _, id := range ids {
 		g.hasPreds = true
-		g.actor.Append(rle.NewNullableUint64(uint64(localOf[id.ActorIdx])))
+		g.actor.Append(rle.NewNullableUint64(uint64(mapper.Map(id.ActorIdx))))
 		g.ctr.Append(rle.NewNullableInt64(int64(id.Counter)))
 	}
 }

@@ -98,8 +98,8 @@ func NewOpIdWriter(actor, ctr io.Writer) *OpIdWriter {
 	return &OpIdWriter{actor: NewActorWriter(actor), ctr: NewDeltaWriter(ctr)}
 }
 
-func (o *OpIdWriter) Append(id types.OpId, localOf map[uint32]uint32) {
-	o.actor.Append(rle.NewNullableUint64(uint64(localOf[id.ActorIdx])))
+func (o *OpIdWriter) Append(id types.OpId, mapper types.ActorMapper) {
+	o.actor.Append(rle.NewNullableUint64(uint64(mapper.Map(id.ActorIdx))))
 	o.ctr.Append(rle.NewNullableInt64(int64(id.Counter)))
 }
 

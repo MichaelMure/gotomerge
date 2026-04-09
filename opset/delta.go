@@ -7,6 +7,28 @@ import (
 	"gotomerge/types"
 )
 
+// changeActorMap translates chunk-local actor indices to OpSet global indices.
+// Index 0 is the change's own actor; indices 1..N are OtherActors[i-1].
+type changeActorMap []uint32
+
+func (m changeActorMap) opId(id types.OpId) types.OpId {
+	return types.OpId{ActorIdx: m[id.ActorIdx], Counter: id.Counter}
+}
+
+func (m changeActorMap) objectId(obj types.ObjectId) types.ObjectId {
+	if obj.IsRoot() {
+		return obj
+	}
+	return types.ObjectId(m.opId(types.OpId(obj)))
+}
+
+func (m changeActorMap) key(key types.Key) types.Key {
+	if k, ok := key.(types.KeyOpId); ok {
+		return types.KeyOpId{ActorIdx: m[k.ActorIdx], Counter: k.Counter}
+	}
+	return key
+}
+
 // deltaStore holds operations from applied ChangeChunks as mutable structs.
 //
 // Change chunks carry no successor column — a change cannot know what will
@@ -47,26 +69,10 @@ func (s *OpSet) ApplyChange(cc *format.ChangeChunk) error {
 
 	// Build a mapping from the change's local actor indices to ours.
 	// Index 0 is the change's own actor; indices 1..N are OtherActors[i-1].
-	changeActors := make([]uint32, 1+len(cc.OtherActors))
-	changeActors[0] = s.internActor(cc.Actor)
+	cam := make(changeActorMap, 1+len(cc.OtherActors))
+	cam[0] = s.internActor(cc.Actor)
 	for i, a := range cc.OtherActors {
-		changeActors[i+1] = s.internActor(a)
-	}
-
-	translateId := func(id types.OpId) types.OpId {
-		return types.OpId{ActorIdx: changeActors[id.ActorIdx], Counter: id.Counter}
-	}
-	translateObj := func(obj types.ObjectId) types.ObjectId {
-		if obj.IsRoot() {
-			return obj
-		}
-		return types.ObjectId(translateId(types.OpId(obj)))
-	}
-	translateKey := func(key types.Key, actorMap []uint32) types.Key {
-		if k, ok := key.(types.KeyOpId); ok {
-			return types.KeyOpId{ActorIdx: actorMap[k.ActorIdx], Counter: k.Counter}
-		}
-		return key
+		cam[i+1] = s.internActor(a)
 	}
 
 	if s.delta == nil {
@@ -80,7 +86,7 @@ func (s *OpSet) ApplyChange(cc *format.ChangeChunk) error {
 
 		// Increment SuccCount on each predecessor this op supersedes.
 		for _, pred := range changeOp.Predecessors {
-			resolvedPred := translateId(pred)
+			resolvedPred := cam.opId(pred)
 			if s.snapshot != nil {
 				if predIdx, ok := s.snapshot.byId[resolvedPred]; ok {
 					s.snapshot.succCount[predIdx]++
@@ -92,9 +98,9 @@ func (s *OpSet) ApplyChange(cc *format.ChangeChunk) error {
 		}
 
 		op := Op{
-			Id:     translateId(changeOp.Id),
-			Object: translateObj(changeOp.Object),
-			Key:    translateKey(changeOp.Key, changeActors),
+			Id:     cam.opId(changeOp.Id),
+			Object: cam.objectId(changeOp.Object),
+			Key:    cam.key(changeOp.Key),
 			Insert: changeOp.Insert,
 			Action: changeOp.Action,
 		}

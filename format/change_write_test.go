@@ -51,17 +51,14 @@ func TestChangeChunkRoundTrip(t *testing.T) {
 				cc, ok := chunk.(*ChangeChunk)
 				require.True(t, ok, "expected only ChangeChunks in %s", name)
 
-				opsWriter := NewChangeOpsWriter()
+				ops := NewChangeOpsWriter()
 				// Operations already use local actor indices (0 = own actor,
-				// 1..N = OtherActors). Identity localOf preserves them as-is.
+				// 1..N = OtherActors). Identity mapper preserves them as-is.
 				n := uint32(1 + len(cc.OtherActors))
-				localOf := make(map[uint32]uint32, n)
-				for i := uint32(0); i < n; i++ {
-					localOf[i] = i
-				}
+				mapper := types.IdentityActorMapper(n)
 				for op, err := range cc.Operations() {
 					require.NoError(t, err)
-					opsWriter.Append(op.Object, op.Key, op.Insert, op.Action, op.Predecessors, localOf)
+					ops.Append(op.Object, op.Key, op.Insert, op.Action, op.Predecessors, mapper)
 				}
 				cc2 := &ChangeChunk{
 					Dependencies: cc.Dependencies,
@@ -72,7 +69,7 @@ func TestChangeChunkRoundTrip(t *testing.T) {
 					Message:      cc.Message,
 					OtherActors:  cc.OtherActors,
 				}
-				require.NoError(t, WriteChange(&out, cc2, opsWriter))
+				require.NoError(t, WriteChange(&out, cc2, ops))
 			}
 
 			if !bytes.Equal(original, out.Bytes()) {
@@ -104,7 +101,7 @@ func BenchmarkWriteChange(b *testing.B) {
 		0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
 		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
 	}
-	localOf := map[uint32]uint32{0: 0}
+	m := types.IdentityActorMapper(1)
 
 	for _, n := range []int{100, 1_000, 10_000} {
 		b.Run(fmt.Sprintf("ops=%d", n), func(b *testing.B) {
@@ -114,18 +111,18 @@ func BenchmarkWriteChange(b *testing.B) {
 			}
 			var lastLen int
 			for i := 0; i < b.N; i++ {
-				enc := NewChangeOpsWriter()
+				ops := NewChangeOpsWriter()
 				for j := 0; j < n; j++ {
-					enc.Append(
+					ops.Append(
 						types.RootObjectId(),
 						keys[j],
 						false,
 						types.Action{Kind: types.ActionSet, Value: int64(j)},
 						nil,
-						localOf,
+						m,
 					)
 				}
-				if err := enc.flush(); err != nil {
+				if err := ops.flush(); err != nil {
 					b.Fatal(err)
 				}
 				cc := &ChangeChunk{
@@ -135,7 +132,7 @@ func BenchmarkWriteChange(b *testing.B) {
 					Time:    types.Timestamp(0),
 				}
 				var buf bytes.Buffer
-				if err := WriteChange(&buf, cc, enc); err != nil {
+				if err := WriteChange(&buf, cc, ops); err != nil {
 					b.Fatal(err)
 				}
 				lastLen = buf.Len()

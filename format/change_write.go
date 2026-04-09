@@ -108,13 +108,13 @@ func NewChangeOpsWriter() *ChangeOpsWriter {
 }
 
 // Append encodes one operation into the per-column writers.
-// localOf maps global actor indices to local indices in the change.
-func (w *ChangeOpsWriter) Append(obj types.ObjectId, key types.Key, insert bool, action types.Action, preds []types.OpId, localOf map[uint32]uint32) {
-	w.obj.Append(obj, localOf)
-	w.key.Append(key, localOf)
+// m maps global actor indices to local indices in the change.
+func (w *ChangeOpsWriter) Append(obj types.ObjectId, key types.Key, insert bool, action types.Action, preds []types.OpId, mapper types.ActorMapper) {
+	w.obj.Append(obj, mapper)
+	w.key.Append(key, mapper)
 	w.insert.Append(insert)
 	w.action.Append(action)
-	w.preds.Append(preds, localOf)
+	w.preds.Append(preds, mapper)
 }
 
 // flush flushes all column writers.

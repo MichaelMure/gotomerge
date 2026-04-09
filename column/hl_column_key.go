@@ -142,7 +142,7 @@ func NewKeyWriter(actor, ctr, str io.Writer) *KeyWriter {
 	}
 }
 
-func (k *KeyWriter) Append(key types.Key, localOf map[uint32]uint32) {
+func (k *KeyWriter) Append(key types.Key, mapper types.ActorMapper) {
 	switch v := key.(type) {
 	case types.KeyString:
 		k.hasStr = true
@@ -158,7 +158,7 @@ func (k *KeyWriter) Append(key types.Key, localOf map[uint32]uint32) {
 			k.ctr.Append(rle.NewNullableInt64(0))
 		} else {
 			k.hasNonNullActor = true
-			k.actor.Append(rle.NewNullableUint64(uint64(localOf[v.ActorIdx])))
+			k.actor.Append(rle.NewNullableUint64(uint64(mapper.Map(v.ActorIdx))))
 			k.ctr.Append(rle.NewNullableInt64(int64(v.Counter)))
 		}
 	default:
@@ -169,8 +169,8 @@ func (k *KeyWriter) Append(key types.Key, localOf map[uint32]uint32) {
 }
 
 func (k *KeyWriter) HasOpId() bool         { return k.hasOpId }
-func (k *KeyWriter) HasString() bool        { return k.hasStr }
-func (k *KeyWriter) HasNonNullActor() bool  { return k.hasNonNullActor }
+func (k *KeyWriter) HasString() bool       { return k.hasStr }
+func (k *KeyWriter) HasNonNullActor() bool { return k.hasNonNullActor }
 
 func (k *KeyWriter) Flush() error {
 	if err := k.actor.Flush(); err != nil {

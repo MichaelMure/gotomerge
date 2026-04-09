@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"gotomerge/types"
 	ioutil "gotomerge/utils/io"
 )
 
@@ -45,24 +46,20 @@ func TestDocumentChunkRoundTrip(t *testing.T) {
 				}
 
 				// Re-encode through the production path.
-				n := uint32(len(dc.Actors))
-				localOf := make(map[uint32]uint32, n)
-				for i := uint32(0); i < n; i++ {
-					localOf[i] = i
-				}
+				mapper := types.IdentityActorMapper(uint32(len(dc.Actors)))
 				// Re-encode change metadata.
-				chgWriter := NewChangeMetaWriter()
+				changes := NewChangeMetaWriter()
 				for m, err := range dc.Changes() {
 					require.NoError(t, err)
-					chgWriter.Append(m)
+					changes.Append(m)
 				}
 
-				enc := NewDocOpsWriter()
+				ops := NewDocOpsWriter()
 				for op, err := range dc.Operations() {
 					require.NoError(t, err)
-					enc.Append(op.Object, op.Key, op.Id, op.Insert, op.Action, op.Successors, localOf)
+					ops.Append(op.Object, op.Key, op.Id, op.Insert, op.Action, op.Successors, mapper)
 				}
-				require.NoError(t, WriteDocument(&out, dc.Actors, dc.Heads, dc.HeadIndexes, chgWriter, enc))
+				require.NoError(t, WriteDocument(&out, dc.Actors, dc.Heads, dc.HeadIndexes, changes, ops))
 			}
 
 			require.Equal(t, original, out.Bytes())
