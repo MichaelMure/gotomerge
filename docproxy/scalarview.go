@@ -1,47 +1,79 @@
 package docproxy
 
-// BoolView is a proxy to a bool in a Document. It can be used to modify that boolean.
+import (
+	"gotomerge/opset"
+	"gotomerge/types"
+)
+
+// BoolView is a view of a boolean value. Obtained via a type assertion on a
+// [Value] from [MapView.Get] or [Document.Values].
+//
+// Write methods ([BoolView.Set], [BoolView.Toggle]) are only available when the
+// view was obtained in the context of a [Txn].
 type BoolView struct {
-	parent parentView
-	key    any
+	s      *opset.OpSet
+	txn    *opset.Transaction // nil if read-only
+	obj    types.ObjectId     // containing map
+	key    string
+	scalar bool // cached value from the OpSet at the time of creation
 }
 
-// Value returns the underlying bool.
+func (BoolView) isValue() {}
+
+// Value returns the current committed boolean value.
 func (b BoolView) Value() bool {
-	val := b.parent.get(b.key)
-	cast, ok := val.(bool)
-	if !ok {
-		panic(ErrType{expected: cast, got: val})
-	}
-	return cast
+	return b.scalar
 }
 
-// Toggle toggles the underlying bool.
-func (b BoolView) Toggle() {
-	b.parent.set(b.key, !b.Value(), "set")
-}
-
-// Set sets the underlying bool to the given value.
+// Set sets the boolean to val. Panics if read-only.
 func (b BoolView) Set(val bool) {
-	b.parent.set(b.key, val, "set")
+	b.mustWrite()
+	b.txn.MapSet(b.obj, b.key, val)
 }
 
-type StringView struct {
-	parent parentView
-	key    any
+// Toggle flips the current boolean value. Panics if read-only.
+func (b BoolView) Toggle() {
+	b.Set(!b.scalar)
 }
 
-// Value returns the underlying string.
-func (sv StringView) Value() string {
-	val := sv.parent.get(sv.key)
-	cast, ok := val.(string)
-	if !ok {
-		panic(ErrType{expected: cast, got: val})
+func (b BoolView) mustWrite() {
+	if b.txn == nil {
+		panic("write operation on read-only BoolView (obtain via Txn)")
 	}
-	return cast
 }
 
-// Set sets the underlying string to the given value.
+// StringView is a view of a string value. Obtained via a type assertion on a
+// [Value] from [MapView.Get] or [Document.Values].
+//
+// Also used to represent text objects (which are serialised as plain strings
+// at the document API level).
+//
+// Write methods are only available when the view was obtained in the context
+// of a [Txn].
+type StringView struct {
+	s      *opset.OpSet
+	txn    *opset.Transaction // nil if read-only
+	obj    types.ObjectId     // containing map (zero for text objects)
+	key    string
+	scalar string // cached value
+}
+
+func (StringView) isValue() {}
+
+// Value returns the current committed string value.
+func (sv StringView) Value() string {
+	return sv.scalar
+}
+
+// Set sets the string to val. Panics if read-only or if the key currently holds
+// a text object (text objects require splice operations, not a plain set).
 func (sv StringView) Set(val string) {
-	sv.parent.set(sv.key, val, "set")
+	sv.mustWrite()
+	sv.txn.MapSet(sv.obj, sv.key, val)
+}
+
+func (sv StringView) mustWrite() {
+	if sv.txn == nil {
+		panic("write operation on read-only StringView (obtain via Txn)")
+	}
 }
