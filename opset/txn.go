@@ -136,6 +136,71 @@ func (t *Transaction) ListDelete(obj types.ObjectId, posId types.OpId, liveOpId 
 	})
 }
 
+// ListElements returns the live elements of a list or text object in order,
+// including any operations buffered in this transaction that have not yet been
+// committed. Use this inside a transaction instead of OpSet.ListElements when
+// you need write-your-own-reads (e.g. multiple splices in one Change).
+func (t *Transaction) ListElements(obj types.ObjectId) []Op {
+	base := t.s.ListElements(obj)
+
+	// Fast path: no pending insert/delete ops for this object.
+	hasPending := false
+	for _, op := range t.ops {
+		if op.obj == obj && (op.insert || op.action.Kind == types.ActionDelete) {
+			hasPending = true
+			break
+		}
+	}
+	if !hasPending {
+		return base
+	}
+
+	// Apply pending ops sequentially on top of the committed list.
+	working := make([]Op, len(base))
+	copy(working, base)
+
+	findById := func(id types.OpId) int {
+		for i, e := range working {
+			if e.Id == id {
+				return i
+			}
+		}
+		return -1
+	}
+
+	for i, op := range t.ops {
+		if op.obj != obj {
+			continue
+		}
+		opId := types.OpId{ActorIdx: t.actorIdx, Counter: t.startOp + uint32(i)}
+
+		if op.insert {
+			newOp := Op{Id: opId, Object: obj, Key: op.key, Insert: true, Action: op.action}
+			pred, isPred := op.key.(types.KeyOpId)
+			insertAt := len(working) // default: append
+			if isPred && (pred.ActorIdx != 0 || pred.Counter != 0) {
+				if idx := findById(types.OpId(pred)); idx >= 0 {
+					insertAt = idx + 1
+				}
+			} else {
+				insertAt = 0 // head sentinel: prepend
+			}
+			working = append(working, Op{})
+			copy(working[insertAt+1:], working[insertAt:])
+			working[insertAt] = newOp
+		} else if op.action.Kind == types.ActionDelete {
+			for _, pred := range op.preds {
+				if idx := findById(pred); idx >= 0 {
+					working = append(working[:idx], working[idx+1:]...)
+					break
+				}
+			}
+		}
+	}
+
+	return working
+}
+
 // opsToIds extracts the OpId from each Op.
 func opsToIds(ops []Op) []types.OpId {
 	ids := make([]types.OpId, len(ops))

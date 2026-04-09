@@ -62,6 +62,12 @@ func (s *OpSet) Heads() []types.ChangeHash {
 	return out
 }
 
+// AppliedHashes returns the set of all ChangeChunk hashes that have been applied.
+// The returned map must not be modified by the caller.
+func (s *OpSet) AppliedHashes() map[types.ChangeHash]struct{} {
+	return s.appliedHashes
+}
+
 // internActor registers an actor and returns its index in the OpSet actor table.
 // If the actor is already registered, the existing index is returned.
 func (s *OpSet) internActor(id types.ActorId) uint32 {

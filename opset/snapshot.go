@@ -46,6 +46,14 @@ type snapshotStore struct {
 	byId        map[types.OpId]uint32
 
 	seek seekIndex
+
+	// docChunk is the original DocumentChunk loaded via ApplyDocument. It is
+	// kept so ExportDocument can re-iterate ops with their full column data
+	// (including the original within-snapshot successor lists) when building a
+	// new document chunk. The SubReaders inside docChunk share the same
+	// underlying bytes; do not call Skip() on the original reader while the
+	// OpSet is in use.
+	docChunk *format.DocumentChunk
 }
 
 // isDone reports whether err signals that a column reader is exhausted.
@@ -200,6 +208,7 @@ func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 	}
 
 	s.snapshot = ss
+	ss.docChunk = doc
 
 	for _, h := range doc.Heads {
 		s.heads[h] = struct{}{}

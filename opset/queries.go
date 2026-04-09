@@ -143,6 +143,60 @@ func (s *OpSet) MapKeys(obj types.ObjectId) []string {
 	return keys
 }
 
+// MapItems returns one winning Op per live key in obj, in insertion order.
+// When multiple peers set the same key concurrently (a conflict), the op with
+// the highest OpId wins — matching MapGet's conflict resolution.
+// This is a single O(n) pass; prefer it over MapKeys + MapGet when iterating
+// all entries.
+func (s *OpSet) MapItems(obj types.ObjectId) []Op {
+	type entry struct {
+		op  Op
+		pos int
+	}
+	best := make(map[string]entry)
+	var order []string
+
+	add := func(op Op, succCount uint32) {
+		if succCount > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
+			return
+		}
+		k, strKey := op.Key.(types.KeyString)
+		if !strKey {
+			return
+		}
+		key := string(k)
+		if e, exists := best[key]; !exists {
+			best[key] = entry{op: op, pos: len(order)}
+			order = append(order, key)
+		} else if s.opIdGreater(op.Id, e.op.Id) {
+			e.op = op
+			best[key] = e
+		}
+	}
+
+	if s.snapshot != nil {
+		if r, ok := s.snapshot.objRanges[obj]; ok {
+			s.snapshot.scanRange(r, func(idx uint32, op Op) bool {
+				add(op, s.snapshot.succCount[idx])
+				return true
+			})
+		}
+	}
+
+	if s.delta != nil {
+		for _, idx := range s.delta.byObj[obj] {
+			op := s.delta.ops[idx]
+			add(op, op.SuccCount)
+		}
+	}
+
+	result := make([]Op, len(order))
+	for i, key := range order {
+		result[i] = best[key].op
+	}
+	return result
+}
+
 // ObjType returns the ActionKind of the operation that created obj
 // (ActionMakeMap, ActionMakeList, or ActionMakeText). The root object
 // always returns ActionMakeMap. Returns false if the object is unknown.
