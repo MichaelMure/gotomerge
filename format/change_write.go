@@ -142,38 +142,32 @@ func (w *ChangeOpsWriter) writePayloadColumns(out io.Writer) error {
 		data []byte
 	}
 	var cols []col
-	add := func(spec uint32, data []byte) {
-		cols = append(cols, col{spec, data})
-	}
 
-	if w.obj.HasNonRoot() {
-		add(colObjActor, w.objActorBuf.Bytes())
-		add(colObjCtr, w.objCtrBuf.Bytes())
-	}
-	if w.key.HasOpId() {
-		if w.key.HasNonNullActor() {
-			add(colKeyActor, w.keyActorBuf.Bytes())
+	// Each column is included iff its buffer is non-empty after flushing.
+	// An all-null (or all-false for bool) column produces zero bytes and is
+	// omitted, matching Rust's filter(!c.data.is_empty()). INSERT is a bool
+	// column but false is a non-null value, so it always produces bytes when
+	// ops exist — no special-casing needed unlike Rust's write_unless_empty.
+	for _, pair := range []struct {
+		spec   int
+		buffer bytes.Buffer
+	}{
+		{colObjActor, w.objActorBuf},
+		{colObjCtr, w.objCtrBuf},
+		{colKeyActor, w.keyActorBuf},
+		{colKeyCtr, w.keyCtrBuf},
+		{colKeyStr, w.keyStrBuf},
+		{colInsert, w.insertBuf},
+		{colAction, w.actionBuf},
+		{colValMeta, w.valueMetaBuf},
+		{colVal, w.valueBuf},
+		{colPredGrp, w.predGrpBuf},
+		{colPredActor, w.predActorBuf},
+		{colPredCtr, w.predCtrBuf},
+	} {
+		if pair.buffer.Len() > 0 {
+			cols = append(cols, col{uint32(pair.spec), pair.buffer.Bytes()})
 		}
-		add(colKeyCtr, w.keyCtrBuf.Bytes())
-	}
-	if w.key.HasString() {
-		add(colKeyStr, w.keyStrBuf.Bytes())
-	}
-	// insert, value metadata, and predecessor group are written unconditionally
-	// even when trivially empty (all-false / all-null / all-zero). The Rust
-	// reference implementation always emits them, so omitting them would produce
-	// a different hash for the same logical content, breaking cross-implementation
-	// compatibility.
-	add(colInsert, w.insertBuf.Bytes())
-	add(colAction, w.actionBuf.Bytes())
-	add(colValMeta, w.valueMetaBuf.Bytes())
-	if w.action.HasValues() {
-		add(colVal, w.valueBuf.Bytes())
-	}
-	add(colPredGrp, w.predGrpBuf.Bytes())
-	if w.preds.HasPreds() {
-		add(colPredActor, w.predActorBuf.Bytes())
-		add(colPredCtr, w.predCtrBuf.Bytes())
 	}
 
 	if _, err := out.Write(leb128.EncodeU64(uint64(len(cols)))); err != nil {

@@ -126,12 +126,9 @@ func (k *KeyReader) Fork() (*KeyReader, error) {
 
 // KeyWriter is a stateful encoder for key columns.
 type KeyWriter struct {
-	actor           *ActorWriter
-	ctr             *DeltaWriter
-	str             *StringWriter
-	hasOpId         bool
-	hasStr          bool
-	hasNonNullActor bool
+	actor *ActorWriter
+	ctr   *DeltaWriter
+	str   *StringWriter
 }
 
 func NewKeyWriter(actor, ctr, str io.Writer) *KeyWriter {
@@ -145,19 +142,16 @@ func NewKeyWriter(actor, ctr, str io.Writer) *KeyWriter {
 func (k *KeyWriter) Append(key types.Key, mapper types.ActorMapper) {
 	switch v := key.(type) {
 	case types.KeyString:
-		k.hasStr = true
 		k.actor.Append(rle.NewNullUint64())
 		k.ctr.Append(rle.NewNullInt64())
 		k.str.Append(rle.NewNullableString(string(v)))
 	case types.KeyOpId:
-		k.hasOpId = true
 		k.str.Append(rle.NewNullString())
 		if v.Counter == 0 {
 			// head sentinel: null actor, counter = 0 (non-null)
 			k.actor.Append(rle.NewNullUint64())
 			k.ctr.Append(rle.NewNullableInt64(0))
 		} else {
-			k.hasNonNullActor = true
 			k.actor.Append(rle.NewNullableUint64(uint64(mapper.Map(v.ActorIdx))))
 			k.ctr.Append(rle.NewNullableInt64(int64(v.Counter)))
 		}
@@ -167,10 +161,6 @@ func (k *KeyWriter) Append(key types.Key, mapper types.ActorMapper) {
 		k.str.Append(rle.NewNullString())
 	}
 }
-
-func (k *KeyWriter) HasOpId() bool         { return k.hasOpId }
-func (k *KeyWriter) HasString() bool       { return k.hasStr }
-func (k *KeyWriter) HasNonNullActor() bool { return k.hasNonNullActor }
 
 func (k *KeyWriter) Flush() error {
 	if err := k.actor.Flush(); err != nil {

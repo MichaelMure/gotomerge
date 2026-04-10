@@ -4,54 +4,10 @@ import (
 	"bytes"
 	"testing"
 
-	"gotomerge/types"
-	ioutil "gotomerge/utils/io"
-
 	"github.com/stretchr/testify/require"
+
+	"gotomerge/types"
 )
-
-func TestKeyHasFlags(t *testing.T) {
-	newWriter := func() (*KeyWriter, bytes.Buffer, bytes.Buffer, bytes.Buffer) {
-		var a, c, s bytes.Buffer
-		return NewKeyWriter(&a, &c, &s), a, c, s
-	}
-
-	t.Run("all false when no entries", func(t *testing.T) {
-		w, _, _, _ := newWriter()
-		require.False(t, w.HasOpId())
-		require.False(t, w.HasString())
-		require.False(t, w.HasNonNullActor())
-	})
-	t.Run("HasString only for string keys", func(t *testing.T) {
-		w, _, _, _ := newWriter()
-		w.Append(types.KeyString("x"), identityLocalOf)
-		require.False(t, w.HasOpId())
-		require.True(t, w.HasString())
-		require.False(t, w.HasNonNullActor())
-	})
-	t.Run("HasOpId without HasNonNullActor for head sentinel (counter=0)", func(t *testing.T) {
-		w, _, _, _ := newWriter()
-		w.Append(types.KeyOpId{ActorIdx: 0, Counter: 0}, identityLocalOf)
-		require.True(t, w.HasOpId())
-		require.False(t, w.HasString())
-		require.False(t, w.HasNonNullActor())
-	})
-	t.Run("HasOpId and HasNonNullActor for opId with non-zero counter", func(t *testing.T) {
-		w, _, _, _ := newWriter()
-		w.Append(types.KeyOpId{ActorIdx: 1, Counter: 5}, identityLocalOf)
-		require.True(t, w.HasOpId())
-		require.False(t, w.HasString())
-		require.True(t, w.HasNonNullActor())
-	})
-	t.Run("all true for mixed keys", func(t *testing.T) {
-		w, _, _, _ := newWriter()
-		w.Append(types.KeyString("a"), identityLocalOf)
-		w.Append(types.KeyOpId{ActorIdx: 0, Counter: 3}, identityLocalOf)
-		require.True(t, w.HasOpId())
-		require.True(t, w.HasString())
-		require.True(t, w.HasNonNullActor())
-	})
-}
 
 func TestKeyRoundTrip(t *testing.T) {
 	cases := [][]types.Key{
@@ -73,9 +29,9 @@ func TestKeyRoundTrip(t *testing.T) {
 		require.NoError(t, w.Flush())
 
 		r := NewKeyReader(
-			NewActorReader(ioutil.NewSubReader(actorBuf.Bytes())),
-			NewDeltaReader(ioutil.NewSubReader(ctrBuf.Bytes())),
-			NewStringReader(ioutil.NewSubReader(strBuf.Bytes())),
+			bytesOpt(actorBuf.Bytes(), NewActorReader),
+			bytesOpt(ctrBuf.Bytes(), NewDeltaReader),
+			bytesOpt(strBuf.Bytes(), NewStringReader),
 		)
 		for i, want := range in {
 			got, err := r.Next()

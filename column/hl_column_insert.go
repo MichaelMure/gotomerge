@@ -31,8 +31,7 @@ func (i *InsertReader) Fork() (*InsertReader, error) {
 
 // InsertWriter is a stateful encoder for insert (bool) columns.
 type InsertWriter struct {
-	w          *BoolWriter
-	hasInserts bool
+	w *BoolWriter
 }
 
 func NewInsertWriter(w io.Writer) *InsertWriter {
@@ -41,11 +40,6 @@ func NewInsertWriter(w io.Writer) *InsertWriter {
 
 func (i *InsertWriter) Append(insert bool) {
 	i.w.Append(insert)
-	if insert {
-		i.hasInserts = true
-	}
 }
-
-func (i *InsertWriter) HasInserts() bool { return i.hasInserts }
 
 func (i *InsertWriter) Flush() error { return i.w.Flush() }

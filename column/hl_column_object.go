@@ -92,9 +92,8 @@ func (o *ObjectReader) Fork() (*ObjectReader, error) {
 
 // ObjectWriter is a stateful encoder for object ID columns.
 type ObjectWriter struct {
-	actor      *ActorWriter
-	ctr        *UlebWriter
-	hasNonRoot bool
+	actor *ActorWriter
+	ctr   *UlebWriter
 }
 
 func NewObjectWriter(actor, ctr io.Writer) *ObjectWriter {
@@ -106,13 +105,10 @@ func (o *ObjectWriter) Append(obj types.ObjectId, mapper types.ActorMapper) {
 		o.actor.Append(rle.NewNullUint64())
 		o.ctr.Append(rle.NewNullUint64())
 	} else {
-		o.hasNonRoot = true
 		o.actor.Append(rle.NewNullableUint64(uint64(mapper.Map(obj.ActorIdx))))
 		o.ctr.Append(rle.NewNullableUint64(uint64(obj.Counter)))
 	}
 }
-
-func (o *ObjectWriter) HasNonRoot() bool { return o.hasNonRoot }
 
 func (o *ObjectWriter) Flush() error {
 	if err := o.actor.Flush(); err != nil {

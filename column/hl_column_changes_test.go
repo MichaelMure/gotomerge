@@ -4,75 +4,20 @@ import (
 	"bytes"
 	"testing"
 
-	ioutil "gotomerge/utils/io"
-
 	"github.com/stretchr/testify/require"
+
+	ioutil "gotomerge/utils/io"
 )
 
-func newChangesWriter() *ChangesWriter {
-	var bufs [7]bytes.Buffer
-	w := NewChangesWriter(&bufs[0], &bufs[1], &bufs[2], &bufs[3], &bufs[4], &bufs[5], &bufs[6])
-	return w
-}
-
-func TestChangesHasTime(t *testing.T) {
-	t0 := int64(1000)
-
-	t.Run("false when no entries", func(t *testing.T) {
-		w := newChangesWriter()
-		require.False(t, w.HasTime())
-	})
-	t.Run("false when all times nil", func(t *testing.T) {
-		w := newChangesWriter()
-		w.Append(RawChangeMeta{ActorIdx: 0, SeqNum: 1, MaxOp: 1, Deps: []uint64{}})
-		w.Append(RawChangeMeta{ActorIdx: 0, SeqNum: 2, MaxOp: 2, Deps: []uint64{}})
-		require.False(t, w.HasTime())
-	})
-	t.Run("true when any time is set", func(t *testing.T) {
-		w := newChangesWriter()
-		w.Append(RawChangeMeta{ActorIdx: 0, SeqNum: 1, MaxOp: 1, Deps: []uint64{}})
-		w.Append(RawChangeMeta{ActorIdx: 0, SeqNum: 2, MaxOp: 2, Time: &t0, Deps: []uint64{}})
-		require.True(t, w.HasTime())
-	})
-}
-
-func TestChangesHasMessage(t *testing.T) {
-	msg := "hello"
-
-	t.Run("false when no entries", func(t *testing.T) {
-		w := newChangesWriter()
-		require.False(t, w.HasMessage())
-	})
-	t.Run("false when all messages nil", func(t *testing.T) {
-		w := newChangesWriter()
-		w.Append(RawChangeMeta{ActorIdx: 0, SeqNum: 1, MaxOp: 1, Deps: []uint64{}})
-		require.False(t, w.HasMessage())
-	})
-	t.Run("true when any message is set", func(t *testing.T) {
-		w := newChangesWriter()
-		w.Append(RawChangeMeta{ActorIdx: 0, SeqNum: 1, MaxOp: 1, Deps: []uint64{}})
-		w.Append(RawChangeMeta{ActorIdx: 0, SeqNum: 2, MaxOp: 2, Message: &msg, Deps: []uint64{}})
-		require.True(t, w.HasMessage())
-	})
-}
-
-func TestChangesHasDeps(t *testing.T) {
-	t.Run("false when no entries", func(t *testing.T) {
-		w := newChangesWriter()
-		require.False(t, w.HasDeps())
-	})
-	t.Run("false when all dep lists empty", func(t *testing.T) {
-		w := newChangesWriter()
-		w.Append(RawChangeMeta{ActorIdx: 0, SeqNum: 1, MaxOp: 1, Deps: []uint64{}})
-		w.Append(RawChangeMeta{ActorIdx: 1, SeqNum: 1, MaxOp: 2, Deps: []uint64{}})
-		require.False(t, w.HasDeps())
-	})
-	t.Run("true when any dep exists", func(t *testing.T) {
-		w := newChangesWriter()
-		w.Append(RawChangeMeta{ActorIdx: 0, SeqNum: 1, MaxOp: 1, Deps: []uint64{}})
-		w.Append(RawChangeMeta{ActorIdx: 1, SeqNum: 1, MaxOp: 2, Deps: []uint64{0}})
-		require.True(t, w.HasDeps())
-	})
+// bytesOpt creates a typed reader from a byte slice.
+// Returns nil when data is empty — an all-null column produces zero bytes
+// (matching Rust's InitialNullRun behaviour), and nil readers are handled as
+// all-null by the high-level column readers.
+func bytesOpt[T any](data []byte, ctor func(*ioutil.SubReader) *T) *T {
+	if len(data) == 0 {
+		return nil
+	}
+	return ctor(ioutil.NewSubReader(data))
 }
 
 func TestChangesRoundTrip(t *testing.T) {
@@ -101,13 +46,13 @@ func TestChangesRoundTrip(t *testing.T) {
 		require.NoError(t, w.Flush())
 
 		r := NewChangesReader(
-			NewActorReader(ioutil.NewSubReader(actorBuf.Bytes())),
-			NewDeltaReader(ioutil.NewSubReader(seqBuf.Bytes())),
-			NewDeltaReader(ioutil.NewSubReader(maxOpBuf.Bytes())),
-			NewDeltaReader(ioutil.NewSubReader(timeBuf.Bytes())),
-			NewStringReader(ioutil.NewSubReader(msgBuf.Bytes())),
-			NewGroupReader(ioutil.NewSubReader(grpBuf.Bytes())),
-			NewDeltaReader(ioutil.NewSubReader(idxBuf.Bytes())),
+			bytesOpt(actorBuf.Bytes(), NewActorReader),
+			bytesOpt(seqBuf.Bytes(), NewDeltaReader),
+			bytesOpt(maxOpBuf.Bytes(), NewDeltaReader),
+			bytesOpt(timeBuf.Bytes(), NewDeltaReader),
+			bytesOpt(msgBuf.Bytes(), NewStringReader),
+			bytesOpt(grpBuf.Bytes(), NewGroupReader),
+			bytesOpt(idxBuf.Bytes(), NewDeltaReader),
 		)
 		for i, want := range in {
 			got, err := r.Next()

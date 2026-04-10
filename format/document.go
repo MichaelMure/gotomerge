@@ -259,6 +259,10 @@ func (d DocumentChunk) Changes() iter.Seq2[column.RawChangeMeta, error] {
 // a document chunk stores operations grouped by the object they belong to.
 // This object-local ordering is part of the document chunk format definition.
 func (d DocumentChunk) Operations() iter.Seq2[types.DocOperation, error] {
+	// Zero-ops document: action column absent → yield nothing.
+	if d.OpColumns.Action == nil {
+		return func(yield func(types.DocOperation, error) bool) {}
+	}
 	objActor, e1 := column.Opt(d.OpColumns.ObjectActorId, column.NewActorReader)
 	objCounter, e2 := column.Opt(d.OpColumns.ObjectCounter, column.NewUlebReader)
 	opActor, e3 := column.Req(d.OpColumns.ActorId, column.NewActorReader, "op.actorId")

@@ -101,24 +101,24 @@ func (w *ChangeMetaWriter) encodeSection(metaBuf, dataBuf *bytes.Buffer) error {
 		data []byte
 	}
 	var cols []col
-	add := func(spec uint32, data []byte) {
-		cols = append(cols, col{spec, data})
-	}
 
-	add(colDocChgActor, w.actorBuf.Bytes())
-	add(colDocChgSeqNum, w.seqBuf.Bytes())
-	add(colDocChgMaxOp, w.maxOpBuf.Bytes())
-	if w.changes.HasTime() {
-		add(colDocChgTime, w.timeBuf.Bytes())
+	for _, pair := range []struct {
+		spec   int
+		buffer bytes.Buffer
+	}{
+		{colDocChgActor, w.actorBuf},
+		{colDocChgSeqNum, w.seqBuf},
+		{colDocChgMaxOp, w.maxOpBuf},
+		{colDocChgTime, w.timeBuf},
+		{colDocChgMessage, w.msgBuf},
+		{colDocChgDepsGrp, w.depsGrpBuf},
+		{colDocChgDepsIdx, w.depsIdxBuf},
+		{colValMeta, w.extraMetaBuf},
+	} {
+		if pair.buffer.Len() > 0 {
+			cols = append(cols, col{uint32(pair.spec), pair.buffer.Bytes()})
+		}
 	}
-	if w.changes.HasMessage() {
-		add(colDocChgMessage, w.msgBuf.Bytes())
-	}
-	add(colDocChgDepsGrp, w.depsGrpBuf.Bytes())
-	if w.changes.HasDeps() {
-		add(colDocChgDepsIdx, w.depsIdxBuf.Bytes())
-	}
-	add(colValMeta, w.extraMetaBuf.Bytes())
 
 	metaBuf.Write(leb128.EncodeU64(uint64(len(cols))))
 	for _, c := range cols {
@@ -202,35 +202,31 @@ func (w *DocOpsWriter) encodeSection(metaBuf, dataBuf *bytes.Buffer) error {
 		data []byte
 	}
 	var cols []col
-	add := func(spec uint32, data []byte) {
-		cols = append(cols, col{spec, data})
-	}
 
-	if w.obj.HasNonRoot() {
-		add(colObjActor, w.objActorBuf.Bytes())
-		add(colObjCtr, w.objCtrBuf.Bytes())
-	}
-	if w.key.HasOpId() {
-		if w.key.HasNonNullActor() {
-			add(colKeyActor, w.keyActorBuf.Bytes())
+	// Each column is included iff its buffer is non-empty after flushing.
+	// See change_write.go writePayloadColumns for the full rationale.
+	for _, pair := range []struct {
+		spec   int
+		buffer bytes.Buffer
+	}{
+		{colObjActor, w.objActorBuf},
+		{colObjCtr, w.objCtrBuf},
+		{colKeyActor, w.keyActorBuf},
+		{colKeyCtr, w.keyCtrBuf},
+		{colKeyStr, w.keyStrBuf},
+		{colDocOpActor, w.opActorBuf},
+		{colDocOpCtr, w.opCtrBuf},
+		{colInsert, w.insertBuf},
+		{colAction, w.actionBuf},
+		{colValMeta, w.valueMetaBuf},
+		{colVal, w.valueBuf},
+		{colDocSuccGrp, w.succGrpBuf},
+		{colDocSuccActor, w.succActorBuf},
+		{colDocSuccCtr, w.succCtrBuf},
+	} {
+		if pair.buffer.Len() > 0 {
+			cols = append(cols, col{uint32(pair.spec), pair.buffer.Bytes()})
 		}
-		add(colKeyCtr, w.keyCtrBuf.Bytes())
-	}
-	if w.key.HasString() {
-		add(colKeyStr, w.keyStrBuf.Bytes())
-	}
-	add(colDocOpActor, w.opActorBuf.Bytes())
-	add(colDocOpCtr, w.opCtrBuf.Bytes())
-	add(colInsert, w.insertBuf.Bytes())
-	add(colAction, w.actionBuf.Bytes())
-	add(colValMeta, w.valueMetaBuf.Bytes())
-	if w.action.HasValues() {
-		add(colVal, w.valueBuf.Bytes())
-	}
-	add(colDocSuccGrp, w.succGrpBuf.Bytes())
-	if w.succs.HasPreds() {
-		add(colDocSuccActor, w.succActorBuf.Bytes())
-		add(colDocSuccCtr, w.succCtrBuf.Bytes())
 	}
 
 	metaBuf.Write(leb128.EncodeU64(uint64(len(cols))))

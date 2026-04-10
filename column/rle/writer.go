@@ -10,6 +10,11 @@ import (
 // as they complete. Only the current literal run needs buffering; completed
 // repeat and null runs are written immediately.
 //
+// Note that this RLE writer is tuned for automerge and would not be a good fit
+// for general use. For example, only null values would be encoded as 0 bytes
+// instead of a normal run, so that the column is later dropped as empty (as
+// when read, no data produces null values.
+//
 // Errors from the underlying io.Writer are sticky: the first write error is
 // stored and all subsequent operations are no-ops. Call Flush() at the end to
 // finalise the last run and retrieve any accumulated error.
@@ -23,6 +28,11 @@ type Writer[T comparable] struct {
 	repeatVal   T
 	repeatCount int64
 	literals    []T
+
+	// flushedAny is set when any bytes have been written to w. It distinguishes
+	// an all-null column (Rust's InitialNullRun) from a trailing-null column
+	// (Rust's NullRun). An all-null column produces 0 bytes, matching Rust.
+	flushedAny bool
 
 	scratch [10]byte // stack buffer for leb128 encoding
 }
@@ -50,7 +60,11 @@ func (w *Writer[T]) Flush() error {
 	}
 	switch w.state {
 	case rleStateNull:
-		w.flushNull()
+		// Only flush trailing nulls if non-null data has been written before them.
+		// An all-null column (Rust's InitialNullRun) produces 0 bytes.
+		if w.flushedAny {
+			w.flushNull()
+		}
 	case rleStateRepeated:
 		if w.repeatCount == 1 {
 			// Match Rust: a lone trailing value is flushed as a literal run (-1),
@@ -140,6 +154,7 @@ func (w *Writer[T]) write(b []byte) {
 		return
 	}
 	_, w.err = w.w.Write(b)
+	w.flushedAny = true
 }
 
 func (w *Writer[T]) flushNull() {

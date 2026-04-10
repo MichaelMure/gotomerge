@@ -231,16 +231,13 @@ func (c *ChangesReader) Fork() (*ChangesReader, error) {
 
 // ChangesWriter is a stateful encoder for change metadata columns in document chunks.
 type ChangesWriter struct {
-	actor      *ActorWriter
-	seqNum     *DeltaWriter
-	maxOp      *DeltaWriter
-	time       *DeltaWriter
-	message    *StringWriter
-	depsGroup  *GroupWriter
-	depsIndex  *DeltaWriter
-	hasTime    bool
-	hasMessage bool
-	hasDeps    bool
+	actor     *ActorWriter
+	seqNum    *DeltaWriter
+	maxOp     *DeltaWriter
+	time      *DeltaWriter
+	message   *StringWriter
+	depsGroup *GroupWriter
+	depsIndex *DeltaWriter
 }
 
 func NewChangesWriter(actor, seqNum, maxOp, time, message, depsGroup, depsIndex io.Writer) *ChangesWriter {
@@ -260,27 +257,20 @@ func (c *ChangesWriter) Append(m RawChangeMeta) {
 	c.seqNum.Append(rle.NewNullableInt64(int64(m.SeqNum)))
 	c.maxOp.Append(rle.NewNullableInt64(int64(m.MaxOp)))
 	if m.Time != nil {
-		c.hasTime = true
 		c.time.Append(rle.NewNullableInt64(*m.Time))
 	} else {
 		c.time.Append(rle.NewNullInt64())
 	}
 	if m.Message != nil {
-		c.hasMessage = true
 		c.message.Append(rle.NewNullableString(*m.Message))
 	} else {
 		c.message.Append(rle.NewNullString())
 	}
 	c.depsGroup.Append(rle.NewNullableUint64(uint64(len(m.Deps))))
 	for _, dep := range m.Deps {
-		c.hasDeps = true
 		c.depsIndex.Append(rle.NewNullableInt64(int64(dep)))
 	}
 }
-
-func (c *ChangesWriter) HasTime() bool    { return c.hasTime }
-func (c *ChangesWriter) HasMessage() bool { return c.hasMessage }
-func (c *ChangesWriter) HasDeps() bool    { return c.hasDeps }
 
 func (c *ChangesWriter) Flush() error {
 	for _, f := range []interface{ Flush() error }{

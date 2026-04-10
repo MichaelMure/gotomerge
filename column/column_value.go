@@ -83,10 +83,9 @@ func (vr *ValueReader) Fork() (*ValueReader, error) {
 // (as RLE uint64) and raw value bytes to separate io.Writers, matching what
 // ValueReader decodes.
 type ValueWriter struct {
-	meta      *ValueMetadataWriter
-	val       io.Writer
-	err       error
-	hasValues bool
+	meta *ValueMetadataWriter
+	val  io.Writer
+	err  error
 }
 
 func NewValueWriter(meta io.Writer, val io.Writer) *ValueWriter {
@@ -98,7 +97,6 @@ func (vw *ValueWriter) Append(action types.Action) {
 		return
 	}
 	if HasScalarValue(action) {
-		vw.hasValues = true
 		m, b := EncodeValue(action)
 		vw.meta.Append(m)
 		if len(b) > 0 {
@@ -108,9 +106,6 @@ func (vw *ValueWriter) Append(action types.Action) {
 		vw.meta.Append(NewValueMetadata(ValueTypeNull, 0))
 	}
 }
-
-// HasValues reports whether any appended action had a scalar value.
-func (vw *ValueWriter) HasValues() bool { return vw.hasValues }
 
 // Flush writes the final metadata run and returns any accumulated error.
 func (vw *ValueWriter) Flush() error {

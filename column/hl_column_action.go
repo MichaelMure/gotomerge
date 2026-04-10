@@ -123,8 +123,6 @@ func (a *ActionWriter) Append(action types.Action) {
 	a.value.Append(action)
 }
 
-func (a *ActionWriter) HasValues() bool { return a.value.HasValues() }
-
 func (a *ActionWriter) Flush() error {
 	if err := a.kind.Flush(); err != nil {
 		return err

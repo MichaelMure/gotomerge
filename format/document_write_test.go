@@ -66,3 +66,22 @@ func TestDocumentChunkRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+// TestDocOpsWriterZeroOps verifies that a document with no operations (and no
+// changes) encodes both column sections as a single 0x00 byte each, as required
+// by the spec.
+func TestDocOpsWriterZeroOps(t *testing.T) {
+	var buf bytes.Buffer
+	require.NoError(t, WriteDocument(&buf, nil, nil, nil, nil, NewDocOpsWriter()))
+
+	chunk, _, err := ReadChunk(ioutil.NewSubReader(buf.Bytes()))
+	require.NoError(t, err)
+	dc, ok := chunk.(*DocumentChunk)
+	require.True(t, ok)
+	count := 0
+	for _, err := range dc.Operations() {
+		require.NoError(t, err)
+		count++
+	}
+	require.Equal(t, 0, count)
+}

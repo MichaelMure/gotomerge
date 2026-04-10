@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TODO: add round-trip fuzzing
+
 // roundTripUint64 encodes values with the Writer and decodes with the Reader,
 // checking that the round-trip produces the same sequence.
 func roundTripUint64(t *testing.T, vals []NullableValue[uint64]) {
@@ -68,8 +70,31 @@ func TestWriterLiteralRun(t *testing.T) {
 }
 
 func TestWriterNullRun(t *testing.T) {
-	roundTripUint64(t, []NullableValue[uint64]{
-		NewNullUint64(), NewNullUint64(), NewNullUint64(),
+	// An all-null column produces 0 bytes (Rust's InitialNullRun behaviour).
+	// Trailing nulls after non-null values ARE encoded.
+	t.Run("all-null produces zero bytes", func(t *testing.T) {
+		var buf bytes.Buffer
+		w := NewUint64Writer(&buf)
+		w.Append(NewNullUint64())
+		w.Append(NewNullUint64())
+		w.Append(NewNullUint64())
+		require.NoError(t, w.Flush())
+		require.Equal(t, 0, buf.Len())
+	})
+	t.Run("trailing nulls after value are encoded", func(t *testing.T) {
+		roundTripUint64(t, []NullableValue[uint64]{
+			NewNullableUint64(1), NewNullUint64(), NewNullUint64(),
+		})
+	})
+	t.Run("leading nulls before value are encoded", func(t *testing.T) {
+		roundTripUint64(t, []NullableValue[uint64]{
+			NewNullUint64(), NewNullUint64(), NewNullableUint64(1),
+		})
+	})
+	t.Run("nulls on both sides of a value are encoded", func(t *testing.T) {
+		roundTripUint64(t, []NullableValue[uint64]{
+			NewNullUint64(), NewNullableUint64(1), NewNullUint64(),
+		})
 	})
 }
 

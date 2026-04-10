@@ -120,10 +120,9 @@ func (g *GroupedOpIdReader) Fork() (*GroupedOpIdReader, error) {
 // GroupedOpIdWriter is a stateful encoder for grouped operation ID columns
 // (e.g. predecessors: a count followed by that many actor+counter pairs).
 type GroupedOpIdWriter struct {
-	group    *GroupWriter
-	actor    *ActorWriter
-	ctr      *DeltaWriter
-	hasPreds bool
+	group *GroupWriter
+	actor *ActorWriter
+	ctr   *DeltaWriter
 }
 
 func NewGroupedOpIdWriter(group, actor, ctr io.Writer) *GroupedOpIdWriter {
@@ -137,13 +136,10 @@ func NewGroupedOpIdWriter(group, actor, ctr io.Writer) *GroupedOpIdWriter {
 func (g *GroupedOpIdWriter) Append(ids []types.OpId, mapper types.ActorMapper) {
 	g.group.Append(rle.NewNullableUint64(uint64(len(ids))))
 	for _, id := range ids {
-		g.hasPreds = true
 		g.actor.Append(rle.NewNullableUint64(uint64(mapper.Map(id.ActorIdx))))
 		g.ctr.Append(rle.NewNullableInt64(int64(id.Counter)))
 	}
 }
-
-func (g *GroupedOpIdWriter) HasPreds() bool { return g.hasPreds }
 
 func (g *GroupedOpIdWriter) Flush() error {
 	if err := g.group.Flush(); err != nil {
