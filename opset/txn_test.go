@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"gotomerge/format"
-	"gotomerge/types"
-	ioutil "gotomerge/utils/io"
+	"github.com/MichaelMure/gotomerge/format"
+	"github.com/MichaelMure/gotomerge/types"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 // commit is a test helper that calls Commit and fails on error.

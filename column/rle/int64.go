@@ -6,7 +6,7 @@ import (
 
 	"github.com/MichaelMure/leb128"
 
-	ioutil "gotomerge/utils/io"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 type Int64Reader = Reader[int64]

@@ -4,8 +4,8 @@ import (
 	"io"
 	"math"
 
-	"gotomerge/column/rle"
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/column/rle"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 // OpIdReader is a stateful reader for operation ID columns.

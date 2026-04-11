@@ -3,22 +3,27 @@
 // # Overview
 //
 // A [Document] is the top-level object. It wraps an [opset.OpSet] (the CRDT state) and an
-// actor identity, and exposes three concerns:
+// actor identity, and exposes four concerns:
 //
-//   - Reading: [Document.Get], [Document.Map], [Document.List], [Document.Values], [Document.Keys]
-//     traverse the current committed state.
+//   - Construction: [NewDocument] creates an empty document; [LoadDocument] and
+//     [NewDocumentFromJSON] deserialise existing data.
+//   - Reading: [Document.Get], [Document.Map], [Document.List], [Document.Values],
+//     [Document.Keys] traverse the current committed state. Text objects are accessed
+//     via [Document.Get] with a type assertion to [TextView].
 //   - Writing: [Document.Change] runs a callback with a [Txn] write handle; [Document.Begin]
-//     gives a manual [Txn] for explicit Commit / Rollback control. Every successful transaction
-//     produces exactly one [format.ChangeChunk] applied to the OpSet.
-//   - Persistence: [Document.Save] / [Document.SaveIncremental] serialise the document to bytes;
-//     [LoadDocument] / [NewDocumentFromJSON] deserialise it back.
+//     gives a manual [Txn] for explicit Commit / Rollback control. Every non-empty transaction
+//     produces a causally-linked, hashable change record applied to the document.
+//     [Document.Merge] applies changes from another document.
+//   - Persistence: [Document.Save] / [Document.SaveIncremental] serialise the document to
+//     bytes. [Document.MarshalJSON] renders the current state as JSON.
 //
-// # Transactions and change chunks
+// # Transactions
 //
-// Every [Document.Change] (or [Txn.Commit]) call produces exactly one [format.ChangeChunk]:
-// a named, causally-linked, hashable unit of history. Change chunks carry authorship
-// (actor + seqNum), causal dependencies (deps = current heads at Begin time), and a SHA-256
-// hash used by peers for synchronisation and conflict detection.
+// Every [Document.Change] (or [Txn.Commit]) call that contains at least one operation
+// produces a change record: a named, causally-linked, hashable unit of history. Change
+// records carry authorship (actor + sequence number), causal dependencies (the current
+// heads at Begin time), and a SHA-256 hash used by peers for synchronisation and conflict
+// detection.
 //
 // # Persistence model
 //
@@ -29,7 +34,16 @@
 // [Document.SaveIncremental] writes only the change chunks produced since the last Save or
 // SaveIncremental call. It is cheap to call after every Change.
 //
-// Typical usage:
+// Typical usage — new document:
+//
+//	doc := docproxy.NewDocument()
+//	doc.Change(func(txn *docproxy.Txn) error {
+//	    txn.Map("config").Set("debug", true)
+//	    return nil
+//	})
+//	doc.Save(w)
+//
+// Typical usage — load and modify:
 //
 //	doc, _ := docproxy.LoadDocument(f)
 //	doc.Change(func(txn *docproxy.Txn) error {
@@ -46,10 +60,10 @@ import (
 	"iter"
 	"sync"
 
-	"gotomerge/format"
-	"gotomerge/opset"
-	"gotomerge/types"
-	ioutil "gotomerge/utils/io"
+	"github.com/MichaelMure/gotomerge/format"
+	"github.com/MichaelMure/gotomerge/opset"
+	"github.com/MichaelMure/gotomerge/types"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 // storedChange pairs a parsed ChangeChunk with its original serialised bytes.
@@ -202,6 +216,17 @@ func (doc *Document) List(key string) (ListView, bool) {
 	}
 	lv, ok := v.(ListView)
 	return lv, ok
+}
+
+// Text returns a read-only [TextView] for the text object at key.
+// Returns false if the key is absent or holds a non-text value.
+func (doc *Document) Text(key string) (TextView, bool) {
+	v, ok := doc.Get(key)
+	if !ok {
+		return TextView{}, false
+	}
+	tv, ok := v.(TextView)
+	return tv, ok
 }
 
 // -- Write methods ------------------------------------------------------------

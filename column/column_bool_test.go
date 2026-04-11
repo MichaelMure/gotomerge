@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	ioutil "gotomerge/utils/io"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 
 	"github.com/stretchr/testify/require"
 )

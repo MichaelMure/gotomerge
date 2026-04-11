@@ -1,8 +1,8 @@
 package docproxy
 
 import (
-	"gotomerge/opset"
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/opset"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 // Compile-time assertion that TextView implements Value.
@@ -28,9 +28,17 @@ type TextView struct {
 
 func (TextView) isValue() {}
 
+// Native implements [Value]. Returns the text content as a plain string.
+func (tv TextView) Native() any { return tv.s.Text(tv.obj) }
+
 // Value returns the current committed text as a plain string.
 func (tv TextView) Value() string {
 	return tv.s.Text(tv.obj)
+}
+
+// Len returns the number of Unicode codepoints (runes) in the text.
+func (tv TextView) Len() int {
+	return len(tv.s.ListElements(tv.obj))
 }
 
 // Splice replaces del Unicode codepoints starting at position pos with the

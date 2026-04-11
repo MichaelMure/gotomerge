@@ -3,7 +3,7 @@ package opset
 import (
 	"sort"
 
-	"gotomerge/column"
+	"github.com/MichaelMure/gotomerge/column"
 )
 
 const seekStride = 64

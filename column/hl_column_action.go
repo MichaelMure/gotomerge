@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"gotomerge/column/rle"
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/column/rle"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 // ActionReader is a stateful reader for action columns.

@@ -5,8 +5,8 @@ import (
 	"io"
 	"testing"
 
-	"gotomerge/column/rle"
-	ioutil "gotomerge/utils/io"
+	"github.com/MichaelMure/gotomerge/column/rle"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 
 	"github.com/stretchr/testify/require"
 )

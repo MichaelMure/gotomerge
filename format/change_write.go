@@ -7,8 +7,8 @@ import (
 
 	"github.com/MichaelMure/leb128"
 
-	"gotomerge/column"
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/column"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 // WriteChange serialises cc as a complete Automerge change chunk and writes it

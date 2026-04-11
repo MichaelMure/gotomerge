@@ -1,7 +1,7 @@
 package opset
 
 import (
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 // OpSet holds every operation that has been applied to a document.
@@ -36,6 +36,11 @@ type OpSet struct {
 	// maxOpCounter tracks the highest counter seen per actor (global index).
 	// Used by Begin to compute startOp for new transactions.
 	maxOpCounter map[uint32]uint32
+
+	// counterDeltas accumulates increment deltas for counter ops.
+	// Key: OpId of the ActionSet(Counter) op; Value: sum of all applied Inc deltas.
+	// Maintained by ApplyChange (ActionInc ops) and ApplyDocument (post-scan pass).
+	counterDeltas map[types.OpId]int64
 }
 
 func New() *OpSet {
@@ -44,6 +49,7 @@ func New() *OpSet {
 		heads:         make(map[types.ChangeHash]struct{}),
 		appliedHashes: make(map[types.ChangeHash]struct{}),
 		maxOpCounter:  make(map[uint32]uint32),
+		counterDeltas: make(map[types.OpId]int64),
 	}
 }
 

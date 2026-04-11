@@ -8,8 +8,8 @@ import (
 
 	"github.com/MichaelMure/leb128"
 
-	"gotomerge/column"
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/column"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 // deflateMinSize is the threshold above which individual columns are

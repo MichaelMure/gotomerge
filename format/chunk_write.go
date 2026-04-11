@@ -9,7 +9,7 @@ import (
 
 	"github.com/MichaelMure/leb128"
 
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 // writeChunk writes a framed Automerge chunk to w:

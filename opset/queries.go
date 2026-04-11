@@ -3,7 +3,7 @@ package opset
 import (
 	"bytes"
 
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 // MapGet returns the winning live op at the given key in a map object.
@@ -20,7 +20,8 @@ func (s *OpSet) MapGet(obj types.ObjectId, key string) (Op, bool) {
 	if s.snapshot != nil {
 		if r, ok := s.snapshot.objRanges[obj]; ok {
 			s.snapshot.scanRange(r, func(idx uint32, op Op) bool {
-				if s.snapshot.succCount[idx] > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
+				if s.snapshot.succCount[idx] > 0 || op.Insert ||
+					op.Action.Kind == types.ActionDelete || op.Action.Kind == types.ActionInc {
 					return true
 				}
 				k, strKey := op.Key.(types.KeyString)
@@ -38,7 +39,8 @@ func (s *OpSet) MapGet(obj types.ObjectId, key string) (Op, bool) {
 	if s.delta != nil {
 		for _, idx := range s.delta.byObj[obj] {
 			op := &s.delta.ops[idx]
-			if op.SuccCount > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
+			if op.SuccCount > 0 || op.Insert ||
+				op.Action.Kind == types.ActionDelete || op.Action.Kind == types.ActionInc {
 				continue
 			}
 			k, strKey := op.Key.(types.KeyString)
@@ -54,7 +56,7 @@ func (s *OpSet) MapGet(obj types.ObjectId, key string) (Op, bool) {
 	if winner == nil {
 		return Op{}, false
 	}
-	return *winner, true
+	return s.applyCounterDelta(*winner), true
 }
 
 // MapGetAll returns all live values at the given key in a map object.
@@ -68,7 +70,8 @@ func (s *OpSet) MapGetAll(obj types.ObjectId, key string) []Op {
 	if s.snapshot != nil {
 		if r, ok := s.snapshot.objRanges[obj]; ok {
 			s.snapshot.scanRange(r, func(idx uint32, op Op) bool {
-				if s.snapshot.succCount[idx] > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
+				if s.snapshot.succCount[idx] > 0 || op.Insert ||
+					op.Action.Kind == types.ActionDelete || op.Action.Kind == types.ActionInc {
 					return true
 				}
 				k, strKey := op.Key.(types.KeyString)
@@ -84,7 +87,8 @@ func (s *OpSet) MapGetAll(obj types.ObjectId, key string) []Op {
 	if s.delta != nil {
 		for _, idx := range s.delta.byObj[obj] {
 			op := s.delta.ops[idx]
-			if op.SuccCount > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
+			if op.SuccCount > 0 || op.Insert ||
+				op.Action.Kind == types.ActionDelete || op.Action.Kind == types.ActionInc {
 				continue
 			}
 			k, strKey := op.Key.(types.KeyString)
@@ -96,6 +100,9 @@ func (s *OpSet) MapGetAll(obj types.ObjectId, key string) []Op {
 	}
 
 	sortOpsDesc(live, s)
+	for i := range live {
+		live[i] = s.applyCounterDelta(live[i])
+	}
 	return live
 }
 
@@ -107,7 +114,8 @@ func (s *OpSet) MapKeys(obj types.ObjectId) []string {
 	if s.snapshot != nil {
 		if r, ok := s.snapshot.objRanges[obj]; ok {
 			s.snapshot.scanRange(r, func(idx uint32, op Op) bool {
-				if s.snapshot.succCount[idx] > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
+				if s.snapshot.succCount[idx] > 0 || op.Insert ||
+					op.Action.Kind == types.ActionDelete || op.Action.Kind == types.ActionInc {
 					return true
 				}
 				k, strKey := op.Key.(types.KeyString)
@@ -126,7 +134,8 @@ func (s *OpSet) MapKeys(obj types.ObjectId) []string {
 	if s.delta != nil {
 		for _, idx := range s.delta.byObj[obj] {
 			op := &s.delta.ops[idx]
-			if op.SuccCount > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
+			if op.SuccCount > 0 || op.Insert ||
+				op.Action.Kind == types.ActionDelete || op.Action.Kind == types.ActionInc {
 				continue
 			}
 			k, strKey := op.Key.(types.KeyString)
@@ -157,7 +166,8 @@ func (s *OpSet) MapItems(obj types.ObjectId) []Op {
 	var order []string
 
 	add := func(op Op, succCount uint32) {
-		if succCount > 0 || op.Insert || op.Action.Kind == types.ActionDelete {
+		if succCount > 0 || op.Insert ||
+			op.Action.Kind == types.ActionDelete || op.Action.Kind == types.ActionInc {
 			return
 		}
 		k, strKey := op.Key.(types.KeyString)
@@ -192,7 +202,7 @@ func (s *OpSet) MapItems(obj types.ObjectId) []Op {
 
 	result := make([]Op, len(order))
 	for i, key := range order {
-		result[i] = best[key].op
+		result[i] = s.applyCounterDelta(best[key].op)
 	}
 	return result
 }
@@ -215,6 +225,22 @@ func (s *OpSet) ObjType(obj types.ObjectId) (types.ActionKind, bool) {
 		}
 	}
 	return 0, false
+}
+
+// applyCounterDelta returns op with its Counter value adjusted by any
+// accumulated increments. For non-counter ops it is a no-op.
+func (s *OpSet) applyCounterDelta(op Op) Op {
+	if op.Action.Kind != types.ActionSet {
+		return op
+	}
+	base, isCounter := op.Action.Value.(types.Counter)
+	if !isCounter {
+		return op
+	}
+	if delta, ok := s.counterDeltas[op.Id]; ok {
+		op.Action.Value = types.Counter(int64(base) + delta)
+	}
+	return op
 }
 
 // opIdGreater reports whether a is greater than b.

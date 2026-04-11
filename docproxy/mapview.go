@@ -3,8 +3,8 @@ package docproxy
 import (
 	"iter"
 
-	"gotomerge/opset"
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/opset"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 // MapView is a view of a map object inside a document. It is returned by
@@ -38,6 +38,12 @@ func (mv MapView) Values() iter.Seq2[string, Value] {
 // The concrete type of the returned [Value] reflects the actual data kind.
 func (mv MapView) Get(key string) (Value, bool) {
 	return mapGet(mv.s, mv.txn, mv.obj, key)
+}
+
+// Native implements [Value]. Returns a map[string]any with all live key/value
+// pairs recursively materialised.
+func (mv MapView) Native() any {
+	return materializeObj(mv.s, mv.obj, types.ActionMakeMap)
 }
 
 // -- Write-chain methods (create-or-get) -------------------------------------
@@ -105,6 +111,14 @@ func (mv MapView) Set(key string, value any) {
 func (mv MapView) Delete(key string) {
 	mv.mustWrite()
 	mv.txn.MapDelete(mv.obj, key)
+}
+
+// Increment adds delta to the counter at key in this map.
+// The key must already hold a counter value. No-op if the key is absent.
+// Panics if this view is read-only.
+func (mv MapView) Increment(key string, delta int64) {
+	mv.mustWrite()
+	mv.txn.MapIncrement(mv.obj, key, delta)
 }
 
 func (mv MapView) mustWrite() {

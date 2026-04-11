@@ -3,9 +3,21 @@ package opset
 import (
 	"fmt"
 
-	"gotomerge/format"
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/format"
+	"github.com/MichaelMure/gotomerge/types"
 )
+
+// incDelta extracts the int64 delta from an ActionInc value (int64 or uint64).
+func incDelta(v any) int64 {
+	switch v := v.(type) {
+	case int64:
+		return v
+	case uint64:
+		return int64(v)
+	default:
+		return 0
+	}
+}
 
 // changeActorMap translates chunk-local actor indices to OpSet global indices.
 // Index 0 is the change's own actor; indices 1..N are OtherActors[i-1].
@@ -84,16 +96,25 @@ func (s *OpSet) ApplyChange(cc *format.ChangeChunk) error {
 			return fmt.Errorf("reading operation: %w", err)
 		}
 
-		// Increment SuccCount on each predecessor this op supersedes.
-		for _, pred := range changeOp.Predecessors {
-			resolvedPred := cam.opId(pred)
-			if s.snapshot != nil {
-				if predIdx, ok := s.snapshot.byId[resolvedPred]; ok {
-					s.snapshot.succCount[predIdx]++
-				}
+		// For ActionInc ops, accumulate the delta on the target counter op
+		// rather than marking it dead. For all other ops, increment SuccCount
+		// on each predecessor to mark it superseded.
+		if changeOp.Action.Kind == types.ActionInc {
+			delta := incDelta(changeOp.Action.Value)
+			for _, pred := range changeOp.Predecessors {
+				s.counterDeltas[cam.opId(pred)] += delta
 			}
-			if predIdx, ok := s.delta.byId[resolvedPred]; ok {
-				s.delta.ops[predIdx].SuccCount++
+		} else {
+			for _, pred := range changeOp.Predecessors {
+				resolvedPred := cam.opId(pred)
+				if s.snapshot != nil {
+					if predIdx, ok := s.snapshot.byId[resolvedPred]; ok {
+						s.snapshot.succCount[predIdx]++
+					}
+				}
+				if predIdx, ok := s.delta.byId[resolvedPred]; ok {
+					s.delta.ops[predIdx].SuccCount++
+				}
 			}
 		}
 

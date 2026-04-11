@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"gotomerge/column/rle"
-	ioutil "gotomerge/utils/io"
+	"github.com/MichaelMure/gotomerge/column/rle"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 // ValueMetadataReader is a stateful reader for value metadata columns.

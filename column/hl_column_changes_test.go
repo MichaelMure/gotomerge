@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	ioutil "gotomerge/utils/io"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 // bytesOpt creates a typed reader from a byte slice.

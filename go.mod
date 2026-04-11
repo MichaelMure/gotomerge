@@ -1,4 +1,4 @@
-module gotomerge
+module github.com/MichaelMure/gotomerge
 
 go 1.23.1
 

@@ -3,7 +3,7 @@ package opset
 import (
 	"strings"
 
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 // ListElements returns the live elements of a list or text object in order.

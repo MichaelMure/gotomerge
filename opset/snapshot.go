@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"io"
 
-	"gotomerge/column"
-	"gotomerge/format"
-	"gotomerge/types"
-	"gotomerge/utils/bitset"
+	"github.com/MichaelMure/gotomerge/column"
+	"github.com/MichaelMure/gotomerge/format"
+	"github.com/MichaelMure/gotomerge/types"
+	"github.com/MichaelMure/gotomerge/utils/bitset"
 )
 
 // opRange marks a contiguous span of column positions belonging to one object.
@@ -127,6 +127,17 @@ func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 	}
 	var seek seekIndex
 
+	// incDeltas maps Inc op IDs to their delta values. Used in the post-scan
+	// pass to adjust succCount for counter ops whose successors are all Inc ops.
+	incDeltas := make(map[types.OpId]int64)
+	// counterSuccessors maps counter Set op IDs to their snapshot successor IDs.
+	// Populated only for counter ops that have at least one successor.
+	type counterEntry struct {
+		opId types.OpId
+		succ []types.OpId
+	}
+	var counterSuccessors []counterEntry
+
 	var opIdx uint32
 	for {
 		// Checkpoint at stride boundaries before reading the next op.
@@ -197,6 +208,14 @@ func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 		switch action.Kind {
 		case types.ActionMakeMap, types.ActionMakeList, types.ActionMakeText:
 			ss.objCreators[types.ObjectId(id)] = action.Kind
+		case types.ActionInc:
+			incDeltas[id] = incDelta(action.Value)
+		case types.ActionSet:
+			if _, isCounter := action.Value.(types.Counter); isCounter && len(succ) > 0 {
+				succCopy := make([]types.OpId, len(succ))
+				copy(succCopy, succ)
+				counterSuccessors = append(counterSuccessors, counterEntry{opId: id, succ: succCopy})
+			}
 		}
 
 		opIdx++
@@ -205,6 +224,18 @@ func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 
 	if opIdx > 0 {
 		ss.seek = append(seekIndex{seekPoint{opIdx: 0, key: k0, opId: oi0, action: a0}}, seek...)
+	}
+
+	// Post-scan: adjust succCount for counter ops whose successors are Inc ops.
+	// Inc ops do not kill the counter — they accumulate a delta instead.
+	for _, entry := range counterSuccessors {
+		opIdx := ss.byId[entry.opId]
+		for _, succId := range entry.succ {
+			if delta, ok := incDeltas[succId]; ok {
+				ss.succCount[opIdx]--
+				s.counterDeltas[entry.opId] += delta
+			}
+		}
 	}
 
 	s.snapshot = ss

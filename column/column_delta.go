@@ -5,8 +5,8 @@ import (
 	"io"
 	"math"
 
-	"gotomerge/column/rle"
-	ioutil "gotomerge/utils/io"
+	"github.com/MichaelMure/gotomerge/column/rle"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 // DeltaReader is a stateful reader for delta-encoded int64 columns.
@@ -78,5 +78,3 @@ func (dw *DeltaWriter) Append(nv rle.NullableValue[int64]) {
 
 // Flush writes the final run and returns any accumulated error.
 func (dw *DeltaWriter) Flush() error { return dw.w.Flush() }
-
-

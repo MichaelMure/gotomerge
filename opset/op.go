@@ -1,6 +1,6 @@
 package opset
 
-import "gotomerge/types"
+import "github.com/MichaelMure/gotomerge/types"
 
 // Op is a single operation stored in the OpSet. All actor indices in OpIds
 // are relative to the OpSet's own actor table (OpSet.Actor), not to the

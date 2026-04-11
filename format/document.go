@@ -6,9 +6,9 @@ import (
 	"iter"
 	"strings"
 
-	"gotomerge/column"
-	"gotomerge/types"
-	ioutil "gotomerge/utils/io"
+	"github.com/MichaelMure/gotomerge/column"
+	"github.com/MichaelMure/gotomerge/types"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 // DocumentChunk is the parsed form of an Automerge document snapshot chunk.

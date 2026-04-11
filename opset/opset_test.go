@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"gotomerge/column/rle"
-	"gotomerge/format"
-	"gotomerge/types"
-	ioutil "gotomerge/utils/io"
+	"github.com/MichaelMure/gotomerge/column/rle"
+	"github.com/MichaelMure/gotomerge/format"
+	"github.com/MichaelMure/gotomerge/types"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 // valueMetaString encodes a value metadata entry for a string of the given length.

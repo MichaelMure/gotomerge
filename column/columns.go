@@ -3,7 +3,7 @@ package column
 import (
 	"fmt"
 
-	ioutil "gotomerge/utils/io"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 var ErrDone = fmt.Errorf("iterator done")

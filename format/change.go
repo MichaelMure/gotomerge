@@ -10,9 +10,9 @@ import (
 
 	"github.com/MichaelMure/leb128"
 
-	"gotomerge/column"
-	"gotomerge/types"
-	ioutil "gotomerge/utils/io"
+	"github.com/MichaelMure/gotomerge/column"
+	"github.com/MichaelMure/gotomerge/types"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 // ChangeChunk is the parsed form of an Automerge change chunk.

@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 func TestKeyRoundTrip(t *testing.T) {

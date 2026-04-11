@@ -5,8 +5,8 @@ import (
 	"io"
 	"iter"
 
-	"gotomerge/column"
-	ioutil "gotomerge/utils/io"
+	"github.com/MichaelMure/gotomerge/column"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 // Column spec IDs: spec = col_num*8 + data_type

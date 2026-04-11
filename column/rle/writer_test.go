@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"testing"
 
-	ioutil "gotomerge/utils/io"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 
 	"github.com/stretchr/testify/require"
 )
-
-// TODO: add round-trip fuzzing
 
 // roundTripUint64 encodes values with the Writer and decodes with the Reader,
 // checking that the round-trip produces the same sequence.

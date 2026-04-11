@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"sort"
 
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 // txnOp is one pending operation buffered in a Transaction.
@@ -58,6 +58,21 @@ func (t *Transaction) MapSet(obj types.ObjectId, key string, value any) types.Op
 		preds:  opsToIds(t.s.MapGetAll(obj, key)),
 	})
 	return id
+}
+
+// MapIncrement adds delta to the counter at obj[key]. The key must currently
+// hold a Counter value; if it does not, this is a no-op. Panics if read-only.
+func (t *Transaction) MapIncrement(obj types.ObjectId, key string, delta int64) {
+	preds := opsToIds(t.s.MapGetAll(obj, key))
+	if len(preds) == 0 {
+		return
+	}
+	t.ops = append(t.ops, txnOp{
+		obj:    obj,
+		key:    types.KeyString(key),
+		action: types.Action{Kind: types.ActionInc, Value: delta},
+		preds:  preds,
+	})
 }
 
 // MapDelete deletes obj[key] by superseding all live values there.

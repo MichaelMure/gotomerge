@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"gotomerge/format"
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/format"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 // HasOps reports whether the transaction has any buffered operations.
@@ -71,15 +71,24 @@ func (t *Transaction) applyCommitted(hash types.ChangeHash) error {
 	for i, txOp := range t.ops {
 		opId := types.OpId{ActorIdx: t.actorIdx, Counter: t.startOp + uint32(i)}
 
-		// Increment SuccCount on each predecessor this op supersedes.
-		for _, pred := range txOp.preds {
-			if s.snapshot != nil {
-				if predIdx, ok := s.snapshot.byId[pred]; ok {
-					s.snapshot.succCount[predIdx]++
-				}
+		// For ActionInc: accumulate the counter delta without killing the
+		// counter op (same logic as ApplyChange / incDelta).
+		// For all other ops: increment SuccCount on each predecessor.
+		if txOp.action.Kind == types.ActionInc {
+			delta := incDelta(txOp.action.Value)
+			for _, pred := range txOp.preds {
+				s.counterDeltas[pred] += delta
 			}
-			if predIdx, ok := s.delta.byId[pred]; ok {
-				s.delta.ops[predIdx].SuccCount++
+		} else {
+			for _, pred := range txOp.preds {
+				if s.snapshot != nil {
+					if predIdx, ok := s.snapshot.byId[pred]; ok {
+						s.snapshot.succCount[predIdx]++
+					}
+				}
+				if predIdx, ok := s.delta.byId[pred]; ok {
+					s.delta.ops[predIdx].SuccCount++
+				}
 			}
 		}
 

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"iter"
 
-	"gotomerge/opset"
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/opset"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 // materializeObj recursively converts an object in the OpSet to a plain Go
@@ -42,7 +42,14 @@ func materializeOp(s *opset.OpSet, op opset.Op) any {
 		childKind, _ := s.ObjType(types.ObjectId(op.Id))
 		return materializeObj(s, types.ObjectId(op.Id), childKind)
 	default:
-		return op.Action.Value
+		switch v := op.Action.Value.(type) {
+		case types.Timestamp:
+			return v.Time()
+		case types.Counter:
+			return int64(v)
+		default:
+			return v
+		}
 	}
 }
 
@@ -84,8 +91,17 @@ func setListFromJSON(txn *opset.Transaction, obj types.ObjectId, items []any) {
 
 // Value is a read-only or read-write view of a single value inside a document.
 // Value is a sealed interface: only types defined in this package implement it.
+//
+// [Value.Native] returns the underlying Go value without requiring a type
+// assertion: strings, bools, and numbers return their primitive types;
+// [MapView] returns map[string]any; [ListView] returns []any; [TextView] returns
+// string; [NullView] returns nil.
 type Value interface {
 	isValue()
+	// Native returns the underlying Go-native representation of this value.
+	// Useful for fmt.Printf and dynamic dispatch without knowing the concrete
+	// view type.
+	Native() any
 }
 
 // ErrType is returned (or panicked) when a view method is called on a key
@@ -113,17 +129,29 @@ func wrapOp(s *opset.OpSet, txn *opset.Transaction, op opset.Op) Value {
 	case types.ActionMakeText:
 		return TextView{s: s, txn: txn, obj: obj}
 	default:
+		key, _ := op.Key.(types.KeyString)
+		k := string(key)
 		switch v := op.Action.Value.(type) {
+		case nil:
+			return NullView{}
 		case bool:
-			key, _ := op.Key.(types.KeyString)
-			return BoolView{s: s, txn: txn, obj: op.Object, key: string(key), scalar: v}
+			return BoolView{s: s, txn: txn, obj: op.Object, key: k, scalar: v}
 		case string:
-			key, _ := op.Key.(types.KeyString)
-			return StringView{s: s, txn: txn, obj: op.Object, key: string(key), scalar: v}
+			return StringView{s: s, txn: txn, obj: op.Object, key: k, scalar: v}
+		case int64:
+			return Int64View{s: s, txn: txn, obj: op.Object, key: k, scalar: v}
+		case uint64:
+			return Uint64View{s: s, txn: txn, obj: op.Object, key: k, scalar: v}
+		case float64:
+			return Float64View{s: s, txn: txn, obj: op.Object, key: k, scalar: v}
+		case []byte:
+			return BytesView{s: s, txn: txn, obj: op.Object, key: k, scalar: v}
+		case types.Timestamp:
+			return TimestampView{s: s, txn: txn, obj: op.Object, key: k, scalar: v}
+		case types.Counter:
+			return CounterView{s: s, txn: txn, obj: op.Object, key: k, scalar: v}
 		default:
-			// TODO: int64, float64, []byte, null, counter, timestamp — add typed views
-			key, _ := op.Key.(types.KeyString)
-			return StringView{s: s, txn: txn, obj: op.Object, key: string(key), scalar: fmt.Sprint(v)}
+			return StringView{s: s, txn: txn, obj: op.Object, key: k, scalar: fmt.Sprint(v)}
 		}
 	}
 }

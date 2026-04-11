@@ -3,7 +3,7 @@ package opset
 import (
 	"testing"
 
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/types"
 
 	"github.com/stretchr/testify/require"
 )

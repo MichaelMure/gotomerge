@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/types"
 	"github.com/stretchr/testify/require"
 )
 

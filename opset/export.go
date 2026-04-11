@@ -6,8 +6,8 @@ import (
 	"io"
 	"sort"
 
-	"gotomerge/format"
-	"gotomerge/types"
+	"github.com/MichaelMure/gotomerge/format"
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 // ExportDocument writes a complete document chunk to w representing the full

@@ -12,9 +12,9 @@ import (
 	"github.com/DmitriyVTitov/size"
 	"github.com/stretchr/testify/require"
 
-	"gotomerge/column"
-	"gotomerge/types"
-	ioutil "gotomerge/utils/io"
+	"github.com/MichaelMure/gotomerge/column"
+	"github.com/MichaelMure/gotomerge/types"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 // Sources:
@@ -198,7 +198,6 @@ func TestInvalidChunks(t *testing.T) {
 	// counter_value_has_incorrect_meta parses today without error because we don't yet
 	// validate counter metadata consistency (the Rust impl does). This test documents the
 	// current behaviour so we notice if it accidentally starts failing.
-	// TODO: add metadata validation and flip this to require.Error.
 	t.Run("counter_value_has_incorrect_meta", func(t *testing.T) {
 		f, err := os.Open("../testdata/counter_value_has_incorrect_meta.automerge")
 		require.NoError(t, err)

@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 func TestLoadDocument(t *testing.T) {
@@ -84,6 +86,73 @@ func TestChange(t *testing.T) {
 	qux, ok := baz.Get("qux")
 	require.True(t, ok)
 	require.Equal(t, true, qux.(BoolView).Value())
+}
+
+func TestScalarViews(t *testing.T) {
+	doc := NewDocument()
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		txn.Set("i", int64(-42))
+		txn.Set("u", uint64(99))
+		txn.Set("f", float64(3.14))
+		txn.Set("b", []byte{1, 2, 3})
+		txn.Set("n", nil)
+		return nil
+	}))
+
+	v, ok := doc.Get("i")
+	require.True(t, ok)
+	require.Equal(t, int64(-42), v.(Int64View).Value())
+
+	v, ok = doc.Get("u")
+	require.True(t, ok)
+	require.Equal(t, uint64(99), v.(Uint64View).Value())
+
+	v, ok = doc.Get("f")
+	require.True(t, ok)
+	require.InDelta(t, 3.14, v.(Float64View).Value(), 1e-9)
+
+	v, ok = doc.Get("b")
+	require.True(t, ok)
+	require.Equal(t, []byte{1, 2, 3}, v.(BytesView).Value())
+
+	v, ok = doc.Get("n")
+	require.True(t, ok)
+	require.IsType(t, NullView{}, v)
+}
+
+func TestTextLen(t *testing.T) {
+	doc := NewDocument()
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		txn.Text("t").Splice(0, 0, "héllo") // 5 runes, 6 bytes
+		return nil
+	}))
+	tv, ok := doc.Text("t")
+	require.True(t, ok)
+	require.Equal(t, 5, tv.Len())
+	require.Equal(t, "héllo", tv.Value())
+}
+
+func TestDocumentText(t *testing.T) {
+	doc := NewDocument()
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		txn.Text("body").Splice(0, 0, "hello")
+		return nil
+	}))
+
+	tv, ok := doc.Text("body")
+	require.True(t, ok)
+	require.Equal(t, "hello", tv.Value())
+
+	_, ok = doc.Text("missing")
+	require.False(t, ok)
+
+	// Non-text key returns false.
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		txn.Set("scalar", "x")
+		return nil
+	}))
+	_, ok = doc.Text("scalar")
+	require.False(t, ok)
 }
 
 func TestChangeTypeConflict(t *testing.T) {
@@ -371,6 +440,250 @@ func TestNewDocumentFromJSON(t *testing.T) {
 	v, ok := doc.Get("name")
 	require.True(t, ok)
 	require.Equal(t, "bob", v.(StringView).Value())
+}
+
+// -- Values iterators --------------------------------------------------------
+
+func TestDocumentValuesIterator(t *testing.T) {
+	doc := NewDocument()
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		txn.Set("a", "alpha")
+		txn.Set("b", int64(2))
+		txn.Map("m").Set("x", true)
+		return nil
+	}))
+
+	got := make(map[string]Value)
+	for k, v := range doc.Values() {
+		got[k] = v
+	}
+	require.Len(t, got, 3)
+	require.Equal(t, "alpha", got["a"].(StringView).Value())
+	require.Equal(t, int64(2), got["b"].(Int64View).Value())
+	_, isMap := got["m"].(MapView)
+	require.True(t, isMap)
+}
+
+func TestMapViewValuesIterator(t *testing.T) {
+	doc := NewDocument()
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		m := txn.Map("config")
+		m.Set("debug", true)
+		m.Set("level", int64(3))
+		return nil
+	}))
+
+	mv, ok := doc.Map("config")
+	require.True(t, ok)
+
+	got := make(map[string]Value)
+	for k, v := range mv.Values() {
+		got[k] = v
+	}
+	require.Len(t, got, 2)
+	require.Equal(t, true, got["debug"].(BoolView).Value())
+	require.Equal(t, int64(3), got["level"].(Int64View).Value())
+}
+
+func TestMapViewKeys(t *testing.T) {
+	doc := NewDocument()
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		m := txn.Map("ns")
+		m.Set("z", "last")
+		m.Set("a", "first")
+		return nil
+	}))
+
+	mv, ok := doc.Map("ns")
+	require.True(t, ok)
+	keys := mv.Keys()
+	require.ElementsMatch(t, []string{"a", "z"}, keys)
+}
+
+func TestTxnValuesAndKeys(t *testing.T) {
+	doc := NewDocument()
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		txn.Set("x", int64(1))
+		txn.Set("y", int64(2))
+		return nil
+	}))
+
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		// Keys reflects committed state inside the transaction.
+		keys := txn.Keys()
+		require.ElementsMatch(t, []string{"x", "y"}, keys)
+
+		// Values reflects committed state too.
+		got := make(map[string]Value)
+		for k, v := range txn.Values() {
+			got[k] = v
+		}
+		require.Len(t, got, 2)
+		require.Equal(t, int64(1), got["x"].(Int64View).Value())
+		return nil
+	}))
+}
+
+// -- ListView access ---------------------------------------------------------
+
+func TestListViewGetAndValues(t *testing.T) {
+	doc := NewDocument()
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		l := txn.List("items")
+		l.Append("x")
+		l.Append(int64(42))
+		l.Append(true)
+		return nil
+	}))
+
+	lv, ok := doc.List("items")
+	require.True(t, ok)
+	require.Equal(t, 3, lv.Len())
+
+	// Get by index.
+	v, ok := lv.Get(0)
+	require.True(t, ok)
+	require.Equal(t, "x", v.(StringView).Value())
+
+	v, ok = lv.Get(1)
+	require.True(t, ok)
+	require.Equal(t, int64(42), v.(Int64View).Value())
+
+	v, ok = lv.Get(2)
+	require.True(t, ok)
+	require.Equal(t, true, v.(BoolView).Value())
+
+	_, ok = lv.Get(3)
+	require.False(t, ok)
+
+	// Values iterator.
+	var vals []Value
+	for _, v := range lv.Values() {
+		vals = append(vals, v)
+	}
+	require.Len(t, vals, 3)
+	require.Equal(t, "x", vals[0].(StringView).Value())
+	require.Equal(t, int64(42), vals[1].(Int64View).Value())
+}
+
+// -- Manual Begin / Rollback -------------------------------------------------
+
+func TestBeginRollback(t *testing.T) {
+	doc := NewDocument()
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		txn.Set("committed", "yes")
+		return nil
+	}))
+
+	txn := doc.Begin()
+	txn.Set("uncommitted", "never")
+	txn.Rollback()
+
+	// Rollback must be idempotent.
+	txn.Rollback()
+
+	_, ok := doc.Get("uncommitted")
+	require.False(t, ok, "rolled-back key must not be visible")
+
+	v, ok := doc.Get("committed")
+	require.True(t, ok)
+	require.Equal(t, "yes", v.(StringView).Value())
+}
+
+func TestEmptyChange(t *testing.T) {
+	doc := NewDocument()
+	before := len(doc.allChanges)
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		// no ops
+		return nil
+	}))
+	// An empty transaction must not produce a change record.
+	require.Equal(t, before, len(doc.allChanges))
+}
+
+// -- MapView write methods ---------------------------------------------------
+
+func TestMapViewDelete(t *testing.T) {
+	doc := NewDocument()
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		m := txn.Map("cfg")
+		m.Set("keep", "yes")
+		m.Set("remove", "no")
+		return nil
+	}))
+
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		txn.Map("cfg").Delete("remove")
+		return nil
+	}))
+
+	mv, ok := doc.Map("cfg")
+	require.True(t, ok)
+	_, ok = mv.Get("remove")
+	require.False(t, ok)
+	v, ok := mv.Get("keep")
+	require.True(t, ok)
+	require.Equal(t, "yes", v.(StringView).Value())
+}
+
+// -- Counter CRDT ------------------------------------------------------------
+
+func TestCounterMerge(t *testing.T) {
+	// Two peers start from the same state, each increment the counter
+	// independently, then merge. The result must be the sum of both deltas.
+	base := NewDocument()
+	require.NoError(t, base.Change(func(txn *Txn) error {
+		txn.Set("hits", types.Counter(0))
+		return nil
+	}))
+
+	var snap []byte
+	require.NoError(t, base.SaveIncremental(&appendWriter{&snap}))
+
+	peer1, err := LoadDocument(&byteReader{snap, 0})
+	require.NoError(t, err)
+	peer2, err := LoadDocument(&byteReader{snap, 0})
+	require.NoError(t, err)
+
+	require.NoError(t, peer1.Change(func(txn *Txn) error {
+		txn.Increment("hits", 3)
+		return nil
+	}))
+
+	require.NoError(t, peer2.Change(func(txn *Txn) error {
+		txn.Increment("hits", 5)
+		return nil
+	}))
+
+	require.NoError(t, peer1.Merge(peer2))
+
+	v, ok := As[int64](peer1.Get("hits"))
+	require.True(t, ok)
+	require.Equal(t, int64(8), v)
+}
+
+func TestCounterIncrementalSave(t *testing.T) {
+	// Save counter state via change chunks (not a full document snapshot),
+	// reload, and verify the value is correct.
+	doc := NewDocument()
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		txn.Set("c", types.Counter(10))
+		return nil
+	}))
+	require.NoError(t, doc.Change(func(txn *Txn) error {
+		txn.Increment("c", 4)
+		return nil
+	}))
+
+	var buf []byte
+	require.NoError(t, doc.SaveIncremental(&appendWriter{&buf}))
+
+	doc2, err := LoadDocument(&byteReader{buf, 0})
+	require.NoError(t, err)
+
+	v, ok := As[int64](doc2.Get("c"))
+	require.True(t, ok)
+	require.Equal(t, int64(14), v)
 }
 
 // -- helpers -----------------------------------------------------------------

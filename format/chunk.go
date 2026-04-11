@@ -8,8 +8,8 @@ import (
 
 	"github.com/MichaelMure/leb128"
 
-	"gotomerge/types"
-	ioutil "gotomerge/utils/io"
+	"github.com/MichaelMure/gotomerge/types"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 type ChunkType byte

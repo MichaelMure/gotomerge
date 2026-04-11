@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"gotomerge/column/rle"
+	"github.com/MichaelMure/gotomerge/column/rle"
 )
 
 // RawChangeMeta is a single change's metadata decoded from change columns.

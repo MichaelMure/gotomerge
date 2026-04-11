@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"iter"
 
-	"gotomerge/format"
-	"gotomerge/opset"
-	"gotomerge/types"
-	ioutil "gotomerge/utils/io"
+	"github.com/MichaelMure/gotomerge/format"
+	"github.com/MichaelMure/gotomerge/opset"
+	"github.com/MichaelMure/gotomerge/types"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 // Txn is a write handle for a single document transaction. It is obtained from
@@ -16,7 +16,13 @@ import (
 //
 // All mutations route through the underlying [opset.Transaction]; reads reflect
 // the committed state of the document at the time Begin was called (the
-// transaction is not yet applied).
+// transaction is not yet applied). This means that calling [Txn.Map] (or
+// [MapView.Map]) for the same key twice within one transaction will create two
+// separate map objects — store the returned view and reuse it:
+//
+//	meta := txn.Map("meta") // create once
+//	meta.Set("a", 1)
+//	meta.Set("b", 2)
 //
 // Call [Txn.Commit] to apply the transaction and serialise the change chunk, or
 // [Txn.Rollback] to discard it. A Txn that is neither committed nor rolled back
@@ -74,6 +80,14 @@ func (txn *Txn) Delete(key string) {
 	txn.t.MapDelete(types.RootObjectId(), key)
 }
 
+// Increment adds delta to the counter at key in the root map.
+// The key must already hold a counter value (set via [Txn.Set] with a
+// [types.Counter] value). No-op if the key is absent.
+func (txn *Txn) Increment(key string, delta int64) {
+	txn.mustOpen()
+	txn.t.MapIncrement(types.RootObjectId(), key, delta)
+}
+
 // -- Read methods (mirrors Document) -----------------------------------------
 
 // Keys returns all keys that have a live value in the root map.
@@ -97,7 +111,8 @@ func (txn *Txn) Get(key string) (Value, bool) {
 
 // Commit applies the buffered operations as a single change chunk, serialises
 // it to the incremental save buffer, and releases the document mutex.
-// Returns an error if the transaction has no operations or serialisation fails.
+// If the transaction has no operations it is a no-op (returns nil without
+// writing anything). Returns an error only if serialisation fails.
 // After Commit, the Txn must not be used again.
 func (txn *Txn) Commit() error {
 	if txn.done {

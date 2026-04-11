@@ -3,8 +3,8 @@ package column
 import (
 	"io"
 
-	"gotomerge/column/rle"
-	ioutil "gotomerge/utils/io"
+	"github.com/MichaelMure/gotomerge/column/rle"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 type UlebReader = rle.Uint64Reader

@@ -5,7 +5,7 @@ import (
 
 	"github.com/MichaelMure/leb128"
 
-	ioutil "gotomerge/utils/io"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 // BoolReader is a stateful reader for bool columns using the alternating
