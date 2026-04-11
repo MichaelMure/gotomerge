@@ -35,9 +35,12 @@ import (
 //
 //	name, ok := docproxy.As[string](doc.Get("name"))
 //
+//	// Field names default to lowercase, so tags are only needed for
+//	// non-lowercase keys or explicit skipping with "-".
 //	type Config struct {
-//	    Debug   bool   `automerge:"debug"`
-//	    Version int64  `automerge:"version"`
+//	    Debug   bool
+//	    Version int64
+//	    APIKey  string `automerge:"api_key"`
 //	}
 //	cfg, ok := docproxy.As[Config](doc.Get("config"))
 func As[T any](v Value, ok bool) (T, bool) {
@@ -275,12 +278,14 @@ func asStruct(mv MapView, t reflect.Type) (any, bool) {
 	return result.Interface(), true
 }
 
-// structFieldKey returns the map key for a struct field from its automerge tag
-// or field name.
+// structFieldKey returns the map key for a struct field.
+// If the field has an automerge tag, that name is used (or "-" to skip).
+// Otherwise the key defaults to the lowercase field name, matching common
+// Automerge document conventions and avoiding tags for the ordinary case.
 func structFieldKey(f reflect.StructField) string {
 	tag := f.Tag.Get("automerge")
 	if tag == "" {
-		return f.Name
+		return strings.ToLower(f.Name)
 	}
 	name, _, _ := strings.Cut(tag, ",")
 	return name

@@ -31,9 +31,10 @@ func Example() {
 	}
 
 	// Read a nested struct in one shot.
+	// Field names map to lowercase keys by default — no tags needed.
 	type Meta struct {
-		Author  string `automerge:"author"`
-		Version int64  `automerge:"version"`
+		Author  string
+		Version int64
 	}
 	if meta, ok := docproxy.As[Meta](doc.Get("meta")); ok {
 		fmt.Println(meta.Author)

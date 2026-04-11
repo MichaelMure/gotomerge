@@ -28,8 +28,9 @@ doc.Change(func(txn *gotomerge.Txn) error {
 title, _ := gotomerge.As[string](doc.Get("title"))
 
 // Unmarshal a nested map into a struct.
+// Field names default to lowercase, so no tags needed for the common case.
 type Meta struct {
-    Author string `automerge:"author"`
+    Author string
 }
 meta, _ := gotomerge.As[Meta](doc.Get("meta"))
 

@@ -14,7 +14,7 @@
 //	title, _ := gotomerge.As[string](doc.Get("title"))
 //
 //	type Meta struct {
-//	    Author string `automerge:"author"`
+//	    Author string // maps to key "author" by default
 //	}
 //	meta, _ := gotomerge.As[Meta](doc.Get("meta"))
 //
@@ -93,16 +93,21 @@ func NewDocumentFromJSON(data []byte) (*Document, error) {
 //
 // Returns (zero, false) if ok is false (key absent) or if the conversion is not
 // supported. Supported target types include all scalars (string, bool, int64,
-// float64, []byte, time.Time), structs with automerge tags, map[string]T, []T,
-// and the container view types [MapView], [ListView], [TextView].
+// float64, []byte, time.Time), structs, map[string]T, []T, and the container
+// view types [MapView], [ListView], [TextView].
+//
+// For struct targets, each exported field maps to the lowercase version of its
+// name by default. Use an `automerge:"name"` tag to override, or
+// `automerge:"-"` to skip a field.
 //
 // Example:
 //
 //	name, ok := gotomerge.As[string](doc.Get("name"))
 //
 //	type Config struct {
-//	    Debug bool  `automerge:"debug"`
-//	    Port  int64 `automerge:"port"`
+//	    Debug   bool   // maps to key "debug"
+//	    Port    int64  // maps to key "port"
+//	    APIKey  string `automerge:"api_key"` // explicit override
 //	}
 //	cfg, ok := gotomerge.As[Config](doc.Get("config"))
 func As[T any](v Value, ok bool) (T, bool) { return docproxy.As[T](v, ok) }

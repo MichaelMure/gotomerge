@@ -34,8 +34,8 @@ func TestRootAPI_BasicReadWrite(t *testing.T) {
 	require.True(t, pub)
 
 	type Meta struct {
-		Author  string `automerge:"author"`
-		Version int64  `automerge:"version"`
+		Author  string
+		Version int64
 	}
 	meta, ok := gotomerge.As[Meta](doc.Get("meta"))
 	require.True(t, ok)

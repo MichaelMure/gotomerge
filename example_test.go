@@ -68,9 +68,10 @@ func Example_nestedData() {
 	}
 
 	// ...or unmarshal a whole map into a struct in one call.
+	// Field names default to their lowercase equivalent, so no tags needed here.
 	type Address struct {
-		City     string `automerge:"city"`
-		Postcode string `automerge:"postcode"`
+		City     string
+		Postcode string
 	}
 	if addr, ok := gotomerge.As[Address](doc.Get("address")); ok {
 		fmt.Println(addr.City, addr.Postcode)

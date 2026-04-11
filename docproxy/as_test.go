@@ -220,12 +220,17 @@ func TestAsNull(t *testing.T) {
 
 // -- As[T] struct unmarshaling ------------------------------------------------
 
+// asTestConfig has no tags on Debug/Version/Label: the default lowercase key
+// ("debug", "version", "label") should match without explicit tags.
+// Ignored is explicitly skipped via automerge:"-".
+// CustomKey uses a tag to map to a non-lowercase key.
 type asTestConfig struct {
-	Debug   bool   `automerge:"debug"`
-	Version int64  `automerge:"version"`
-	Label   string `automerge:"label"`
-	Ignored string `automerge:"-"`
-	hidden  string // nolint unexported
+	Debug     bool
+	Version   int64
+	Label     string
+	Ignored   string `automerge:"-"`
+	CustomKey string `automerge:"myKey"`
+	hidden    string //nolint unexported
 }
 
 func TestAsStruct(t *testing.T) {
@@ -235,7 +240,8 @@ func TestAsStruct(t *testing.T) {
 		m.Set("debug", true)
 		m.Set("version", int64(3))
 		m.Set("label", "prod")
-		m.Set("Ignored", "should not appear") // key matches field name, not tag
+		m.Set("myKey", "tagged")
+		m.Set("ignored", "should not appear") // lowercase of field name, but tag "-" skips it
 		return nil
 	}))
 
@@ -244,6 +250,7 @@ func TestAsStruct(t *testing.T) {
 	require.True(t, cfg.Debug)
 	require.Equal(t, int64(3), cfg.Version)
 	require.Equal(t, "prod", cfg.Label)
+	require.Equal(t, "tagged", cfg.CustomKey)
 	require.Empty(t, cfg.Ignored) // tag "-" skips it
 }
 
