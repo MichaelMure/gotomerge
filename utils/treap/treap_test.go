@@ -1,4 +1,4 @@
-package rope
+package treap
 
 import (
 	"slices"
@@ -9,7 +9,7 @@ import (
 )
 
 // collect drains All() into a slice.
-func collect[T any](r *Rope[T]) []T {
+func collect[T any](r *Treap[T]) []T {
 	var out []T
 	for v := range r.All() {
 		out = append(out, v)
@@ -18,7 +18,7 @@ func collect[T any](r *Rope[T]) []T {
 }
 
 // checkInvariants verifies size metadata and parent pointers throughout the tree.
-func checkInvariants[T any](t *testing.T, r *Rope[T]) {
+func checkInvariants[T any](t *testing.T, r *Treap[T]) {
 	t.Helper()
 	var check func(n, parent *Node[T]) int
 	check = func(n, parent *Node[T]) int {

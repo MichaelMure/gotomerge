@@ -2,7 +2,7 @@ package opset
 
 import (
 	"github.com/MichaelMure/gotomerge/types"
-	"github.com/MichaelMure/gotomerge/utils/rope"
+	"github.com/MichaelMure/gotomerge/utils/treap"
 )
 
 // MakeList creates a list at obj[key] and returns its ObjectId and OpId.
@@ -110,19 +110,19 @@ func (t *Transaction) getOrInitList(obj types.ObjectId) *workingList {
 }
 
 // workingList is the live view of a list or text object during a transaction.
-// It pairs a [rope.Rope] (for O(log n) positional access and ordered traversal)
+// It pairs a [treap.Treap] (for O(log n) positional access and ordered traversal)
 // with an id→node map (for O(1) OpId lookup). Neither structure alone is
-// sufficient: the rope cannot locate a node by OpId, and the map cannot
+// sufficient: the treap cannot locate a node by OpId, and the map cannot
 // represent order or support positional indexing.
 type workingList struct {
-	r    *rope.Rope[Op]
-	byId map[types.OpId]*rope.Node[Op]
+	r    *treap.Treap[Op]
+	byId map[types.OpId]*treap.Node[Op]
 }
 
 func newWorkingList(base []Op) *workingList {
 	wl := &workingList{
-		r:    rope.New[Op](),
-		byId: make(map[types.OpId]*rope.Node[Op], len(base)),
+		r:    treap.New[Op](),
+		byId: make(map[types.OpId]*treap.Node[Op], len(base)),
 	}
 	for _, op := range base {
 		wl.byId[op.Id] = wl.r.PushBack(op)
@@ -132,7 +132,7 @@ func newWorkingList(base []Op) *workingList {
 
 func (wl *workingList) insert(id types.OpId, op Op, pred types.Key) {
 	predKey, isPred := pred.(types.KeyOpId)
-	var n *rope.Node[Op]
+	var n *treap.Node[Op]
 	if isPred && (predKey.ActorIdx != 0 || predKey.Counter != 0) {
 		if at := wl.byId[types.OpId(predKey)]; at != nil {
 			n = wl.r.InsertAfter(op, at)

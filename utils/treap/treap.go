@@ -1,25 +1,25 @@
-// Package rope implements a generic order-statistic tree (implicit treap).
+// Package treap implements a generic order-statistic tree (implicit treap).
 //
 // Despite the name, this is not a string rope — it is a general sequence
 // structure that stores one element per node, using subtree sizes as implicit
-// keys. It provides O(log n) expected time for positional access ([Rope.At]),
-// insert ([Rope.InsertAfter], [Rope.PushBack], [Rope.PushFront]), and delete
-// ([Rope.Remove]).
+// keys. It provides O(log n) expected time for positional access ([Treap.At]),
+// insert ([Treap.InsertAfter], [Treap.PushBack], [Treap.PushFront]), and delete
+// ([Treap.Remove]).
 //
 // Callers may hold [*Node] pointers for direct O(log n) access to a specific
 // element without a position scan — for example, an external map from some
 // domain key to *Node enables O(1) lookup followed by O(log n)
 // InsertAfter/Remove. This is the primary use case the package is designed
 // for.
-package rope
+package treap
 
 import (
 	"iter"
 	"math/rand/v2"
 )
 
-// Node is a node in a [Rope]. Callers may hold *Node pointers across
-// mutations: a node remains valid until it is passed to [Rope.Remove].
+// Node is a node in a [Treap]. Callers may hold *Node pointers across
+// mutations: a node remains valid until it is passed to [Treap.Remove].
 type Node[T any] struct {
 	val      T
 	priority uint32
@@ -32,22 +32,22 @@ type Node[T any] struct {
 // Value returns the value stored in n.
 func (n *Node[T]) Value() T { return n.val }
 
-// Rope is an implicit treap: a randomised binary search tree whose ordering
+// Treap is an implicit treap: a randomised binary search tree whose ordering
 // key is the implicit in-order position of each node (derived from subtree
 // sizes). All operations are O(log n) expected time.
-type Rope[T any] struct {
+type Treap[T any] struct {
 	root *Node[T]
 	len  int
 }
 
-// New returns an empty Rope.
-func New[T any]() *Rope[T] { return &Rope[T]{} }
+// New returns an empty Treap.
+func New[T any]() *Treap[T] { return &Treap[T]{} }
 
 // Len returns the number of elements.
-func (r *Rope[T]) Len() int { return r.len }
+func (r *Treap[T]) Len() int { return r.len }
 
 // PushBack appends v at the end and returns its Node.
-func (r *Rope[T]) PushBack(v T) *Node[T] {
+func (r *Treap[T]) PushBack(v T) *Node[T] {
 	n := newNode[T](v)
 	r.root = merge(r.root, n)
 	r.len++
@@ -55,7 +55,7 @@ func (r *Rope[T]) PushBack(v T) *Node[T] {
 }
 
 // PushFront prepends v at the front and returns its Node.
-func (r *Rope[T]) PushFront(v T) *Node[T] {
+func (r *Treap[T]) PushFront(v T) *Node[T] {
 	n := newNode[T](v)
 	r.root = merge(n, r.root)
 	r.len++
@@ -63,7 +63,7 @@ func (r *Rope[T]) PushFront(v T) *Node[T] {
 }
 
 // InsertAfter inserts v immediately after at and returns its Node.
-func (r *Rope[T]) InsertAfter(v T, at *Node[T]) *Node[T] {
+func (r *Treap[T]) InsertAfter(v T, at *Node[T]) *Node[T] {
 	n := newNode[T](v)
 	l, right := split(r.root, rank(at)+1)
 	r.root = merge(merge(l, n), right)
@@ -72,7 +72,7 @@ func (r *Rope[T]) InsertAfter(v T, at *Node[T]) *Node[T] {
 }
 
 // Remove removes n from the rope. n must belong to this rope.
-func (r *Rope[T]) Remove(n *Node[T]) {
+func (r *Treap[T]) Remove(n *Node[T]) {
 	l, rest := split(r.root, rank(n))
 	_, right := split(rest, 1)
 	r.root = merge(l, right)
@@ -80,7 +80,7 @@ func (r *Rope[T]) Remove(n *Node[T]) {
 }
 
 // At returns the node at 0-based position i, or nil if i is out of range.
-func (r *Rope[T]) At(i int) *Node[T] {
+func (r *Treap[T]) At(i int) *Node[T] {
 	if i < 0 || i >= r.len {
 		return nil
 	}
@@ -88,7 +88,7 @@ func (r *Rope[T]) At(i int) *Node[T] {
 }
 
 // Front returns the first node, or nil if the rope is empty.
-func (r *Rope[T]) Front() *Node[T] {
+func (r *Treap[T]) Front() *Node[T] {
 	if r.root == nil {
 		return nil
 	}
@@ -100,7 +100,7 @@ func (r *Rope[T]) Front() *Node[T] {
 }
 
 // Back returns the last node, or nil if the rope is empty.
-func (r *Rope[T]) Back() *Node[T] {
+func (r *Treap[T]) Back() *Node[T] {
 	if r.root == nil {
 		return nil
 	}
@@ -112,7 +112,7 @@ func (r *Rope[T]) Back() *Node[T] {
 }
 
 // All returns an iterator over values in order.
-func (r *Rope[T]) All() iter.Seq[T] {
+func (r *Treap[T]) All() iter.Seq[T] {
 	return func(yield func(T) bool) {
 		inorder(r.root, yield)
 	}
