@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"sort"
 
 	"github.com/MichaelMure/leb128"
 
@@ -78,7 +79,7 @@ func writeChangePayload(w io.Writer, cc *ChangeChunk, ops *ChangeOpsWriter) erro
 		}
 	}
 
-	return ops.writePayloadColumns(w)
+	return ops.writeColumns(w)
 }
 
 // ChangeOpsWriter streams operations into per-column writers for a change chunk.
@@ -129,10 +130,10 @@ func (w *ChangeOpsWriter) flush() error {
 	return nil
 }
 
-// writePayloadColumns writes the column section of a change payload to out:
+// writeColumns writes the column section of a change payload to out:
 // column count (LEB128), then (spec, length) metadata pairs, then column bytes
 // — all in ascending spec order. Only non-empty columns are included.
-func (w *ChangeOpsWriter) writePayloadColumns(out io.Writer) error {
+func (w *ChangeOpsWriter) writeColumns(out io.Writer) error {
 	if err := w.flush(); err != nil {
 		return fmt.Errorf("ops writer finalize: %w", err)
 	}
@@ -169,6 +170,8 @@ func (w *ChangeOpsWriter) writePayloadColumns(out io.Writer) error {
 			cols = append(cols, col{uint32(pair.spec), pair.buffer.Bytes()})
 		}
 	}
+
+	sort.Slice(cols, func(i, j int) bool { return cols[i].spec < cols[j].spec })
 
 	if _, err := out.Write(leb128.EncodeU64(uint64(len(cols)))); err != nil {
 		return err

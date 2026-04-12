@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"fmt"
 	"io"
+	"sort"
 
 	"github.com/MichaelMure/leb128"
 
@@ -37,14 +38,14 @@ func writeDocumentPayload(w io.Writer, actors []types.ActorId, heads []types.Cha
 	// Wire layout: change_meta_header | op_meta_header | change_data | op_data
 	var chgMeta, chgData bytes.Buffer
 	if changes != nil {
-		if err := changes.encodeSection(&chgMeta, &chgData); err != nil {
+		if err := changes.writeColumns(&chgMeta, &chgData); err != nil {
 			return err
 		}
 	} else {
 		chgMeta.Write(leb128.EncodeU64(0))
 	}
 	var opMeta, opData bytes.Buffer
-	if err := ops.encodeSection(&opMeta, &opData); err != nil {
+	if err := ops.writeColumns(&opMeta, &opData); err != nil {
 		return err
 	}
 	for _, b := range [][]byte{chgMeta.Bytes(), opMeta.Bytes(), chgData.Bytes(), opData.Bytes()} {
@@ -86,9 +87,9 @@ func (w *ChangeMetaWriter) Append(m column.RawChangeMeta) {
 	w.extraMeta.Append(column.NewValueMetadata(column.ValueTypeBytes, 0))
 }
 
-// encodeSection writes the change metadata column section to metaBuf and dataBuf.
-// Change columns are never DEFLATE-compressed (matching the Rust reference).
-func (w *ChangeMetaWriter) encodeSection(metaBuf, dataBuf *bytes.Buffer) error {
+// writeColumns writes the change metadata column section to metaBuf and dataBuf.
+// Columns larger than deflateMinSize are DEFLATE-compressed, matching the Rust reference.
+func (w *ChangeMetaWriter) writeColumns(metaBuf, dataBuf *bytes.Buffer) error {
 	if err := w.changes.Flush(); err != nil {
 		return fmt.Errorf("change meta writer flush: %w", err)
 	}
@@ -115,10 +116,31 @@ func (w *ChangeMetaWriter) encodeSection(metaBuf, dataBuf *bytes.Buffer) error {
 		{colDocChgDepsIdx, w.depsIdxBuf},
 		{colValMeta, w.extraMetaBuf},
 	} {
-		if pair.buffer.Len() > 0 {
-			cols = append(cols, col{uint32(pair.spec), pair.buffer.Bytes()})
+		if pair.buffer.Len() == 0 {
+			continue
 		}
+		data := pair.buffer.Bytes()
+		spec := uint32(pair.spec)
+		if len(data) > deflateMinSize {
+			var compressed bytes.Buffer
+			fw, err := flate.NewWriter(&compressed, flate.DefaultCompression)
+			if err != nil {
+				return err
+			}
+			if _, err = fw.Write(data); err != nil {
+				_ = fw.Close()
+				return err
+			}
+			if err = fw.Close(); err != nil {
+				return err
+			}
+			spec = uint32(column.Specification(spec).WithDeflate())
+			data = compressed.Bytes()
+		}
+		cols = append(cols, col{spec, data})
 	}
+
+	sort.Slice(cols, func(i, j int) bool { return cols[i].spec < cols[j].spec })
 
 	metaBuf.Write(leb128.EncodeU64(uint64(len(cols))))
 	for _, c := range cols {
@@ -186,13 +208,13 @@ func (w *DocOpsWriter) flush() error {
 	return nil
 }
 
-// encodeSection encodes all non-empty op columns into metaBuf and dataBuf.
+// writeColumns encodes all non-empty op columns into metaBuf and dataBuf.
 // metaBuf receives: count (LEB128) then N×(spec LEB128, length LEB128).
 // dataBuf receives the raw (or deflate-compressed) column bytes.
 // Columns larger than deflateMinSize are compressed; their spec has the deflate bit set.
 // Specs are written in ascending order as required by the format.
 // Must be called after flush.
-func (w *DocOpsWriter) encodeSection(metaBuf, dataBuf *bytes.Buffer) error {
+func (w *DocOpsWriter) writeColumns(metaBuf, dataBuf *bytes.Buffer) error {
 	if err := w.flush(); err != nil {
 		return fmt.Errorf("doc ops writer finalize: %w", err)
 	}
@@ -205,6 +227,10 @@ func (w *DocOpsWriter) encodeSection(metaBuf, dataBuf *bytes.Buffer) error {
 
 	// Each column is included iff its buffer is non-empty after flushing.
 	// See change_write.go writePayloadColumns for the full rationale.
+	// Pre-compute compression so we know the final spec value (with/without the
+	// deflate bit) before sorting. Applying WithDeflate() adds 8 to the uint32
+	// spec value, which can break ascending order between adjacent columns that
+	// share the same ID (e.g. colValMeta=86 deflated→94 vs colVal=87 plain).
 	for _, pair := range []struct {
 		spec   int
 		buffer bytes.Buffer
@@ -224,35 +250,41 @@ func (w *DocOpsWriter) encodeSection(metaBuf, dataBuf *bytes.Buffer) error {
 		{colDocSuccActor, w.succActorBuf},
 		{colDocSuccCtr, w.succCtrBuf},
 	} {
-		if pair.buffer.Len() > 0 {
-			cols = append(cols, col{uint32(pair.spec), pair.buffer.Bytes()})
+		if pair.buffer.Len() == 0 {
+			continue
 		}
-	}
-
-	metaBuf.Write(leb128.EncodeU64(uint64(len(cols))))
-	for _, c := range cols {
-		if len(c.data) > deflateMinSize {
+		data := pair.buffer.Bytes()
+		spec := uint32(pair.spec)
+		if len(data) > deflateMinSize {
 			var compressed bytes.Buffer
 			fw, err := flate.NewWriter(&compressed, flate.DefaultCompression)
 			if err != nil {
 				return err
 			}
-			if _, err = fw.Write(c.data); err != nil {
+			if _, err = fw.Write(data); err != nil {
 				_ = fw.Close()
 				return err
 			}
 			if err = fw.Close(); err != nil {
 				return err
 			}
-			spec := column.Specification(c.spec).WithDeflate()
-			metaBuf.Write(leb128.EncodeU32(uint32(spec)))
-			metaBuf.Write(leb128.EncodeU64(uint64(compressed.Len())))
-			dataBuf.Write(compressed.Bytes())
-		} else {
-			metaBuf.Write(leb128.EncodeU32(c.spec))
-			metaBuf.Write(leb128.EncodeU64(uint64(len(c.data))))
-			dataBuf.Write(c.data)
+			spec = uint32(column.Specification(spec).WithDeflate())
+			data = compressed.Bytes()
 		}
+		cols = append(cols, col{spec, data})
+	}
+
+	// Sort by final spec value to satisfy the format requirement that specs are
+	// written in strictly ascending order.
+	sort.Slice(cols, func(i, j int) bool { return cols[i].spec < cols[j].spec })
+
+	metaBuf.Write(leb128.EncodeU64(uint64(len(cols))))
+	for _, c := range cols {
+		metaBuf.Write(leb128.EncodeU32(c.spec))
+		metaBuf.Write(leb128.EncodeU64(uint64(len(c.data))))
+	}
+	for _, c := range cols {
+		dataBuf.Write(c.data)
 	}
 	return nil
 }
