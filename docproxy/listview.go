@@ -58,13 +58,11 @@ func (lv ListView) Native() any {
 // bool, int64, float64, string, []byte, or nil. Panics if read-only.
 func (lv ListView) Append(value any) {
 	lv.mustWrite()
-	ops := lv.txn.ListElements(lv.obj)
 	var pred types.Key
-	if len(ops) == 0 {
-		pred = types.KeyOpId{} // head sentinel
+	if id, ok := lv.txn.ListTail(lv.obj); ok {
+		pred = types.KeyOpId(id)
 	} else {
-		last := ops[len(ops)-1]
-		pred = types.KeyOpId(last.Id)
+		pred = types.KeyOpId{} // head sentinel
 	}
 	lv.txn.ListInsert(lv.obj, pred, value)
 }
@@ -74,11 +72,10 @@ func (lv ListView) Append(value any) {
 // Delete removes the element at idx. Panics if read-only or idx is out of range.
 func (lv ListView) Delete(idx int) {
 	lv.mustWrite()
-	ops := lv.txn.ListElements(lv.obj)
-	if idx < 0 || idx >= len(ops) {
+	op, ok := lv.txn.ListAt(lv.obj, idx)
+	if !ok {
 		panic("listview: index out of range")
 	}
-	op := ops[idx]
 	lv.txn.ListDelete(lv.obj, op.Id, op.Id)
 }
 

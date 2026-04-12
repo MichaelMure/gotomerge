@@ -51,8 +51,7 @@ func (tv TextView) Len() int {
 // concurrent splices from different peers compose cleanly.
 func (tv TextView) Splice(pos, del int, insert string) {
 	tv.mustWrite()
-	elems := tv.txn.ListElements(tv.obj)
-	n := len(elems)
+	n := tv.txn.ListLen(tv.obj)
 	if pos < 0 || pos > n {
 		panic("textview: splice position out of range")
 	}
@@ -60,20 +59,21 @@ func (tv TextView) Splice(pos, del int, insert string) {
 		panic("textview: splice delete count out of range")
 	}
 
-	// Delete 'del' elements starting at pos. We always use the element's own
-	// OpId as both position and predecessor, because text elements are set once
-	// at insert time and never updated (no separate update op).
-	for i := 0; i < del; i++ {
-		op := elems[pos+i]
+	// Delete 'del' elements starting at pos. ListDelete eagerly removes each
+	// node from the working rope, so we always fetch position pos — the rope
+	// shifts with each removal, bringing the next target into place.
+	for range del {
+		op, _ := tv.txn.ListAt(tv.obj, pos)
 		tv.txn.ListDelete(tv.obj, op.Id, op.Id)
 	}
 
-	// Insert each rune from 'insert' in sequence after position pos-1.
+	// Insert each rune after position pos-1. O(log n) per rune.
 	var pred types.Key
 	if pos == 0 {
 		pred = types.KeyOpId{} // head sentinel: insert at the beginning
 	} else {
-		pred = types.KeyOpId(elems[pos-1].Id)
+		prev, _ := tv.txn.ListAt(tv.obj, pos-1)
+		pred = types.KeyOpId(prev.Id)
 	}
 	for _, r := range insert {
 		id := tv.txn.ListInsert(tv.obj, pred, string(r))
