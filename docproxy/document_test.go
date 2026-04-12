@@ -28,22 +28,6 @@ func TestLoadDocument(t *testing.T) {
 	fmt.Println(string(jsonStr))
 }
 
-func TestLoadDocument2(t *testing.T) {
-	f, err := os.Open("../testdata/text-edits.amrg")
-	require.NoError(t, err)
-	defer f.Close()
-
-	doc, err := LoadDocument(f)
-	require.NoError(t, err)
-
-	keys := doc.Keys()
-	require.NotEmpty(t, keys)
-
-	jsonStr, err := json.MarshalIndent(doc, "", "  ")
-	require.NoError(t, err)
-	fmt.Println(string(jsonStr))
-}
-
 func TestLoadDocumentTwoChangeChunks(t *testing.T) {
 	f, err := os.Open("../testdata/two_change_chunks.automerge")
 	require.NoError(t, err)
