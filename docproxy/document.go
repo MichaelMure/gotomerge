@@ -66,12 +66,18 @@ import (
 	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
-// storedChange pairs a parsed ChangeChunk with its original serialised bytes.
-// The raw bytes are kept because the change hash is defined over those exact bytes —
-// re-encoding would produce a different hash and break the dependency graph.
+// storedChange holds the hash and raw serialised bytes of an applied change.
+// The hash (set by ReadChunk after checksum verification) is the change's
+// globally unique identity used for deduplication in Merge. The raw bytes are
+// kept because the change hash is defined over those exact bytes — re-encoding
+// would produce a different hash and break the dependency graph.
+// The decoded *ChangeChunk is intentionally not retained: keeping 259k decoded
+// chunks alive simultaneously causes severe GC pressure for large documents.
+// Callers that need the decoded form (Save, Merge) re-parse from raw on demand,
+// keeping only one *ChangeChunk live at a time.
 type storedChange struct {
-	cc  *format.ChangeChunk
-	raw []byte
+	hash types.ChangeHash
+	raw  []byte
 }
 
 // Document is an Automerge document. It is safe for concurrent reads, but
@@ -140,7 +146,7 @@ func LoadDocument(r io.Reader) (*Document, error) {
 			if err := s.ApplyChange(c); err != nil {
 				return nil, fmt.Errorf("load document: apply change chunk: %w", err)
 			}
-			allChanges = append(allChanges, storedChange{cc: c, raw: raw})
+			allChanges = append(allChanges, storedChange{hash: c.Hash, raw: raw})
 		}
 		if sr.Empty() {
 			break
@@ -281,11 +287,7 @@ func (doc *Document) Save(w io.Writer) error {
 	doc.mu.Lock()
 	defer doc.mu.Unlock()
 
-	changes := make([]*format.ChangeChunk, len(doc.allChanges))
-	for i, sc := range doc.allChanges {
-		changes[i] = sc.cc
-	}
-	if err := doc.s.ExportDocument(changes, w); err != nil {
+	if err := doc.s.ExportDocument(w); err != nil {
 		return fmt.Errorf("Save: %w", err)
 	}
 	doc.unsaved = doc.unsaved[:0]
@@ -327,10 +329,19 @@ func (doc *Document) Merge(other *Document) error {
 	defer doc.mu.Unlock()
 
 	for _, sc := range changes {
-		if _, already := doc.s.AppliedHashes()[sc.cc.Hash]; already {
+		if _, already := doc.s.AppliedHashes()[sc.hash]; already {
 			continue
 		}
-		if err := doc.s.ApplyChange(sc.cc); err != nil {
+		sr := ioutil.NewSubReader(sc.raw)
+		chunk, _, err := format.ReadChunk(sr)
+		if err != nil {
+			return fmt.Errorf("merge: re-parse change: %w", err)
+		}
+		cc, ok := chunk.(*format.ChangeChunk)
+		if !ok {
+			return fmt.Errorf("merge: expected ChangeChunk, got %T", chunk)
+		}
+		if err := doc.s.ApplyChange(cc); err != nil {
 			return fmt.Errorf("merge: %w", err)
 		}
 		doc.allChanges = append(doc.allChanges, sc)

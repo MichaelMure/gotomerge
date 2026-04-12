@@ -12,85 +12,51 @@ import (
 
 // ExportDocument writes a complete document chunk to w representing the full
 // current state of the OpSet. It merges snapshot (if any) and delta operations
-// into a single object-sorted sequence, reconstructing successor lists from the
-// provided applied change chunks.
-//
-// changes must be the slice of all ChangeChunks that have been applied (in
-// application order). Their predecessor lists are used to reconstruct the
-// successor map. For snapshot ops, within-snapshot successors are recovered from
-// the original DocumentChunk stored during ApplyDocument.
+// into a single object-sorted sequence. Successor lists are taken from the
+// OpSet's incrementally maintained deltaSuccessors map (populated during
+// ApplyChange) and, for snapshot ops, from the original DocumentChunk stored
+// during ApplyDocument.
 //
 // Change metadata (per-change actor/seqNum/maxOp/deps) is not included.
 // ApplyDocument does not require it; it can be added later for sync support.
-func (s *OpSet) ExportDocument(changes []*format.ChangeChunk, w io.Writer) error {
+func (s *OpSet) ExportDocument(w io.Writer) error {
 	// The document format requires actors sorted lexicographically.
 	// Build a sorted copy of the actor table and a remapping from OpSet global
 	// indices to sorted-document indices, used as localOf when encoding ops.
 	sortedActors, localOf := sortedActorTable(s.actors)
 
-	// Build delta successor map: predecessor OpId → list of successor OpIds.
-	deltaSuccessors := buildDeltaSuccessors(s, changes)
-
 	ops := format.NewDocOpsWriter()
 
 	if s.snapshot != nil {
-		if err := exportSnapshotOps(s, ops, localOf, deltaSuccessors); err != nil {
+		if err := exportSnapshotOps(s, ops, localOf); err != nil {
 			return fmt.Errorf("export snapshot ops: %w", err)
 		}
 	}
 
 	if s.delta != nil {
-		exportDeltaOps(s, ops, localOf, deltaSuccessors)
+		exportDeltaOps(s, ops, localOf)
 	}
 
 	return format.WriteDocument(w, sortedActors, s.Heads(), nil, nil, ops)
 }
 
-// buildDeltaSuccessors builds a map from each predecessor OpId to the list of
-// delta operation OpIds that declare it as a predecessor.
-func buildDeltaSuccessors(s *OpSet, changes []*format.ChangeChunk) map[types.OpId][]types.OpId {
-	result := make(map[types.OpId][]types.OpId)
-	for _, cc := range changes {
-		// Rebuild the local → global actor index mapping used in ApplyChange.
-		cam := make(changeActorMap, 1+len(cc.OtherActors))
-		cam[0] = s.actorIdx[string(cc.Actor)]
-		for i, a := range cc.OtherActors {
-			cam[i+1] = s.actorIdx[string(a)]
-		}
-
-		for changeOp, err := range cc.Operations() {
-			if err != nil {
-				continue // best-effort; ApplyChange already validated these
-			}
-			myId := cam.opId(changeOp.Id)
-			for _, pred := range changeOp.Predecessors {
-				predGlobal := cam.opId(pred)
-				result[predGlobal] = append(result[predGlobal], myId)
-			}
-		}
-	}
-	return result
-}
-
 // exportSnapshotOps re-emits all snapshot ops in their original document order,
 // augmenting each op's successor list with any new delta successors.
-func exportSnapshotOps(s *OpSet, ops *format.DocOpsWriter, mapper types.ActorMapper, deltaSuccessors map[types.OpId][]types.OpId) error {
-	ss := s.snapshot
-	dc := ss.docChunk
-	if dc == nil {
+func exportSnapshotOps(s *OpSet, ops *format.DocOpsWriter, mapper types.ActorMapper) error {
+	if s.snapshot.docChunk == nil {
 		return fmt.Errorf("snapshot has no stored DocumentChunk")
 	}
 
 	// docChunk.Operations() yields DocOperation{Object, Key, Id, Insert, Action, Successors}.
 	// Actor indices inside equal the OpSet's global indices: ApplyDocument registered actors
 	// in the same order, and the OpSet was empty at that time.
-	for docOp, err := range dc.Operations() {
+	for docOp, err := range s.snapshot.docChunk.Operations() {
 		if err != nil {
 			return fmt.Errorf("iterating snapshot ops: %w", err)
 		}
 		// Merge within-snapshot successors with new delta successors.
 		allSuccessors := docOp.Successors
-		if ds := deltaSuccessors[docOp.Id]; len(ds) > 0 {
+		if ds := s.deltaSuccessors[docOp.Id]; len(ds) > 0 {
 			allSuccessors = append(allSuccessors, ds...)
 		}
 		ops.Append(docOp.Object, docOp.Key, docOp.Id, docOp.Insert, docOp.Action, allSuccessors, mapper)
@@ -100,7 +66,7 @@ func exportSnapshotOps(s *OpSet, ops *format.DocOpsWriter, mapper types.ActorMap
 
 // exportDeltaOps emits all delta ops sorted by object (ObjectId creation order),
 // then by their position within each object (delta application order).
-func exportDeltaOps(s *OpSet, enc *format.DocOpsWriter, mapper types.ActorMapper, deltaSuccessors map[types.OpId][]types.OpId) {
+func exportDeltaOps(s *OpSet, enc *format.DocOpsWriter, mapper types.ActorMapper) {
 	// Collect all unique objects that have delta ops.
 	objects := make([]types.ObjectId, 0, len(s.delta.byObj))
 	for obj := range s.delta.byObj {
@@ -111,7 +77,7 @@ func exportDeltaOps(s *OpSet, enc *format.DocOpsWriter, mapper types.ActorMapper
 	for _, obj := range objects {
 		for _, idx := range s.delta.byObj[obj] {
 			op := s.delta.ops[idx]
-			succs := deltaSuccessors[op.Id]
+			succs := s.deltaSuccessors[op.Id]
 			enc.Append(op.Object, op.Key, op.Id, op.Insert, op.Action, succs, mapper)
 		}
 	}

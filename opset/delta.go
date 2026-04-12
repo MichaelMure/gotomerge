@@ -7,6 +7,7 @@ import (
 	"github.com/MichaelMure/gotomerge/types"
 )
 
+// TODO: bad name?
 // incDelta extracts the int64 delta from an ActionInc value (int64 or uint64).
 func incDelta(v any) int64 {
 	switch v := v.(type) {
@@ -90,11 +91,16 @@ func (s *OpSet) ApplyChange(cc *format.ChangeChunk) error {
 	if s.delta == nil {
 		s.delta = newDeltaStore()
 	}
+	if s.deltaSuccessors == nil {
+		s.deltaSuccessors = make(map[types.OpId][]types.OpId)
+	}
 
 	for changeOp, err := range cc.Operations() {
 		if err != nil {
 			return fmt.Errorf("reading operation: %w", err)
 		}
+
+		globalId := cam.opId(changeOp.Id)
 
 		// For ActionInc ops, accumulate the delta on the target counter op
 		// rather than marking it dead. For all other ops, increment SuccCount
@@ -102,7 +108,9 @@ func (s *OpSet) ApplyChange(cc *format.ChangeChunk) error {
 		if changeOp.Action.Kind == types.ActionInc {
 			delta := incDelta(changeOp.Action.Value)
 			for _, pred := range changeOp.Predecessors {
-				s.counterDeltas[cam.opId(pred)] += delta
+				resolvedPred := cam.opId(pred)
+				s.counterDeltas[resolvedPred] += delta
+				s.deltaSuccessors[resolvedPred] = append(s.deltaSuccessors[resolvedPred], globalId)
 			}
 		} else {
 			for _, pred := range changeOp.Predecessors {
@@ -115,11 +123,12 @@ func (s *OpSet) ApplyChange(cc *format.ChangeChunk) error {
 				if predIdx, ok := s.delta.byId[resolvedPred]; ok {
 					s.delta.ops[predIdx].SuccCount++
 				}
+				s.deltaSuccessors[resolvedPred] = append(s.deltaSuccessors[resolvedPred], globalId)
 			}
 		}
 
 		op := Op{
-			Id:     cam.opId(changeOp.Id),
+			Id:     globalId,
 			Object: cam.objectId(changeOp.Object),
 			Key:    cam.key(changeOp.Key),
 			Insert: changeOp.Insert,

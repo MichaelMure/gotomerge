@@ -148,7 +148,7 @@ func (txn *Txn) Commit() error {
 	}
 
 	txn.doc.seqNum++
-	txn.doc.allChanges = append(txn.doc.allChanges, storedChange{cc: cc, raw: raw})
+	txn.doc.allChanges = append(txn.doc.allChanges, storedChange{hash: cc.Hash, raw: raw})
 	txn.doc.unsaved = append(txn.doc.unsaved, raw)
 	return nil
 }

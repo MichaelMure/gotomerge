@@ -43,6 +43,12 @@ type OpSet struct {
 	// Key: OpId of the ActionSet(Counter) op; Value: sum of all applied Inc deltas.
 	// Maintained by ApplyChange (ActionInc ops) and ApplyDocument (post-scan pass).
 	counterDeltas map[types.OpId]int64
+
+	// deltaSuccessors maps predecessor OpId → slice of successor OpIds for all
+	// ops applied via ApplyChange. Built incrementally so ExportDocument does not
+	// need to re-parse every raw change chunk. Reset to nil when ApplyDocument is
+	// called, because the new snapshot already encodes within-snapshot successors.
+	deltaSuccessors map[types.OpId][]types.OpId
 }
 
 func New() *OpSet {

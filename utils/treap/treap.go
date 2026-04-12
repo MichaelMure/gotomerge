@@ -1,16 +1,32 @@
-// Package treap implements a generic order-statistic tree (implicit treap).
+// Package treap implements a generic implicit treap (order-statistic tree).
 //
-// Despite the name, this is not a string rope — it is a general sequence
-// structure that stores one element per node, using subtree sizes as implicit
-// keys. It provides O(log n) expected time for positional access ([Treap.At]),
-// insert ([Treap.InsertAfter], [Treap.PushBack], [Treap.PushFront]), and delete
-// ([Treap.Remove]).
+// # What is a treap?
 //
-// Callers may hold [*Node] pointers for direct O(log n) access to a specific
-// element without a position scan — for example, an external map from some
-// domain key to *Node enables O(1) lookup followed by O(log n)
-// InsertAfter/Remove. This is the primary use case the package is designed
-// for.
+// A treap is a randomised binary search tree that simultaneously satisfies two
+// invariants: the binary search tree (BST) property on keys, and the heap
+// property on random priorities. Because priorities are random the tree stays
+// balanced in expectation, giving O(log n) height with high probability.
+//
+// An "implicit" treap uses each node's subtree size as its implicit key rather
+// than storing an explicit key. This makes the data structure a general-purpose
+// ordered sequence: you can insert, delete, and access by 0-based position all
+// in O(log n), with no key domain to worry about.
+//
+// # What this package provides
+//
+// [Treap] is a sequence (not a map or set). It stores one element per node in
+// insertion order, with subtree sizes as the implicit in-order keys.
+//
+// All operations run in O(log n) expected time:
+//   - Positional access: [Treap.At], [Treap.Front], [Treap.Back]
+//   - Insert: [Treap.InsertAfter], [Treap.PushBack], [Treap.PushFront]
+//   - Delete: [Treap.Remove]
+//   - Traversal: [Treap.All]
+//
+// Callers may retain [*Node] pointers across mutations. A node pointer remains
+// valid until it is passed to [Treap.Remove]. This enables O(1) external lookup
+// (e.g. via a map keyed on some domain ID) followed by O(log n) InsertAfter or
+// Remove — the primary use case this package is designed for.
 package treap
 
 import (

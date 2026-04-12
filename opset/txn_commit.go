@@ -67,6 +67,9 @@ func (t *Transaction) applyCommitted(hash types.ChangeHash) error {
 	if s.delta == nil {
 		s.delta = newDeltaStore()
 	}
+	if s.deltaSuccessors == nil {
+		s.deltaSuccessors = make(map[types.OpId][]types.OpId)
+	}
 
 	for i, txOp := range t.ops {
 		opId := types.OpId{ActorIdx: t.actorIdx, Counter: t.startOp + uint32(i)}
@@ -78,6 +81,7 @@ func (t *Transaction) applyCommitted(hash types.ChangeHash) error {
 			delta := incDelta(txOp.action.Value)
 			for _, pred := range txOp.preds {
 				s.counterDeltas[pred] += delta
+				s.deltaSuccessors[pred] = append(s.deltaSuccessors[pred], opId)
 			}
 		} else {
 			for _, pred := range txOp.preds {
@@ -89,6 +93,7 @@ func (t *Transaction) applyCommitted(hash types.ChangeHash) error {
 				if predIdx, ok := s.delta.byId[pred]; ok {
 					s.delta.ops[predIdx].SuccCount++
 				}
+				s.deltaSuccessors[pred] = append(s.deltaSuccessors[pred], opId)
 			}
 		}
 
