@@ -2,7 +2,6 @@ package format
 
 import (
 	"bytes"
-	"compress/flate"
 	"fmt"
 	"io"
 	"sort"
@@ -122,20 +121,12 @@ func (w *ChangeMetaWriter) writeColumns(metaBuf, dataBuf *bytes.Buffer) error {
 		data := pair.buffer.Bytes()
 		spec := uint32(pair.spec)
 		if len(data) > deflateMinSize {
-			var compressed bytes.Buffer
-			fw, err := flate.NewWriter(&compressed, flate.DefaultCompression)
+			compressed, err := deflate(data)
 			if err != nil {
 				return err
 			}
-			if _, err = fw.Write(data); err != nil {
-				_ = fw.Close()
-				return err
-			}
-			if err = fw.Close(); err != nil {
-				return err
-			}
 			spec = uint32(column.Specification(spec).WithDeflate())
-			data = compressed.Bytes()
+			data = compressed
 		}
 		cols = append(cols, col{spec, data})
 	}
@@ -256,20 +247,12 @@ func (w *DocOpsWriter) writeColumns(metaBuf, dataBuf *bytes.Buffer) error {
 		data := pair.buffer.Bytes()
 		spec := uint32(pair.spec)
 		if len(data) > deflateMinSize {
-			var compressed bytes.Buffer
-			fw, err := flate.NewWriter(&compressed, flate.DefaultCompression)
+			compressed, err := deflate(data)
 			if err != nil {
 				return err
 			}
-			if _, err = fw.Write(data); err != nil {
-				_ = fw.Close()
-				return err
-			}
-			if err = fw.Close(); err != nil {
-				return err
-			}
 			spec = uint32(column.Specification(spec).WithDeflate())
-			data = compressed.Bytes()
+			data = compressed
 		}
 		cols = append(cols, col{spec, data})
 	}
