@@ -38,7 +38,7 @@ func (tv TextView) Value() string {
 
 // Len returns the number of Unicode codepoints (runes) in the text.
 func (tv TextView) Len() int {
-	return len(tv.s.ListElements(tv.obj))
+	return tv.s.ListLen(tv.obj)
 }
 
 // Splice replaces del Unicode codepoints starting at position pos with the

@@ -96,14 +96,20 @@ func (t *Transaction) ListAt(obj types.ObjectId, i int) (Op, bool) {
 }
 
 // getOrInitList returns the working list for obj, initialising it from
-// committed state the first time it is accessed.
+// committed state the first time it is accessed. Objects created within this
+// transaction are not yet in the committed state, so their working list starts
+// empty (no call to s.ListElements to avoid a stale treap being cached).
 func (t *Transaction) getOrInitList(obj types.ObjectId) *workingList {
 	if t.lists == nil {
 		t.lists = make(map[types.ObjectId]*workingList)
 	}
 	wl, ok := t.lists[obj]
 	if !ok {
-		wl = newWorkingList(t.s.ListElements(obj))
+		var base []Op
+		if _, committed := t.s.ObjType(obj); committed {
+			base = t.s.ListElements(obj)
+		}
+		wl = newWorkingList(base)
 		t.lists[obj] = wl
 	}
 	return wl

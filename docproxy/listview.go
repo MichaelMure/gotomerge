@@ -23,7 +23,7 @@ func (ListView) isValue() {}
 
 // Len returns the number of live (non-deleted) elements.
 func (lv ListView) Len() int {
-	return len(lv.s.ListElements(lv.obj))
+	return lv.s.ListLen(lv.obj)
 }
 
 // Values returns an iterator over the live elements in order.

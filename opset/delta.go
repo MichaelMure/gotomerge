@@ -7,9 +7,8 @@ import (
 	"github.com/MichaelMure/gotomerge/types"
 )
 
-// TODO: bad name?
-// incDelta extracts the int64 delta from an ActionInc value (int64 or uint64).
-func incDelta(v any) int64 {
+// incValue extracts the int64 value from an ActionInc's Value field (int64 or uint64).
+func incValue(v any) int64 {
 	switch v := v.(type) {
 	case int64:
 		return v
@@ -118,7 +117,7 @@ func (s *OpSet) ApplyChange(cc *format.ChangeChunk) error {
 		// rather than marking it dead. For all other ops, increment SuccCount
 		// on each predecessor to mark it superseded.
 		if changeOp.Action.Kind == types.ActionInc {
-			delta := incDelta(changeOp.Action.Value)
+			delta := incValue(changeOp.Action.Value)
 			for _, pred := range changeOp.Predecessors {
 				resolvedPred := cam.opId(pred)
 				s.counterDeltas[resolvedPred] += delta
@@ -129,11 +128,30 @@ func (s *OpSet) ApplyChange(cc *format.ChangeChunk) error {
 				resolvedPred := cam.opId(pred)
 				if s.snapshot != nil {
 					if predIdx, ok := s.snapshot.byId[resolvedPred]; ok {
+						wasZero := s.snapshot.succCount[predIdx] == 0
 						s.snapshot.succCount[predIdx]++
+						if wasZero {
+							if obj, ok := s.snapshot.objectForOp(predIdx); ok {
+								if s.snapshot.insert.Get(predIdx) {
+									s.onInsertKilledInListTreap(obj, resolvedPred)
+								} else {
+									s.invalidateListTreap(obj)
+								}
+							}
+						}
 					}
 				}
 				if predIdx, ok := s.delta.byId[resolvedPred]; ok {
-					s.delta.ops[predIdx].SuccCount++
+					predOp := &s.delta.ops[predIdx]
+					wasZero := predOp.SuccCount == 0
+					predOp.SuccCount++
+					if wasZero {
+						if predOp.Insert {
+							s.onInsertKilledInListTreap(predOp.Object, resolvedPred)
+						} else {
+							s.invalidateListTreap(predOp.Object)
+						}
+					}
 				}
 				s.deltaSuccessors[resolvedPred] = append(s.deltaSuccessors[resolvedPred], globalId)
 			}
@@ -155,7 +173,13 @@ func (s *OpSet) ApplyChange(cc *format.ChangeChunk) error {
 			op.Action.Kind != types.ActionDelete && op.Action.Kind != types.ActionInc {
 			s.delta.addToMapKeys(op.Object, string(k), idx)
 		}
-		s.invalidateListTreap(op.Object)
+		if op.Insert {
+			s.insertOpInListTreap(op)
+		} else if _, isPos := op.Key.(types.KeyOpId); isPos && op.Action.Kind == types.ActionSet {
+			// Non-insert ActionSet at a list position: the winning value at
+			// that position may change, so the cached treap must be rebuilt.
+			s.invalidateListTreap(op.Object)
+		}
 		if op.Id.Counter > s.maxOpCounter[op.Id.ActorIdx] {
 			s.maxOpCounter[op.Id.ActorIdx] = op.Id.Counter
 		}

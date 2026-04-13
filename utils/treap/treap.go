@@ -19,7 +19,7 @@
 //
 // All operations run in O(log n) expected time:
 //   - Positional access: [Treap.At], [Treap.Front], [Treap.Back]
-//   - Insert: [Treap.InsertAfter], [Treap.PushBack], [Treap.PushFront]
+//   - Insert: [Treap.InsertAfter], [Treap.InsertBefore], [Treap.PushBack], [Treap.PushFront]
 //   - Delete: [Treap.Remove]
 //   - Traversal: [Treap.All]
 //
@@ -27,6 +27,15 @@
 // valid until it is passed to [Treap.Remove]. This enables O(1) external lookup
 // (e.g. via a map keyed on some domain ID) followed by O(log n) InsertAfter or
 // Remove — the primary use case this package is designed for.
+//
+// # Soft deletion (tombstones)
+//
+// [Treap.MarkDead] marks a node as dead without removing it from the sequence.
+// Dead nodes remain in the treap as position markers — useful when other nodes
+// reference them as predecessors — but are excluded from [Treap.Len],
+// [Treap.LiveAt], [Treap.LiveRank], and [Treap.All]. A separate total-element
+// count is available via [Treap.TotalLen] and positional access including dead
+// nodes via [Treap.At].
 package treap
 
 import (
@@ -39,7 +48,9 @@ import (
 type Node[T any] struct {
 	val      T
 	priority uint32
-	size     int     // subtree size including self
+	size     int // subtree size including self (live + dead)
+	liveSize int // subtree size counting only alive nodes
+	alive    bool
 	left     *Node[T]
 	right    *Node[T]
 	parent   *Node[T]
@@ -48,25 +59,31 @@ type Node[T any] struct {
 // Value returns the value stored in n.
 func (n *Node[T]) Value() T { return n.val }
 
+// Alive reports whether n has not been marked dead via [Treap.MarkDead].
+func (n *Node[T]) Alive() bool { return n.alive }
+
 // Treap is an implicit treap: a randomised binary search tree whose ordering
 // key is the implicit in-order position of each node (derived from subtree
 // sizes). All operations are O(log n) expected time.
 type Treap[T any] struct {
-	root *Node[T]
-	len  int
+	root     *Node[T]
+	totalLen int // all nodes, including dead
 }
 
 // New returns an empty Treap.
 func New[T any]() *Treap[T] { return &Treap[T]{} }
 
-// Len returns the number of elements.
-func (r *Treap[T]) Len() int { return r.len }
+// Len returns the number of live (non-dead) elements.
+func (r *Treap[T]) Len() int { return liveSz(r.root) }
+
+// TotalLen returns the total number of nodes, including dead ones.
+func (r *Treap[T]) TotalLen() int { return r.totalLen }
 
 // PushBack appends v at the end and returns its Node.
 func (r *Treap[T]) PushBack(v T) *Node[T] {
 	n := newNode[T](v)
 	r.root = merge(r.root, n)
-	r.len++
+	r.totalLen++
 	return n
 }
 
@@ -74,7 +91,7 @@ func (r *Treap[T]) PushBack(v T) *Node[T] {
 func (r *Treap[T]) PushFront(v T) *Node[T] {
 	n := newNode[T](v)
 	r.root = merge(n, r.root)
-	r.len++
+	r.totalLen++
 	return n
 }
 
@@ -83,27 +100,87 @@ func (r *Treap[T]) InsertAfter(v T, at *Node[T]) *Node[T] {
 	n := newNode[T](v)
 	l, right := split(r.root, rank(at)+1)
 	r.root = merge(merge(l, n), right)
-	r.len++
+	r.totalLen++
 	return n
 }
 
-// Remove removes n from the rope. n must belong to this rope.
+// InsertBefore inserts v immediately before at and returns its Node.
+func (r *Treap[T]) InsertBefore(v T, at *Node[T]) *Node[T] {
+	n := newNode[T](v)
+	l, right := split(r.root, rank(at))
+	r.root = merge(merge(l, n), right)
+	r.totalLen++
+	return n
+}
+
+// Remove removes n from the treap. n must belong to this treap.
 func (r *Treap[T]) Remove(n *Node[T]) {
 	l, rest := split(r.root, rank(n))
 	_, right := split(rest, 1)
 	r.root = merge(l, right)
-	r.len--
+	r.totalLen--
 }
 
-// At returns the node at 0-based position i, or nil if i is out of range.
+// MarkDead marks n as dead: it remains in the treap as a position marker but
+// is excluded from Len, LiveAt, LiveRank, and All. Calling MarkDead on an
+// already-dead node is a no-op. O(log n) due to the parent-pointer walk that
+// updates liveSize up to the root.
+func (r *Treap[T]) MarkDead(n *Node[T]) {
+	if !n.alive {
+		return
+	}
+	n.alive = false
+	for cur := n; cur != nil; cur = cur.parent {
+		cur.liveSize--
+	}
+}
+
+// At returns the node at 0-based position i among all nodes (including dead),
+// or nil if i is out of range.
 func (r *Treap[T]) At(i int) *Node[T] {
-	if i < 0 || i >= r.len {
+	if i < 0 || i >= r.totalLen {
 		return nil
 	}
 	return nodeAt(r.root, i)
 }
 
-// Front returns the first node, or nil if the rope is empty.
+// LiveAt returns the node at 0-based position i among live nodes only,
+// or nil if i is out of range.
+func (r *Treap[T]) LiveAt(i int) *Node[T] {
+	if i < 0 || i >= liveSz(r.root) {
+		return nil
+	}
+	return liveNodeAt(r.root, i)
+}
+
+// LiveRank returns the 0-based position of n among live nodes. If n is dead
+// the result is the position it would occupy if it were alive (i.e. the number
+// of live nodes before n).
+func (r *Treap[T]) LiveRank(n *Node[T]) int {
+	return liveRank(n)
+}
+
+// Next returns the next node in sequence order (including dead nodes), or nil
+// if n is the last node. O(log n) amortized.
+// TODO: make this a method on Node?
+func Next[T any](n *Node[T]) *Node[T] {
+	if n.right != nil {
+		n = n.right
+		for n.left != nil {
+			n = n.left
+		}
+		return n
+	}
+	for n.parent != nil {
+		if n == n.parent.left {
+			return n.parent
+		}
+		n = n.parent
+	}
+	return nil
+}
+
+// Front returns the first live node, or nil if the treap is empty.
 func (r *Treap[T]) Front() *Node[T] {
 	if r.root == nil {
 		return nil
@@ -115,7 +192,7 @@ func (r *Treap[T]) Front() *Node[T] {
 	return n
 }
 
-// Back returns the last node, or nil if the rope is empty.
+// Back returns the last live node, or nil if the treap is empty.
 func (r *Treap[T]) Back() *Node[T] {
 	if r.root == nil {
 		return nil
@@ -127,7 +204,7 @@ func (r *Treap[T]) Back() *Node[T] {
 	return n
 }
 
-// All returns an iterator over values in order.
+// All returns an iterator over live values in order, skipping dead nodes.
 func (r *Treap[T]) All() iter.Seq[T] {
 	return func(yield func(T) bool) {
 		inorder(r.root, yield)
@@ -137,7 +214,7 @@ func (r *Treap[T]) All() iter.Seq[T] {
 // --- internal helpers -------------------------------------------------------
 
 func newNode[T any](v T) *Node[T] {
-	return &Node[T]{val: v, priority: rand.Uint32(), size: 1}
+	return &Node[T]{val: v, priority: rand.Uint32(), size: 1, liveSize: 1, alive: true}
 }
 
 func sz[T any](n *Node[T]) int {
@@ -147,11 +224,23 @@ func sz[T any](n *Node[T]) int {
 	return n.size
 }
 
-func pull[T any](n *Node[T]) {
-	n.size = sz(n.left) + 1 + sz(n.right)
+func liveSz[T any](n *Node[T]) int {
+	if n == nil {
+		return 0
+	}
+	return n.liveSize
 }
 
-// rank returns the 0-based position of n in its rope by climbing to the root.
+func pull[T any](n *Node[T]) {
+	lw := 0
+	if n.alive {
+		lw = 1
+	}
+	n.size = sz(n.left) + 1 + sz(n.right)
+	n.liveSize = liveSz(n.left) + lw + liveSz(n.right)
+}
+
+// rank returns the 0-based total position of n (counting dead nodes).
 func rank[T any](n *Node[T]) int {
 	r := sz(n.left)
 	cur := n
@@ -164,7 +253,24 @@ func rank[T any](n *Node[T]) int {
 	return r
 }
 
-// nodeAt returns the node at 0-based position i within the subtree rooted at n.
+// liveRank returns the 0-based live position of n (skipping dead nodes).
+func liveRank[T any](n *Node[T]) int {
+	r := liveSz(n.left)
+	cur := n
+	for cur.parent != nil {
+		if cur == cur.parent.right {
+			lw := 0
+			if cur.parent.alive {
+				lw = 1
+			}
+			r += liveSz(cur.parent.left) + lw
+		}
+		cur = cur.parent
+	}
+	return r
+}
+
+// nodeAt returns the node at 0-based total position i within the subtree rooted at n.
 func nodeAt[T any](n *Node[T], i int) *Node[T] {
 	for {
 		ls := sz(n.left)
@@ -180,8 +286,29 @@ func nodeAt[T any](n *Node[T], i int) *Node[T] {
 	}
 }
 
-// split splits the subtree rooted at n into left (first k elements) and right
-// (the rest). The parent pointers of both returned roots are nil.
+// liveNodeAt returns the node at 0-based live position i within the subtree rooted at n.
+func liveNodeAt[T any](n *Node[T], i int) *Node[T] {
+	for n != nil {
+		ls := liveSz(n.left)
+		lw := 0
+		if n.alive {
+			lw = 1
+		}
+		switch {
+		case i < ls:
+			n = n.left
+		case i < ls+lw:
+			return n // i == ls and n is alive
+		default:
+			i -= ls + lw
+			n = n.right
+		}
+	}
+	return nil
+}
+
+// split splits the subtree rooted at n into left (first k total elements) and
+// right (the rest). The parent pointers of both returned roots are nil.
 func split[T any](n *Node[T], k int) (*Node[T], *Node[T]) {
 	if n == nil {
 		return nil, nil
@@ -237,5 +364,11 @@ func inorder[T any](n *Node[T], yield func(T) bool) bool {
 	if n == nil {
 		return true
 	}
-	return inorder(n.left, yield) && yield(n.val) && inorder(n.right, yield)
+	if !inorder(n.left, yield) {
+		return false
+	}
+	if n.alive && !yield(n.val) {
+		return false
+	}
+	return inorder(n.right, yield)
 }

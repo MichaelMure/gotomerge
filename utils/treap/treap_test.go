@@ -38,7 +38,7 @@ func checkInvariants[T any](t *testing.T, r *Treap[T]) {
 		return n.size
 	}
 	total := check(r.root, nil)
-	assert.Equal(t, r.len, total, "Len mismatch")
+	assert.Equal(t, r.totalLen, total, "Len mismatch")
 }
 
 func TestPushBack(t *testing.T) {
@@ -253,4 +253,110 @@ func TestInsertAfterEveryPosition(t *testing.T) {
 		return s
 	}()))
 	checkInvariants(t, r)
+}
+
+func TestInsertBefore(t *testing.T) {
+	r := New[int]()
+	n2 := r.PushBack(2)
+	r.InsertBefore(1, n2) // [1, 2]
+	r.InsertBefore(0, r.Front()) // [0, 1, 2]
+	assert.Equal(t, []int{0, 1, 2}, collect(r))
+	checkInvariants(t, r)
+}
+
+func TestMarkDead(t *testing.T) {
+	r := New[int]()
+	r.PushBack(0)
+	n1 := r.PushBack(1)
+	r.PushBack(2)
+
+	assert.Equal(t, 3, r.Len())
+	assert.Equal(t, 3, r.TotalLen())
+
+	r.MarkDead(n1)
+
+	assert.Equal(t, 2, r.Len())
+	assert.Equal(t, 3, r.TotalLen())
+	assert.Equal(t, []int{0, 2}, collect(r)) // 1 is excluded from All()
+
+	// Dead node still accessible via At (total position)
+	assert.Equal(t, 1, r.At(1).Value())
+	assert.False(t, r.At(1).Alive())
+
+	// MarkDead on already-dead is a no-op
+	r.MarkDead(n1)
+	assert.Equal(t, 2, r.Len())
+}
+
+func TestLiveAt(t *testing.T) {
+	r := New[int]()
+	r.PushBack(0)
+	n1 := r.PushBack(1)
+	r.PushBack(2)
+	r.MarkDead(n1) // [0, _, 2]
+
+	assert.Equal(t, 0, r.LiveAt(0).Value())
+	assert.Equal(t, 2, r.LiveAt(1).Value())
+	assert.Nil(t, r.LiveAt(2))
+}
+
+func TestLiveRank(t *testing.T) {
+	r := New[int]()
+	n0 := r.PushBack(0)
+	n1 := r.PushBack(1)
+	n2 := r.PushBack(2)
+
+	assert.Equal(t, 0, r.LiveRank(n0))
+	assert.Equal(t, 1, r.LiveRank(n1))
+	assert.Equal(t, 2, r.LiveRank(n2))
+
+	r.MarkDead(n0)
+	// n0 is dead: live rank = 0 (no live nodes before it)
+	assert.Equal(t, 0, r.LiveRank(n0))
+	// n1 and n2 shift down
+	assert.Equal(t, 0, r.LiveRank(n1))
+	assert.Equal(t, 1, r.LiveRank(n2))
+}
+
+func TestNext(t *testing.T) {
+	r := New[int]()
+	nodes := make([]*Node[int], 5)
+	for i := range 5 {
+		nodes[i] = r.PushBack(i)
+	}
+	for i := 0; i < 4; i++ {
+		assert.Equal(t, nodes[i+1], Next(nodes[i]))
+	}
+	assert.Nil(t, Next(nodes[4]))
+}
+
+func TestNextSkipsNothing(t *testing.T) {
+	// Next traverses all nodes including dead ones.
+	r := New[int]()
+	n0 := r.PushBack(0)
+	n1 := r.PushBack(1)
+	r.MarkDead(n1)
+	n2 := r.PushBack(2)
+	assert.Equal(t, n1, Next(n0))
+	assert.Equal(t, n2, Next(n1))
+}
+
+func checkLiveInvariants[T any](t *testing.T, r *Treap[T]) {
+	t.Helper()
+	var check func(n *Node[T]) (total, live int)
+	check = func(n *Node[T]) (total, live int) {
+		if n == nil {
+			return 0, 0
+		}
+		lt, ll := check(n.left)
+		rt, rl := check(n.right)
+		lw := 0
+		if n.alive {
+			lw = 1
+		}
+		assert.Equal(t, lt+1+rt, n.size, "wrong subtree size")
+		assert.Equal(t, ll+lw+rl, n.liveSize, "wrong liveSize")
+		return lt + 1 + rt, ll + lw + rl
+	}
+	check(r.root)
 }

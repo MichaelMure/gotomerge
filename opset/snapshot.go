@@ -213,7 +213,7 @@ func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 		case types.ActionMakeMap, types.ActionMakeList, types.ActionMakeText:
 			ss.objCreators[types.ObjectId(id)] = action.Kind
 		case types.ActionInc:
-			incDeltas[id] = incDelta(action.Value)
+			incDeltas[id] = incValue(action.Value)
 		case types.ActionSet:
 			if _, isCounter := action.Value.(types.Counter); isCounter && len(succ) > 0 {
 				succCopy := make([]types.OpId, len(succ))
@@ -259,6 +259,17 @@ func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 	}
 
 	return nil
+}
+
+// objectForOp returns the ObjectId that owns snapshot op at index idx.
+// It performs a linear scan of objRanges (typically O(objects), usually small).
+func (ss *snapshotStore) objectForOp(idx uint32) (types.ObjectId, bool) {
+	for obj, r := range ss.objRanges {
+		if idx >= r.start && idx < r.end {
+			return obj, true
+		}
+	}
+	return types.ObjectId{}, false
 }
 
 // scanRange iterates over operations [r.start, r.end) in the snapshot,

@@ -46,8 +46,8 @@ func (t *Transaction) Commit(w io.Writer) error {
 	return t.applyCommitted(cc.Hash)
 }
 
-// applyCommitted applies the transaction's ops directly to s.delta, bypassing
-// the binary format entirely. All OpIds in t.ops already use global actor indices,
+// applyCommitted applies the transaction's ops directly to s.delta.
+// All OpIds in t.ops already use global actor indices,
 // so no translation is needed — unlike ApplyChange which must translate from
 // change-local indices.
 func (t *Transaction) applyCommitted(hash types.ChangeHash) error {
@@ -75,10 +75,10 @@ func (t *Transaction) applyCommitted(hash types.ChangeHash) error {
 		opId := types.OpId{ActorIdx: t.actorIdx, Counter: t.startOp + uint32(i)}
 
 		// For ActionInc: accumulate the counter delta without killing the
-		// counter op (same logic as ApplyChange / incDelta).
+		// counter op (same logic as ApplyChange / incValue).
 		// For all other ops: increment SuccCount on each predecessor.
 		if txOp.action.Kind == types.ActionInc {
-			delta := incDelta(txOp.action.Value)
+			delta := incValue(txOp.action.Value)
 			for _, pred := range txOp.preds {
 				s.counterDeltas[pred] += delta
 				s.deltaSuccessors[pred] = append(s.deltaSuccessors[pred], opId)
@@ -87,11 +87,30 @@ func (t *Transaction) applyCommitted(hash types.ChangeHash) error {
 			for _, pred := range txOp.preds {
 				if s.snapshot != nil {
 					if predIdx, ok := s.snapshot.byId[pred]; ok {
+						wasZero := s.snapshot.succCount[predIdx] == 0
 						s.snapshot.succCount[predIdx]++
+						if wasZero {
+							if obj, ok := s.snapshot.objectForOp(predIdx); ok {
+								if s.snapshot.insert.Get(predIdx) {
+									s.onInsertKilledInListTreap(obj, pred)
+								} else {
+									s.invalidateListTreap(obj)
+								}
+							}
+						}
 					}
 				}
 				if predIdx, ok := s.delta.byId[pred]; ok {
-					s.delta.ops[predIdx].SuccCount++
+					predOp := &s.delta.ops[predIdx]
+					wasZero := predOp.SuccCount == 0
+					predOp.SuccCount++
+					if wasZero {
+						if predOp.Insert {
+							s.onInsertKilledInListTreap(predOp.Object, pred)
+						} else {
+							s.invalidateListTreap(predOp.Object)
+						}
+					}
 				}
 				s.deltaSuccessors[pred] = append(s.deltaSuccessors[pred], opId)
 			}
@@ -113,7 +132,19 @@ func (t *Transaction) applyCommitted(hash types.ChangeHash) error {
 			op.Action.Kind != types.ActionDelete && op.Action.Kind != types.ActionInc {
 			s.delta.addToMapKeys(op.Object, string(k), idx)
 		}
-		s.invalidateListTreap(op.Object)
+		if op.Insert {
+			s.insertOpInListTreap(op)
+		} else if _, isPos := op.Key.(types.KeyOpId); isPos && op.Action.Kind == types.ActionSet {
+			// Non-insert ActionSet at a list position: the winning value at
+			// that position may change, so the cached treap must be rebuilt.
+			s.invalidateListTreap(op.Object)
+		}
+		// A MakeText op may have had its treap built without a rope during
+		// the transaction (before the op was in the delta). Drop it so the
+		// next access rebuilds correctly.
+		if op.Action.Kind == types.ActionMakeText {
+			s.invalidateListTreap(types.ObjectId(op.Id))
+		}
 		if op.Id.Counter > s.maxOpCounter[op.Id.ActorIdx] {
 			s.maxOpCounter[op.Id.ActorIdx] = op.Id.Counter
 		}

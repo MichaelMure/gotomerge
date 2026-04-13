@@ -153,6 +153,51 @@ func TestTxnText(t *testing.T) {
 	require.Equal(t, "Hello", s.Text(textObj))
 }
 
+// TestTxnTextIncrementalRope verifies that the textRope stays in sync with
+// the treap across a sequence of inserts and deletes, checking Text() after
+// each mutation.
+func TestTxnTextIncrementalRope(t *testing.T) {
+	s := New()
+	actor := types.NewActorId()
+
+	txn := s.Begin(actor, 1)
+	textObjId, _ := txn.MakeText(types.RootObjectId(), "doc")
+	commit(t, txn)
+
+	// Seed: read once to build treap + rope.
+	require.Equal(t, "", s.Text(textObjId))
+
+	// Append "abc" one character at a time.
+	var prev types.KeyOpId // sentinel
+
+	txn = s.Begin(actor, 2)
+	aId := txn.ListInsert(textObjId, prev, "a")
+	commit(t, txn)
+	require.Equal(t, "a", s.Text(textObjId))
+
+	txn = s.Begin(actor, 3)
+	bId := txn.ListInsert(textObjId, types.KeyOpId(aId), "b")
+	commit(t, txn)
+	require.Equal(t, "ab", s.Text(textObjId))
+
+	txn = s.Begin(actor, 4)
+	txn.ListInsert(textObjId, types.KeyOpId(bId), "c")
+	commit(t, txn)
+	require.Equal(t, "abc", s.Text(textObjId))
+
+	// Delete "b" (the middle character).
+	txn = s.Begin(actor, 5)
+	txn.ListDelete(textObjId, bId, bId)
+	commit(t, txn)
+	require.Equal(t, "ac", s.Text(textObjId))
+
+	// Insert "X" after "a" (before where "b" was — the tombstone).
+	txn = s.Begin(actor, 6)
+	txn.ListInsert(textObjId, types.KeyOpId(aId), "X")
+	commit(t, txn)
+	require.Equal(t, "aXc", s.Text(textObjId))
+}
+
 // TestTxnRoundTrip confirms the full wire round-trip: commit → ReadChunk → ApplyChange on a fresh OpSet.
 func TestTxnRoundTrip(t *testing.T) {
 	s1 := New()
