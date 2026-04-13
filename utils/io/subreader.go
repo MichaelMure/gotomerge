@@ -42,6 +42,17 @@ func (b *SubReader) Read(p []byte) (n int, err error) {
 	return toRead, err
 }
 
+// ReadByte implements io.ByteReader. Returns io.EOF if no bytes remain.
+func (b *SubReader) ReadByte() (byte, error) {
+	if b.position >= len(b.data) {
+		return 0, io.EOF
+	}
+	v := b.data[b.position]
+	b.position++
+	b.consumed++
+	return v, nil
+}
+
 // SubReader returns a new SubReader covering [current+offset, current+offset+size).
 // This does NOT advance the current position.
 func (b *SubReader) SubReader(offset uint64, size uint64) (*SubReader, error) {
