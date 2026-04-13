@@ -44,6 +44,10 @@ type snapshotStore struct {
 	objRanges   map[types.ObjectId]opRange
 	objCreators map[types.ObjectId]types.ActionKind
 	byId        map[types.OpId]uint32
+	// mapKeys indexes string-keyed set/make ops for O(1) MapGet lookups.
+	// Only ops with KeyString, Insert=false, and non-Delete/Inc actions are stored.
+	// succCount[idx] is checked at query time to filter superseded ops.
+	mapKeys map[types.ObjectId]map[string][]uint32
 
 	seek seekIndex
 
@@ -89,6 +93,7 @@ func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 		objRanges:   make(map[types.ObjectId]opRange),
 		objCreators: make(map[types.ObjectId]types.ActionKind),
 		byId:        make(map[types.OpId]uint32),
+		mapKeys:     make(map[types.ObjectId]map[string][]uint32),
 	}
 
 	// Set up all column readers in one shot. These are the only readers for
@@ -165,9 +170,8 @@ func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 			return fmt.Errorf("reading object at op %d: %w", opIdx, err)
 		}
 
-		// Key is advanced to keep the reader in lockstep for seek checkpoints;
-		// the decoded value is not needed for metadata.
-		if _, err = keyReader.Next(); err != nil && !isDone(err) {
+		key, err := keyReader.Next()
+		if err != nil && !isDone(err) {
 			return fmt.Errorf("reading key at op %d: %w", opIdx, err)
 		}
 
@@ -216,6 +220,15 @@ func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 				copy(succCopy, succ)
 				counterSuccessors = append(counterSuccessors, counterEntry{opId: id, succ: succCopy})
 			}
+		}
+
+		if ks, ok := key.(types.KeyString); ok && !ins &&
+			action.Kind != types.ActionDelete && action.Kind != types.ActionInc {
+			k := string(ks)
+			if ss.mapKeys[obj] == nil {
+				ss.mapKeys[obj] = make(map[string][]uint32)
+			}
+			ss.mapKeys[obj][k] = append(ss.mapKeys[obj][k], opIdx)
 		}
 
 		opIdx++

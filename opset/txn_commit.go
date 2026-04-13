@@ -109,6 +109,10 @@ func (t *Transaction) applyCommitted(hash types.ChangeHash) error {
 		s.delta.ops = append(s.delta.ops, op)
 		s.delta.byId[op.Id] = idx
 		s.delta.byObj[op.Object] = append(s.delta.byObj[op.Object], idx)
+		if k, ok := op.Key.(types.KeyString); ok && !op.Insert &&
+			op.Action.Kind != types.ActionDelete && op.Action.Kind != types.ActionInc {
+			s.delta.addToMapKeys(op.Object, string(k), idx)
+		}
 		if op.Id.Counter > s.maxOpCounter[op.Id.ActorIdx] {
 			s.maxOpCounter[op.Id.ActorIdx] = op.Id.Counter
 		}

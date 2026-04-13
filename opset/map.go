@@ -13,34 +13,29 @@ import "github.com/MichaelMure/gotomerge/types"
 func (s *OpSet) MapGet(obj types.ObjectId, key string) (Op, bool) {
 	var winner *Op
 
+	// mapKeys[obj][key] is a short list of op indices that ever set this key
+	// (usually one, more under concurrent writes). We check succCount to skip
+	// superseded ops, then decode the column data only for the candidates.
 	if s.snapshot != nil {
-		if r, ok := s.snapshot.objRanges[obj]; ok {
-			s.snapshot.scanRange(r, func(idx uint32, op Op) bool {
-				if s.snapshot.succCount[idx] > 0 || op.Insert ||
-					op.Action.Kind == types.ActionDelete || op.Action.Kind == types.ActionInc {
-					return true
-				}
-				k, strKey := op.Key.(types.KeyString)
-				if !strKey || string(k) != key {
-					return true
-				}
+		for _, idx := range s.snapshot.mapKeys[obj][key] {
+			if s.snapshot.succCount[idx] > 0 {
+				continue // superseded by a later op
+			}
+			s.snapshot.scanRange(opRange{start: idx, end: idx + 1}, func(_ uint32, op Op) bool {
 				if winner == nil || s.opIdGreater(op.Id, winner.Id) {
-					winner = &op
+					cp := op
+					winner = &cp
 				}
-				return true
+				return false
 			})
 		}
 	}
 
+	// Delta ops are already decoded in memory; no column seek needed.
 	if s.delta != nil {
-		for _, idx := range s.delta.byObj[obj] {
+		for _, idx := range s.delta.mapKeys[obj][key] {
 			op := &s.delta.ops[idx]
-			if op.SuccCount > 0 || op.Insert ||
-				op.Action.Kind == types.ActionDelete || op.Action.Kind == types.ActionInc {
-				continue
-			}
-			k, strKey := op.Key.(types.KeyString)
-			if !strKey || string(k) != key {
+			if op.SuccCount > 0 {
 				continue
 			}
 			if winner == nil || s.opIdGreater(op.Id, winner.Id) {
@@ -52,6 +47,7 @@ func (s *OpSet) MapGet(obj types.ObjectId, key string) (Op, bool) {
 	if winner == nil {
 		return Op{}, false
 	}
+	// For counter ops, fold any accumulated Inc deltas into the returned value.
 	return s.applyCounterDelta(*winner), true
 }
 
@@ -63,38 +59,32 @@ func (s *OpSet) MapGet(obj types.ObjectId, key string) (Op, bool) {
 func (s *OpSet) MapGetAll(obj types.ObjectId, key string) []Op {
 	var live []Op
 
+	// Same index-driven lookup as MapGet, but collect all live candidates
+	// instead of tracking a single winner. Conflicts are rare so live is
+	// almost always length 0 or 1 before the append.
 	if s.snapshot != nil {
-		if r, ok := s.snapshot.objRanges[obj]; ok {
-			s.snapshot.scanRange(r, func(idx uint32, op Op) bool {
-				if s.snapshot.succCount[idx] > 0 || op.Insert ||
-					op.Action.Kind == types.ActionDelete || op.Action.Kind == types.ActionInc {
-					return true
-				}
-				k, strKey := op.Key.(types.KeyString)
-				if !strKey || string(k) != key {
-					return true
-				}
+		for _, idx := range s.snapshot.mapKeys[obj][key] {
+			if s.snapshot.succCount[idx] > 0 {
+				continue
+			}
+			s.snapshot.scanRange(opRange{start: idx, end: idx + 1}, func(_ uint32, op Op) bool {
 				live = append(live, op)
-				return true
+				return false
 			})
 		}
 	}
 
 	if s.delta != nil {
-		for _, idx := range s.delta.byObj[obj] {
+		for _, idx := range s.delta.mapKeys[obj][key] {
 			op := s.delta.ops[idx]
-			if op.SuccCount > 0 || op.Insert ||
-				op.Action.Kind == types.ActionDelete || op.Action.Kind == types.ActionInc {
-				continue
-			}
-			k, strKey := op.Key.(types.KeyString)
-			if !strKey || string(k) != key {
+			if op.SuccCount > 0 {
 				continue
 			}
 			live = append(live, op)
 		}
 	}
 
+	// Sort highest OpId first so index 0 matches what MapGet would return.
 	sortOpsDesc(live, s)
 	for i := range live {
 		live[i] = s.applyCounterDelta(live[i])
@@ -107,6 +97,10 @@ func (s *OpSet) MapKeys(obj types.ObjectId) []string {
 	seen := make(map[string]struct{})
 	var keys []string
 
+	// We scan byObj / objRanges in document order rather than iterating the
+	// mapKeys index, because Go map iteration is unordered and callers expect
+	// keys in insertion order. The full scan is O(n) in ops per object, which
+	// is acceptable — MapItems is the right call when you also need values.
 	if s.snapshot != nil {
 		if r, ok := s.snapshot.objRanges[obj]; ok {
 			s.snapshot.scanRange(r, func(idx uint32, op Op) bool {
@@ -156,11 +150,13 @@ func (s *OpSet) MapKeys(obj types.ObjectId) []string {
 func (s *OpSet) MapItems(obj types.ObjectId) []Op {
 	type entry struct {
 		op  Op
-		pos int
+		pos int // position in order, to reconstruct insertion order at the end
 	}
-	best := make(map[string]entry)
-	var order []string
+	best := make(map[string]entry) // key → current winning op
+	var order []string             // keys in first-seen (insertion) order
 
+	// add considers one op for inclusion. It skips dead, non-value, and
+	// non-string-key ops, then either seeds or updates the winner for the key.
 	add := func(op Op, succCount uint32) {
 		if succCount > 0 || op.Insert ||
 			op.Action.Kind == types.ActionDelete || op.Action.Kind == types.ActionInc {
@@ -180,6 +176,9 @@ func (s *OpSet) MapItems(obj types.ObjectId) []Op {
 		}
 	}
 
+	// Scan snapshot first (document order), then delta (change order).
+	// Because add always keeps the highest OpId, the final winner per key is
+	// correct regardless of which store it came from.
 	if s.snapshot != nil {
 		if r, ok := s.snapshot.objRanges[obj]; ok {
 			s.snapshot.scanRange(r, func(idx uint32, op Op) bool {

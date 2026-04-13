@@ -48,21 +48,33 @@ func (m changeActorMap) key(key types.Key) types.Key {
 // supersede it later — so SuccCount must be writable in place. Two indexes
 // support efficient access: byId for O(1) predecessor lookup when applying
 // subsequent changes, and byObj for O(1) per-object scans during queries.
+// mapKeys provides O(1) lookup from (object, string key) → op indices for map
+// get operations, avoiding a full object scan.
 //
 // The delta can grow unboundedly as changes accumulate. It can be compacted
 // back into a snapshot by serializing the full document (Save) and reloading
 // it as a new DocumentChunk.
 type deltaStore struct {
-	ops   []Op
-	byId  map[types.OpId]uint32       // opId → index in ops
-	byObj map[types.ObjectId][]uint32 // objectId → indices in ops
+	ops     []Op
+	byId    map[types.OpId]uint32                    // opId → index in ops
+	byObj   map[types.ObjectId][]uint32              // objectId → indices in ops
+	mapKeys map[types.ObjectId]map[string][]uint32   // objectId → key → indices of set/make ops
 }
 
 func newDeltaStore() *deltaStore {
 	return &deltaStore{
-		byId:  make(map[types.OpId]uint32),
-		byObj: make(map[types.ObjectId][]uint32),
+		byId:    make(map[types.OpId]uint32),
+		byObj:   make(map[types.ObjectId][]uint32),
+		mapKeys: make(map[types.ObjectId]map[string][]uint32),
 	}
+}
+
+// addToMapKeys indexes a string-keyed set/make op for O(1) MapGet lookups.
+func (d *deltaStore) addToMapKeys(obj types.ObjectId, key string, idx uint32) {
+	if d.mapKeys[obj] == nil {
+		d.mapKeys[obj] = make(map[string][]uint32)
+	}
+	d.mapKeys[obj][key] = append(d.mapKeys[obj][key], idx)
 }
 
 // ApplyChange applies a single change to the OpSet. Changes must be applied in
@@ -139,6 +151,10 @@ func (s *OpSet) ApplyChange(cc *format.ChangeChunk) error {
 		s.delta.ops = append(s.delta.ops, op)
 		s.delta.byId[op.Id] = idx
 		s.delta.byObj[op.Object] = append(s.delta.byObj[op.Object], idx)
+		if k, ok := op.Key.(types.KeyString); ok && !op.Insert &&
+			op.Action.Kind != types.ActionDelete && op.Action.Kind != types.ActionInc {
+			s.delta.addToMapKeys(op.Object, string(k), idx)
+		}
 		if op.Id.Counter > s.maxOpCounter[op.Id.ActorIdx] {
 			s.maxOpCounter[op.Id.ActorIdx] = op.Id.Counter
 		}
