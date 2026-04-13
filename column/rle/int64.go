@@ -12,8 +12,10 @@ import (
 type Int64Reader = Reader[int64]
 
 func NewInt64Reader(r *ioutil.SubReader) *Int64Reader {
-	return NewReader[int64](r, leb128.DecodeS64)
+	return NewReader[int64](r, readS64)
 }
+
+func readS64(r ioutil.ByteReader) (int64, error) { return leb128.DecodeS64(r) }
 
 func NewNullableInt64(v int64) NullableValue[int64] { return NullableValue[int64]{val: v} }
 func NewNullInt64() NullableValue[int64]            { return NullableValue[int64]{null: true} }

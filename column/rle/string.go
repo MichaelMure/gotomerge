@@ -25,7 +25,7 @@ func NewStringWriter(w io.Writer) *Writer[string] {
 	})
 }
 
-func readStringValue(r io.Reader) (string, error) {
+func readStringValue(r ioutil.ByteReader) (string, error) {
 	strLen, err := leb128.DecodeU64(r)
 	if err != nil {
 		return "", err

@@ -43,6 +43,8 @@ import (
 //	    APIKey  string `automerge:"api_key"`
 //	}
 //	cfg, ok := docproxy.As[Config](doc.Get("config"))
+//
+// TODO: when generic method exists (go 1.27?) move directly to views
 func As[T any](v Value, ok bool) (T, bool) {
 	var zero T
 	if !ok {

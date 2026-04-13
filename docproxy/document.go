@@ -51,6 +51,8 @@
 //	    return nil
 //	})
 //	doc.SaveIncremental(w) // append only the new change chunk
+//
+// TODO: generate a diagram of the major code path: views, opset, index, ...
 package docproxy
 
 import (

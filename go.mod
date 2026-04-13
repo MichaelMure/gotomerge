@@ -4,7 +4,7 @@ go 1.23.1
 
 require (
 	github.com/DmitriyVTitov/size v1.5.0
-	github.com/MichaelMure/leb128 v0.0.0-20260404163821-3c88553516fd
+	github.com/MichaelMure/leb128 v0.0.0-20260413192917-d3edb4944c27
 	github.com/stretchr/testify v1.11.1
 )
 

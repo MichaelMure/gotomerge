@@ -7,6 +7,8 @@ import (
 	"io"
 
 	"github.com/MichaelMure/leb128"
+
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 // ActorId is a random byte string that uniquely identifies a peer (an instance
@@ -26,7 +28,7 @@ func (a ActorId) String() string {
 	return hex.EncodeToString(a)
 }
 
-func ReadLengthEncodedActorId(r io.Reader) (ActorId, error) {
+func ReadLengthEncodedActorId(r ioutil.ByteReader) (ActorId, error) {
 	l, err := leb128.DecodeU64(r)
 	if err != nil {
 		return nil, fmt.Errorf("error reading actor id length: %w", err)

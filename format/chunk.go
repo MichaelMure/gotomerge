@@ -82,7 +82,7 @@ func ReadChunk(r *ioutil.SubReader) (Chunk, int, error) {
 
 	// Run the remaining reads through SHA256 to compute the checksum
 	h := sha256.New()
-	tee := io.TeeReader(r, h)
+	tee := ioutil.TeeReader(r, h)
 
 	// reuse the allocated buffer to read a single byte
 	buf = buf[0:1]
@@ -169,7 +169,7 @@ func ReadChunk(r *ioutil.SubReader) (Chunk, int, error) {
 	return res, toSkip, nil
 }
 
-func readChangeHashes(r io.Reader) ([]types.ChangeHash, error) {
+func readChangeHashes(r ioutil.ByteReader) ([]types.ChangeHash, error) {
 	n, err := leb128.DecodeU64(r)
 	if err != nil {
 		return nil, fmt.Errorf("error reading change hash length: %w", err)
@@ -196,7 +196,7 @@ func readChangeHashes(r io.Reader) ([]types.ChangeHash, error) {
 	return res, nil
 }
 
-func readActorIds(r io.Reader) ([]types.ActorId, error) {
+func readActorIds(r ioutil.ByteReader) ([]types.ActorId, error) {
 	n, err := leb128.DecodeU64(r)
 	if err != nil {
 		return nil, fmt.Errorf("error reading actor ids length: %w", err)
@@ -227,7 +227,7 @@ func readActorIds(r io.Reader) ([]types.ActorId, error) {
 	return res, nil
 }
 
-func readHeadIndexes(r io.Reader, count int) ([]uint64, error) {
+func readHeadIndexes(r io.ByteReader, count int) ([]uint64, error) {
 	res := make([]uint64, count)
 	for i := 0; i < count; i++ {
 		index, err := leb128.DecodeU64(r)

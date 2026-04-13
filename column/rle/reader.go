@@ -26,17 +26,17 @@ type NullableValue[T any] struct {
 func (n NullableValue[T]) Value() (T, bool) { return n.val, !n.null }
 
 // Reader is a generic stateful reader for RLE-encoded columns.
-// T is the element type; readFn decodes one non-null value from an io.Reader.
+// T is the element type; readFn decodes one non-null value from an ioutil.ByteReader.
 type Reader[T any] struct {
 	r          *ioutil.SubReader
-	readFn     func(io.Reader) (T, error)
+	readFn     func(ioutil.ByteReader) (T, error)
 	state      rleState
 	remaining  int64
 	cachedVal  T
 	cachedNull bool
 }
 
-func NewReader[T any](r *ioutil.SubReader, readFn func(io.Reader) (T, error)) *Reader[T] {
+func NewReader[T any](r *ioutil.SubReader, readFn func(ioutil.ByteReader) (T, error)) *Reader[T] {
 	return &Reader[T]{r: r, readFn: readFn}
 }
 

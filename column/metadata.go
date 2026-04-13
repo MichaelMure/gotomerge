@@ -12,7 +12,7 @@ type Metadata []struct {
 	Length uint64 // in bytes
 }
 
-func ReadMetadata(r io.Reader) (Metadata, error) {
+func ReadMetadata(r io.ByteReader) (Metadata, error) {
 	n, err := leb128.DecodeU64(r)
 	if err != nil {
 		return nil, fmt.Errorf("error reading column metadata length: %w", err)

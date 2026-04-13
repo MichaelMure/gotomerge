@@ -299,7 +299,7 @@ func TestChangeHashesRoundTrip(t *testing.T) {
 		0xef, 0x63, 0xd4, 0x53, 0x8e, 0xbb, 0x93, 0x60, 0x00, 0xf3, 0xc9, 0xee,
 		0x95, 0x4a, 0x27, 0x46, 0x0d, 0xd8, 0x65}
 
-	hashes, err := readChangeHashes(bytes.NewReader(data))
+	hashes, err := readChangeHashes(ioutil.NewSubReader(data))
 	require.NoError(t, err)
 	require.Len(t, hashes, 2)
 
@@ -323,7 +323,7 @@ func TestChangeHashesRoundTrip(t *testing.T) {
 
 func TestActorIdsRoundTrip(t *testing.T) {
 	data := []byte{0x01, 0x03, 0xab, 0xcd, 0xef}
-	ids, err := readActorIds(bytes.NewReader(data))
+	ids, err := readActorIds(ioutil.NewSubReader(data))
 	require.NoError(t, err)
 
 	require.Equal(t, 1, len(ids))
@@ -374,7 +374,7 @@ func TestChangeChunkHashes(t *testing.T) {
 
 func TestHeadIndexesRoundTrip(t *testing.T) {
 	data := []byte{0x01, 0x02, 0x03, 0x11}
-	indexes, err := readHeadIndexes(bytes.NewReader(data), 4)
+	indexes, err := readHeadIndexes(ioutil.NewSubReader(data), 4)
 	require.NoError(t, err)
 
 	expected := []uint64{1, 2, 3, 17}

@@ -76,7 +76,7 @@ func (s Specification) String() string {
 	return fmt.Sprintf("spec(%d: id=%d, type=%s, deflate=%t)", uint64(s), s.ID(), s.Type(), s.Deflate())
 }
 
-func readSpecification(r io.Reader) (Specification, error) {
+func readSpecification(r io.ByteReader) (Specification, error) {
 	u, err := leb128.DecodeU32(r)
 	if err != nil {
 		return 0, fmt.Errorf("error reading column specification: %w", err)
