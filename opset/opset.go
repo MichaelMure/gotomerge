@@ -49,6 +49,12 @@ type OpSet struct {
 	// need to re-parse every raw change chunk. Reset to nil when ApplyDocument is
 	// called, because the new snapshot already encodes within-snapshot successors.
 	deltaSuccessors map[types.OpId][]types.OpId
+
+	// listTreaps is a lazily populated cache of ordered live-element views for
+	// list and text objects. Built on first access to ListElements or Text;
+	// invalidated (deleted) whenever new ops arrive for that object so it is
+	// never stale. Nil entries and missing entries are equivalent.
+	listTreaps map[types.ObjectId]*listTreap
 }
 
 func New() *OpSet {
@@ -58,6 +64,7 @@ func New() *OpSet {
 		appliedHashes: make(map[types.ChangeHash]struct{}),
 		maxOpCounter:  make(map[uint32]uint32),
 		counterDeltas: make(map[types.OpId]int64),
+		listTreaps:    make(map[types.ObjectId]*listTreap),
 	}
 }
 

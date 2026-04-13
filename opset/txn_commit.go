@@ -113,6 +113,7 @@ func (t *Transaction) applyCommitted(hash types.ChangeHash) error {
 			op.Action.Kind != types.ActionDelete && op.Action.Kind != types.ActionInc {
 			s.delta.addToMapKeys(op.Object, string(k), idx)
 		}
+		s.invalidateListTreap(op.Object)
 		if op.Id.Counter > s.maxOpCounter[op.Id.ActorIdx] {
 			s.maxOpCounter[op.Id.ActorIdx] = op.Id.Counter
 		}
