@@ -28,7 +28,7 @@ func TestValueMetadataRoundTrip(t *testing.T) {
 	}
 	require.NoError(t, w.Flush())
 
-	r := NewValueMetadataReader(ioutil.NewSubReader(buf.Bytes()))
+	r := PeekValueMetadataReader(*ioutil.NewSubReader(buf.Bytes()))
 	for i, want := range in {
 		got, err := r.Next()
 		require.NoError(t, err, "index %d", i)
@@ -58,8 +58,8 @@ func TestValueRoundTrip(t *testing.T) {
 	}
 	require.NoError(t, w.Flush())
 
-	mr := NewValueMetadataReader(ioutil.NewSubReader(metaBuf.Bytes()))
-	vr := NewValueReader(ioutil.NewSubReader(valBuf.Bytes()))
+	mr := PeekValueMetadataReader(*ioutil.NewSubReader(metaBuf.Bytes()))
+	vr := PeekValueReader(*ioutil.NewSubReader(valBuf.Bytes()))
 
 	for i, want := range in {
 		meta, err := mr.Next()

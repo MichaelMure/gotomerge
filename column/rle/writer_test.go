@@ -19,7 +19,7 @@ func roundTripUint64(t *testing.T, vals []NullableValue[uint64]) {
 		w.Append(nv)
 	}
 	require.NoError(t, w.Flush())
-	got := readAll(t, NewUint64Reader(ioutil.NewSubReader(buf.Bytes())))
+	got := readAll(t, NewUint64Reader(*ioutil.NewSubReader(buf.Bytes())))
 	require.Len(t, got, len(vals))
 	for i, nv := range vals {
 		v, ok := nv.Value()
@@ -164,7 +164,7 @@ func TestWriterRepeatThenDifferent(t *testing.T) {
 func roundTripInt64Delta(t *testing.T, vals []NullableValue[int64]) {
 	t.Helper()
 	b := EncodeInt64Delta(vals)
-	got := readAll(t, NewInt64Reader(ioutil.NewSubReader(b)))
+	got := readAll(t, NewInt64Reader(*ioutil.NewSubReader(b)))
 	// The round-trip goes through the raw delta reader, so we re-accumulate manually.
 	require.Len(t, got, len(vals))
 	var acc int64
@@ -206,7 +206,7 @@ func TestStringWriterRoundTrip(t *testing.T) {
 		w.Append(nv)
 	}
 	require.NoError(t, w.Flush())
-	got := readAll(t, NewStringReader(ioutil.NewSubReader(buf.Bytes())))
+	got := readAll(t, NewStringReader(*ioutil.NewSubReader(buf.Bytes())))
 	require.Len(t, got, len(in))
 	for i, nv := range in {
 		v, ok := nv.Value()
@@ -221,7 +221,7 @@ func TestStringWriterRoundTrip(t *testing.T) {
 
 func TestEncodeUint64RoundTrip(t *testing.T) {
 	b := EncodeUint64(1, 1, 1, 2, 3)
-	got := readAll(t, NewUint64Reader(ioutil.NewSubReader(b)))
+	got := readAll(t, NewUint64Reader(*ioutil.NewSubReader(b)))
 	require.Equal(t, []struct {
 		val  uint64
 		null bool
@@ -232,7 +232,7 @@ func TestEncodeUint64RoundTrip(t *testing.T) {
 
 func TestEncodeInt64RoundTrip(t *testing.T) {
 	b := EncodeInt64(-1, 0, 1, 1, 1)
-	got := readAll(t, NewInt64Reader(ioutil.NewSubReader(b)))
+	got := readAll(t, NewInt64Reader(*ioutil.NewSubReader(b)))
 	require.Equal(t, []struct {
 		val  int64
 		null bool
@@ -243,7 +243,7 @@ func TestEncodeInt64RoundTrip(t *testing.T) {
 
 func TestEncodeStringRoundTrip(t *testing.T) {
 	b := EncodeString("a", "a", "b")
-	got := readAll(t, NewStringReader(ioutil.NewSubReader(b)))
+	got := readAll(t, NewStringReader(*ioutil.NewSubReader(b)))
 	require.Equal(t, []struct {
 		val  string
 		null bool

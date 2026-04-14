@@ -9,6 +9,7 @@ import (
 	"github.com/MichaelMure/gotomerge/format"
 	"github.com/MichaelMure/gotomerge/types"
 	"github.com/MichaelMure/gotomerge/utils/bitset"
+	ioutil "github.com/MichaelMure/gotomerge/utils/io"
 )
 
 // opRange marks a contiguous span of column positions belonging to one object.
@@ -60,6 +61,15 @@ type snapshotStore struct {
 	docChunk *format.DocumentChunk
 }
 
+// peek creates a reader from a non-consuming snapshot of r, or nil if absent.
+// *r is the explicit fork: the caller's cursor is not advanced.
+func peek[T any](r *ioutil.SubReader, ctor func(ioutil.SubReader) *T) *T {
+	if r == nil {
+		return nil
+	}
+	return ctor(*r)
+}
+
 // isDone reports whether err signals that a column reader is exhausted.
 // RLE readers return io.EOF; GroupedOpIdReader returns column.ErrDone when
 // the group column is absent.
@@ -98,23 +108,20 @@ func (s *OpSet) ApplyDocument(doc *format.DocumentChunk) error {
 
 	// Set up all column readers in one shot. These are the only readers for
 	// this document chunk — no parallel set is needed.
-	objActor, e1 := column.Opt(doc.OpColumns.ObjectActorId, column.NewActorReader)
-	objCounter, e2 := column.Opt(doc.OpColumns.ObjectCounter, column.NewUlebReader)
-	keyActor, e3 := column.Opt(doc.OpColumns.KeyActorId, column.NewActorReader)
-	keyCounter, e4 := column.Opt(doc.OpColumns.KeyCounter, column.NewDeltaReader)
-	keyStr, e5 := column.Opt(doc.OpColumns.KeyString, column.NewStringReader)
-	opActor, e6 := column.Req(doc.OpColumns.ActorId, column.NewActorReader, "op.actorId")
-	opCounter, e7 := column.Req(doc.OpColumns.Counter, column.NewDeltaReader, "op.counter")
-	insertCol, e8 := column.Opt(doc.OpColumns.Insert, column.NewBoolReader)
-	actionKind, e9 := column.Req(doc.OpColumns.Action, column.NewUlebReader, "action")
-	valueMeta, e10 := column.Opt(doc.OpColumns.ValueMetadata, column.NewValueMetadataReader)
-	valueCol, e11 := column.Opt(doc.OpColumns.Value, column.NewValueReader)
-	succGroup, e12 := column.Opt(doc.OpColumns.SuccessorGroup, column.NewGroupReader)
-	succActor, e13 := column.Opt(doc.OpColumns.SuccessorActorId, column.NewActorReader)
-	succCounter, e14 := column.Opt(doc.OpColumns.SuccessorCounter, column.NewDeltaReader)
-	if err := errors.Join(e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14); err != nil {
-		return fmt.Errorf("column setup: %w", err)
-	}
+	objActor := peek(doc.OpColumns.ObjectActorId, column.PeekActorReader)
+	objCounter := peek(doc.OpColumns.ObjectCounter, column.PeekUlebReader)
+	keyActor := peek(doc.OpColumns.KeyActorId, column.PeekActorReader)
+	keyCounter := peek(doc.OpColumns.KeyCounter, column.PeekDeltaReader)
+	keyStr := peek(doc.OpColumns.KeyString, column.PeekStringReader)
+	opActor := peek(doc.OpColumns.ActorId, column.PeekActorReader)
+	opCounter := peek(doc.OpColumns.Counter, column.PeekDeltaReader)
+	insertCol := peek(doc.OpColumns.Insert, column.PeekBoolReader)
+	actionKind := peek(doc.OpColumns.Action, column.PeekUlebReader)
+	valueMeta := peek(doc.OpColumns.ValueMetadata, column.PeekValueMetadataReader)
+	valueCol := peek(doc.OpColumns.Value, column.PeekValueReader)
+	succGroup := peek(doc.OpColumns.SuccessorGroup, column.PeekGroupReader)
+	succActor := peek(doc.OpColumns.SuccessorActorId, column.PeekActorReader)
+	succCounter := peek(doc.OpColumns.SuccessorCounter, column.PeekDeltaReader)
 
 	objReader := column.NewObjectReader(objActor, objCounter)
 	keyReader := column.NewKeyReader(keyActor, keyCounter, keyStr)

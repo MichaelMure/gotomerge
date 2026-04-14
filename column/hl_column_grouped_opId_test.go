@@ -29,9 +29,9 @@ func TestGroupedOpIdRoundTrip(t *testing.T) {
 		require.NoError(t, w.Flush())
 
 		r := NewGroupedOpIdReader("preds",
-			bytesOpt(grpBuf.Bytes(), NewGroupReader),
-			bytesOpt(actorBuf.Bytes(), NewActorReader),
-			bytesOpt(ctrBuf.Bytes(), NewDeltaReader),
+			bytesOpt(grpBuf.Bytes(), PeekGroupReader),
+			bytesOpt(actorBuf.Bytes(), PeekActorReader),
+			bytesOpt(ctrBuf.Bytes(), PeekDeltaReader),
 		)
 		for i, want := range in {
 			got, err := r.Next()

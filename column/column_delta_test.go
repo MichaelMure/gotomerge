@@ -17,7 +17,7 @@ func TestReadDeltaColumn(t *testing.T) {
 	expected := []any{int64(3), int64(4), int64(5), int64(6), int64(9), int64(7), int64(8)}
 	var res []any
 
-	r := NewDeltaReader(ioutil.NewSubReader(buf))
+	r := PeekDeltaReader(*ioutil.NewSubReader(buf))
 	for {
 		nv, err := r.Next()
 		if err == io.EOF {
@@ -59,7 +59,7 @@ func TestDeltaRoundTrip(t *testing.T) {
 			}
 			require.NoError(t, w.Flush())
 
-			r := NewDeltaReader(ioutil.NewSubReader(buf.Bytes()))
+			r := PeekDeltaReader(*ioutil.NewSubReader(buf.Bytes()))
 			for i, want := range tc.in {
 				got, err := r.Next()
 				require.NoError(t, err, "index %d", i)

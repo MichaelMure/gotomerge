@@ -9,7 +9,9 @@ import (
 
 type ActorReader = rle.Uint64Reader
 
-func NewActorReader(r *ioutil.SubReader) *ActorReader {
+// PeekActorReader creates a reader over a snapshot of r. The original cursor
+// is not advanced; r is passed by value so the reader owns an independent copy.
+func PeekActorReader(r ioutil.SubReader) *ActorReader {
 	return rle.NewUint64Reader(r)
 }
 

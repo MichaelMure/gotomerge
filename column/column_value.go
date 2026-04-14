@@ -14,10 +14,12 @@ import (
 
 // ValueReader is a stateful reader for value columns.
 type ValueReader struct {
-	r *ioutil.SubReader
+	// r is stored by value so that a fork is a plain struct copy with no extra allocation.
+	r ioutil.SubReader
 }
 
-func NewValueReader(r *ioutil.SubReader) *ValueReader {
+// PeekValueReader creates a reader over a snapshot of r. See PeekActorReader.
+func PeekValueReader(r ioutil.SubReader) *ValueReader {
 	return &ValueReader{r: r}
 }
 
@@ -32,15 +34,15 @@ func (vr *ValueReader) Next(meta ValueMetadata) (any, error) {
 	case ValueTypeTrue:
 		val = true
 	case ValueTypeUInt:
-		val, err = leb128.DecodeU64(vr.r)
+		val, err = leb128.DecodeU64(&vr.r)
 	case ValueTypeInt:
-		val, err = leb128.DecodeS64(vr.r)
+		val, err = leb128.DecodeS64(&vr.r)
 	case ValueTypeFloat:
 		var f float64
-		err = binary.Read(vr.r, binary.LittleEndian, &f)
+		err = binary.Read(&vr.r, binary.LittleEndian, &f)
 		val = f
 	case ValueTypeString:
-		str, rerr := ioutil.ReadStringLimitedPrealloc(vr.r, meta.Length())
+		str, rerr := ioutil.ReadStringLimitedPrealloc(&vr.r, meta.Length())
 		if rerr != nil {
 			return nil, rerr
 		}
@@ -49,17 +51,17 @@ func (vr *ValueReader) Next(meta ValueMetadata) (any, error) {
 		}
 		val = str
 	case ValueTypeBytes:
-		val, err = ioutil.ReadBytesLimitedPrealloc(vr.r, meta.Length())
+		val, err = ioutil.ReadBytesLimitedPrealloc(&vr.r, meta.Length())
 	case ValueTypeCounter:
 		var ctr int64
-		ctr, err = leb128.DecodeS64(vr.r)
+		ctr, err = leb128.DecodeS64(&vr.r)
 		val = types.Counter(ctr)
 	case ValueTypeTimestamp:
 		var ts int64
-		ts, err = leb128.DecodeS64(vr.r)
+		ts, err = leb128.DecodeS64(&vr.r)
 		val = types.Timestamp(ts)
 	default:
-		data, rerr := ioutil.ReadBytesLimitedPrealloc(vr.r, meta.Length())
+		data, rerr := ioutil.ReadBytesLimitedPrealloc(&vr.r, meta.Length())
 		if rerr != nil {
 			return nil, rerr
 		}
@@ -72,11 +74,10 @@ func (vr *ValueReader) Next(meta ValueMetadata) (any, error) {
 }
 
 func (vr *ValueReader) Fork() (*ValueReader, error) {
-	sub, err := vr.r.SubReaderOffset(0)
-	if err != nil {
-		return nil, err
-	}
-	return &ValueReader{r: sub}, nil
+	// r is a value type, so copying the struct snapshots the read position without
+	// allocating a separate SubReader.
+	cp := *vr
+	return &cp, nil
 }
 
 // ValueWriter is a stateful encoder for value columns. It writes value metadata

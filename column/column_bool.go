@@ -12,13 +12,15 @@ import (
 // run-length encoding: each LEB128 uint64 gives the count of the current
 // value, then the value toggles (starting at false).
 type BoolReader struct {
-	r         *ioutil.SubReader
+	// r is stored by value so that a fork is a plain struct copy with no extra allocation.
+	r         ioutil.SubReader
 	remaining uint64
 	val       bool
 	done      bool
 }
 
-func NewBoolReader(r *ioutil.SubReader) *BoolReader {
+// PeekBoolReader creates a reader over a snapshot of r. See PeekActorReader.
+func PeekBoolReader(r ioutil.SubReader) *BoolReader {
 	return &BoolReader{r: r}
 }
 
@@ -27,7 +29,7 @@ func (b *BoolReader) Next() (bool, error) {
 		if b.done {
 			return false, io.EOF
 		}
-		count, err := leb128.DecodeU64(b.r)
+		count, err := leb128.DecodeU64(&b.r)
 		if err == io.EOF {
 			b.done = true
 			return false, io.EOF
@@ -50,12 +52,9 @@ func (b *BoolReader) Next() (bool, error) {
 }
 
 func (b *BoolReader) Fork() (*BoolReader, error) {
-	sub, err := b.r.SubReaderOffset(0)
-	if err != nil {
-		return nil, err
-	}
+	// r is a value type, so copying the struct snapshots the read position without
+	// allocating a separate SubReader.
 	cp := *b
-	cp.r = sub
 	return &cp, nil
 }
 

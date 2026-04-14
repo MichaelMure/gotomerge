@@ -28,7 +28,8 @@ func (n NullableValue[T]) Value() (T, bool) { return n.val, !n.null }
 // Reader is a generic stateful reader for RLE-encoded columns.
 // T is the element type; readFn decodes one non-null value from an ioutil.ByteReader.
 type Reader[T any] struct {
-	r          *ioutil.SubReader
+	// r is stored by value so that a fork is a plain struct copy with no extra allocation.
+	r          ioutil.SubReader
 	readFn     func(ioutil.ByteReader) (T, error)
 	state      rleState
 	remaining  int64
@@ -36,7 +37,7 @@ type Reader[T any] struct {
 	cachedNull bool
 }
 
-func NewReader[T any](r *ioutil.SubReader, readFn func(ioutil.ByteReader) (T, error)) *Reader[T] {
+func NewReader[T any](r ioutil.SubReader, readFn func(ioutil.ByteReader) (T, error)) *Reader[T] {
 	return &Reader[T]{r: r, readFn: readFn}
 }
 
@@ -45,7 +46,7 @@ func (rd *Reader[T]) Next() (NullableValue[T], error) {
 	for {
 		switch rd.state {
 		case rleStateIdle:
-			L, err := leb128.DecodeS64(rd.r)
+			L, err := leb128.DecodeS64(&rd.r)
 			if err == io.EOF {
 				return zero, io.EOF
 			}
@@ -54,7 +55,7 @@ func (rd *Reader[T]) Next() (NullableValue[T], error) {
 			}
 			switch {
 			case L > 1:
-				val, err := rd.readFn(rd.r)
+				val, err := rd.readFn(&rd.r)
 				if err != nil {
 					return zero, err
 				}
@@ -64,7 +65,7 @@ func (rd *Reader[T]) Next() (NullableValue[T], error) {
 				rd.cachedNull = false
 				continue
 			case L == 0:
-				count, err := leb128.DecodeU64(rd.r)
+				count, err := leb128.DecodeU64(&rd.r)
 				if err != nil {
 					return zero, err
 				}
@@ -73,7 +74,7 @@ func (rd *Reader[T]) Next() (NullableValue[T], error) {
 				continue
 			default: // L < 0 or L == 1
 				if L == 1 {
-					val, err := rd.readFn(rd.r)
+					val, err := rd.readFn(&rd.r)
 					if err != nil {
 						return zero, err
 					}
@@ -100,7 +101,7 @@ func (rd *Reader[T]) Next() (NullableValue[T], error) {
 			}
 			return NullableValue[T]{null: true}, nil
 		case rleStateLiteral:
-			val, err := rd.readFn(rd.r)
+			val, err := rd.readFn(&rd.r)
 			if err != nil {
 				return zero, err
 			}
@@ -114,11 +115,8 @@ func (rd *Reader[T]) Next() (NullableValue[T], error) {
 }
 
 func (rd *Reader[T]) Fork() (*Reader[T], error) {
-	sub, err := rd.r.SubReaderOffset(0)
-	if err != nil {
-		return nil, err
-	}
+	// r is a value type, so copying the struct snapshots the read position without
+	// allocating a separate SubReader.
 	cp := *rd
-	cp.r = sub
 	return &cp, nil
 }

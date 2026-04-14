@@ -1,7 +1,6 @@
 package format
 
 import (
-	"errors"
 	"fmt"
 	"iter"
 	"strings"
@@ -228,17 +227,15 @@ func (d DocumentChunk) Changes() iter.Seq2[column.RawChangeMeta, error] {
 	if d.ChangesColumns.ActorId == nil {
 		return func(yield func(column.RawChangeMeta, error) bool) {}
 	}
-	actor, e1 := column.Req(d.ChangesColumns.ActorId, column.NewActorReader, "changes.actorId")
-	seqNum, e2 := column.Req(d.ChangesColumns.SeqNum, column.NewDeltaReader, "changes.seqNum")
-	maxOp, e3 := column.Req(d.ChangesColumns.MaxOp, column.NewDeltaReader, "changes.maxOp")
-	time, e4 := column.Opt(d.ChangesColumns.Time, column.NewDeltaReader)
-	message, e5 := column.Opt(d.ChangesColumns.Message, column.NewStringReader)
-	depsGroup, e6 := column.Opt(d.ChangesColumns.DependenciesGroup, column.NewGroupReader)
-	depsIndex, e7 := column.Opt(d.ChangesColumns.DependenciesIndex, column.NewDeltaReader)
-	if err := errors.Join(e1, e2, e3, e4, e5, e6, e7); err != nil {
-		return errSeq[column.RawChangeMeta](err)
-	}
-	cr := column.NewChangesReader(actor, seqNum, maxOp, time, message, depsGroup, depsIndex)
+	cr := column.NewChangesReader(
+		peek(d.ChangesColumns.ActorId, column.PeekActorReader),
+		peek(d.ChangesColumns.SeqNum, column.PeekDeltaReader),
+		peek(d.ChangesColumns.MaxOp, column.PeekDeltaReader),
+		peek(d.ChangesColumns.Time, column.PeekDeltaReader),
+		peek(d.ChangesColumns.Message, column.PeekStringReader),
+		peek(d.ChangesColumns.DependenciesGroup, column.PeekGroupReader),
+		peek(d.ChangesColumns.DependenciesIndex, column.PeekDeltaReader),
+	)
 
 	return func(yield func(column.RawChangeMeta, error) bool) {
 		for {
@@ -263,23 +260,20 @@ func (d DocumentChunk) Operations() iter.Seq2[types.DocOperation, error] {
 	if d.OpColumns.Action == nil {
 		return func(yield func(types.DocOperation, error) bool) {}
 	}
-	objActor, e1 := column.Opt(d.OpColumns.ObjectActorId, column.NewActorReader)
-	objCounter, e2 := column.Opt(d.OpColumns.ObjectCounter, column.NewUlebReader)
-	opActor, e3 := column.Req(d.OpColumns.ActorId, column.NewActorReader, "op.actorId")
-	opCounter, e4 := column.Req(d.OpColumns.Counter, column.NewDeltaReader, "op.counter")
-	actionKind, e5 := column.Req(d.OpColumns.Action, column.NewUlebReader, "action")
-	keyActor, e6 := column.Opt(d.OpColumns.KeyActorId, column.NewActorReader)
-	keyCounter, e7 := column.Opt(d.OpColumns.KeyCounter, column.NewDeltaReader)
-	keyString, e8 := column.Opt(d.OpColumns.KeyString, column.NewStringReader)
-	insert, e9 := column.Opt(d.OpColumns.Insert, column.NewBoolReader)
-	valueMeta, e10 := column.Opt(d.OpColumns.ValueMetadata, column.NewValueMetadataReader)
-	value, e11 := column.Opt(d.OpColumns.Value, column.NewValueReader)
-	succGroup, e12 := column.Opt(d.OpColumns.SuccessorGroup, column.NewGroupReader)
-	succActor, e13 := column.Opt(d.OpColumns.SuccessorActorId, column.NewActorReader)
-	succCounter, e14 := column.Opt(d.OpColumns.SuccessorCounter, column.NewDeltaReader)
-	if err := errors.Join(e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14); err != nil {
-		return errSeq[types.DocOperation](err)
-	}
+	objActor := peek(d.OpColumns.ObjectActorId, column.PeekActorReader)
+	objCounter := peek(d.OpColumns.ObjectCounter, column.PeekUlebReader)
+	opActor := peek(d.OpColumns.ActorId, column.PeekActorReader)
+	opCounter := peek(d.OpColumns.Counter, column.PeekDeltaReader)
+	actionKind := peek(d.OpColumns.Action, column.PeekUlebReader)
+	keyActor := peek(d.OpColumns.KeyActorId, column.PeekActorReader)
+	keyCounter := peek(d.OpColumns.KeyCounter, column.PeekDeltaReader)
+	keyString := peek(d.OpColumns.KeyString, column.PeekStringReader)
+	insert := peek(d.OpColumns.Insert, column.PeekBoolReader)
+	valueMeta := peek(d.OpColumns.ValueMetadata, column.PeekValueMetadataReader)
+	value := peek(d.OpColumns.Value, column.PeekValueReader)
+	succGroup := peek(d.OpColumns.SuccessorGroup, column.PeekGroupReader)
+	succActor := peek(d.OpColumns.SuccessorActorId, column.PeekActorReader)
+	succCounter := peek(d.OpColumns.SuccessorCounter, column.PeekDeltaReader)
 
 	objReader := column.NewObjectReader(objActor, objCounter)
 	keyReader := column.NewKeyReader(keyActor, keyCounter, keyString)

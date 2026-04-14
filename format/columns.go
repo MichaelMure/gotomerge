@@ -148,6 +148,15 @@ type ChangeColumns struct {
 	ExtraData     *ioutil.SubReader
 }
 
+// peek creates a reader from a non-consuming snapshot of r, or returns nil if
+// the column is absent. *r is the explicit fork: the caller's cursor is not advanced.
+func peek[T any](r *ioutil.SubReader, ctor func(ioutil.SubReader) *T) *T {
+	if r == nil {
+		return nil
+	}
+	return ctor(*r)
+}
+
 // isDone reports whether err signals iterator exhaustion.
 func isDone(err error) bool {
 	return errors.Is(err, column.ErrDone) || errors.Is(err, io.EOF)

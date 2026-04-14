@@ -28,8 +28,8 @@ func TestObjectRoundTrip(t *testing.T) {
 		require.NoError(t, w.Flush())
 
 		r := NewObjectReader(
-			bytesOpt(actorBuf.Bytes(), NewActorReader),
-			bytesOpt(ctrBuf.Bytes(), NewUlebReader),
+			bytesOpt(actorBuf.Bytes(), PeekActorReader),
+			bytesOpt(ctrBuf.Bytes(), PeekUlebReader),
 		)
 		for i, want := range in {
 			got, err := r.Next()

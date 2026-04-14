@@ -15,7 +15,8 @@ type DeltaReader struct {
 	acc int64
 }
 
-func NewDeltaReader(r *ioutil.SubReader) *DeltaReader {
+// PeekDeltaReader creates a reader over a snapshot of r. See PeekActorReader.
+func PeekDeltaReader(r ioutil.SubReader) *DeltaReader {
 	return &DeltaReader{r: rle.NewInt64Reader(r)}
 }
 

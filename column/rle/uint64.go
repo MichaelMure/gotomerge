@@ -11,7 +11,7 @@ import (
 
 type Uint64Reader = Reader[uint64]
 
-func NewUint64Reader(r *ioutil.SubReader) *Uint64Reader {
+func NewUint64Reader(r ioutil.SubReader) *Uint64Reader {
 	return NewReader[uint64](r, readU64)
 }
 

@@ -9,7 +9,8 @@ import (
 
 type StringReader = rle.StringReader
 
-func NewStringReader(r *ioutil.SubReader) *StringReader {
+// PeekStringReader creates a reader over a snapshot of r. See PeekActorReader.
+func PeekStringReader(r ioutil.SubReader) *StringReader {
 	return rle.NewStringReader(r)
 }
 

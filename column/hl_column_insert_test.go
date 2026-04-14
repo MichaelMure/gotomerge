@@ -26,7 +26,7 @@ func TestInsertRoundTrip(t *testing.T) {
 		require.NoError(t, w.Flush())
 
 		r := NewInsertReader(
-			bytesOpt(buf.Bytes(), NewBoolReader),
+			bytesOpt(buf.Bytes(), PeekBoolReader),
 		)
 		var out []bool
 		for {

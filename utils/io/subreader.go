@@ -8,6 +8,12 @@ import (
 
 // SubReader is a zero-copy reader over a []byte. All sub-reader views share
 // the same backing slice; no copies are made on fork or sub-view creation.
+//
+// *SubReader is a live, shared cursor: mutations through one pointer are visible
+// to all holders. Copying the value (SubReader, not *SubReader) snapshots the
+// cursor at its current position — equivalent to a fork — without any allocation.
+// Callers that want an independent cursor should copy the value rather than the
+// pointer.
 type SubReader struct {
 	data     []byte
 	position int

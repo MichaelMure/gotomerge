@@ -23,8 +23,8 @@ func TestOpIdRoundTrip(t *testing.T) {
 		require.NoError(t, w.Flush())
 
 		r := NewOpIdReader(
-			bytesOpt(actorBuf.Bytes(), NewActorReader),
-			bytesOpt(ctrBuf.Bytes(), NewDeltaReader),
+			bytesOpt(actorBuf.Bytes(), PeekActorReader),
+			bytesOpt(ctrBuf.Bytes(), PeekDeltaReader),
 		)
 		for i, want := range in {
 			got, err := r.Next()

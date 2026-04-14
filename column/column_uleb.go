@@ -9,7 +9,8 @@ import (
 
 type UlebReader = rle.Uint64Reader
 
-func NewUlebReader(r *ioutil.SubReader) *UlebReader {
+// PeekUlebReader creates a reader over a snapshot of r. See PeekActorReader.
+func PeekUlebReader(r ioutil.SubReader) *UlebReader {
 	return rle.NewUint64Reader(r)
 }
 

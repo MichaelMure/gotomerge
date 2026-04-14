@@ -34,9 +34,9 @@ func TestActionRoundTrip(t *testing.T) {
 		require.NoError(t, w.Flush())
 
 		r := NewActionReader(
-			bytesOpt(kindBuf.Bytes(), NewUlebReader),
-			bytesOpt(metaBuf.Bytes(), NewValueMetadataReader),
-			bytesOpt(valBuf.Bytes(), NewValueReader),
+			bytesOpt(kindBuf.Bytes(), PeekUlebReader),
+			bytesOpt(metaBuf.Bytes(), PeekValueMetadataReader),
+			bytesOpt(valBuf.Bytes(), PeekValueReader),
 		)
 		var out []types.Action
 		for {

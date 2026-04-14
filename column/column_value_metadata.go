@@ -13,7 +13,8 @@ type ValueMetadataReader struct {
 	r *rle.Uint64Reader
 }
 
-func NewValueMetadataReader(r *ioutil.SubReader) *ValueMetadataReader {
+// PeekValueMetadataReader creates a reader over a snapshot of r. See PeekActorReader.
+func PeekValueMetadataReader(r ioutil.SubReader) *ValueMetadataReader {
 	return &ValueMetadataReader{r: rle.NewUint64Reader(r)}
 }
 

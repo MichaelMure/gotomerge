@@ -215,21 +215,18 @@ func readChangeChunk(r *ioutil.SubReader) (*ChangeChunk, error) {
 }
 
 func (cc ChangeChunk) Operations() iter.Seq2[types.ChangeOperation, error] {
-	objActor, e1 := column.Opt(cc.OpColumns.ObjectActorId, column.NewActorReader)
-	objCounter, e2 := column.Opt(cc.OpColumns.ObjectCounter, column.NewUlebReader)
-	keyActor, e3 := column.Opt(cc.OpColumns.KeyActorId, column.NewActorReader)
-	keyCounter, e4 := column.Opt(cc.OpColumns.KeyCounter, column.NewDeltaReader)
-	keyString, e5 := column.Opt(cc.OpColumns.KeyString, column.NewStringReader)
-	insert, e6 := column.Opt(cc.OpColumns.Insert, column.NewBoolReader)
-	actionKind, e7 := column.Opt(cc.OpColumns.Action, column.NewUlebReader)
-	valueMeta, e8 := column.Opt(cc.OpColumns.ValueMetadata, column.NewValueMetadataReader)
-	value, e9 := column.Opt(cc.OpColumns.Value, column.NewValueReader)
-	predGroup, e10 := column.Opt(cc.OpColumns.PredecessorGroup, column.NewGroupReader)
-	predActor, e11 := column.Opt(cc.OpColumns.PredecessorActorId, column.NewActorReader)
-	predCounter, e12 := column.Opt(cc.OpColumns.PredecessorCounter, column.NewDeltaReader)
-	if err := errors.Join(e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12); err != nil {
-		return errSeq[types.ChangeOperation](err)
-	}
+	objActor := peek(cc.OpColumns.ObjectActorId, column.PeekActorReader)
+	objCounter := peek(cc.OpColumns.ObjectCounter, column.PeekUlebReader)
+	keyActor := peek(cc.OpColumns.KeyActorId, column.PeekActorReader)
+	keyCounter := peek(cc.OpColumns.KeyCounter, column.PeekDeltaReader)
+	keyString := peek(cc.OpColumns.KeyString, column.PeekStringReader)
+	insert := peek(cc.OpColumns.Insert, column.PeekBoolReader)
+	actionKind := peek(cc.OpColumns.Action, column.PeekUlebReader)
+	valueMeta := peek(cc.OpColumns.ValueMetadata, column.PeekValueMetadataReader)
+	value := peek(cc.OpColumns.Value, column.PeekValueReader)
+	predGroup := peek(cc.OpColumns.PredecessorGroup, column.PeekGroupReader)
+	predActor := peek(cc.OpColumns.PredecessorActorId, column.PeekActorReader)
+	predCounter := peek(cc.OpColumns.PredecessorCounter, column.PeekDeltaReader)
 
 	objReader := column.NewObjectReader(objActor, objCounter)
 	keyReader := column.NewKeyReader(keyActor, keyCounter, keyString)

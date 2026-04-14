@@ -29,9 +29,9 @@ func TestKeyRoundTrip(t *testing.T) {
 		require.NoError(t, w.Flush())
 
 		r := NewKeyReader(
-			bytesOpt(actorBuf.Bytes(), NewActorReader),
-			bytesOpt(ctrBuf.Bytes(), NewDeltaReader),
-			bytesOpt(strBuf.Bytes(), NewStringReader),
+			bytesOpt(actorBuf.Bytes(), PeekActorReader),
+			bytesOpt(ctrBuf.Bytes(), PeekDeltaReader),
+			bytesOpt(strBuf.Bytes(), PeekStringReader),
 		)
 		for i, want := range in {
 			got, err := r.Next()

@@ -13,11 +13,11 @@ import (
 // Returns nil when data is empty — an all-null column produces zero bytes
 // (matching Rust's InitialNullRun behaviour), and nil readers are handled as
 // all-null by the high-level column readers.
-func bytesOpt[T any](data []byte, ctor func(*ioutil.SubReader) *T) *T {
+func bytesOpt[T any](data []byte, ctor func(ioutil.SubReader) *T) *T {
 	if len(data) == 0 {
 		return nil
 	}
-	return ctor(ioutil.NewSubReader(data))
+	return ctor(*ioutil.NewSubReader(data))
 }
 
 func TestChangesRoundTrip(t *testing.T) {
@@ -46,13 +46,13 @@ func TestChangesRoundTrip(t *testing.T) {
 		require.NoError(t, w.Flush())
 
 		r := NewChangesReader(
-			bytesOpt(actorBuf.Bytes(), NewActorReader),
-			bytesOpt(seqBuf.Bytes(), NewDeltaReader),
-			bytesOpt(maxOpBuf.Bytes(), NewDeltaReader),
-			bytesOpt(timeBuf.Bytes(), NewDeltaReader),
-			bytesOpt(msgBuf.Bytes(), NewStringReader),
-			bytesOpt(grpBuf.Bytes(), NewGroupReader),
-			bytesOpt(idxBuf.Bytes(), NewDeltaReader),
+			bytesOpt(actorBuf.Bytes(), PeekActorReader),
+			bytesOpt(seqBuf.Bytes(), PeekDeltaReader),
+			bytesOpt(maxOpBuf.Bytes(), PeekDeltaReader),
+			bytesOpt(timeBuf.Bytes(), PeekDeltaReader),
+			bytesOpt(msgBuf.Bytes(), PeekStringReader),
+			bytesOpt(grpBuf.Bytes(), PeekGroupReader),
+			bytesOpt(idxBuf.Bytes(), PeekDeltaReader),
 		)
 		for i, want := range in {
 			got, err := r.Next()

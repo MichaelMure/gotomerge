@@ -9,7 +9,8 @@ import (
 
 type GroupReader = rle.Uint64Reader
 
-func NewGroupReader(r *ioutil.SubReader) *GroupReader {
+// PeekGroupReader creates a reader over a snapshot of r. See PeekActorReader.
+func PeekGroupReader(r ioutil.SubReader) *GroupReader {
 	return rle.NewUint64Reader(r)
 }
 
