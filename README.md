@@ -1,8 +1,12 @@
 # gotomerge
 
-A Go implementation of the [Automerge](https://automerge.org) CRDT document format.
+A Go implementation of the [Automerge](https://automerge.org) CRDT.
 
-Automerge documents can be edited concurrently by multiple peers without coordination. Changes are merged automatically and deterministically — no conflict resolution code required. The binary format is interoperable with other Automerge implementations (Rust, JavaScript, Swift).
+Automerge documents can be edited concurrently by multiple peers without coordination. Changes are merged automatically and deterministically — no conflict resolution code required. The binary format is interoperable with other the canonical Automerge implementation (Rust).
+
+## Architecture
+
+An overview of the internal components and data flows is available in [architecture.md](architecture.md).
 
 ## Install
 

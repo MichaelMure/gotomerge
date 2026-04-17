@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/MichaelMure/gotomerge/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/MichaelMure/gotomerge/types"
 )
 
 func TestGroupedOpIdRoundTrip(t *testing.T) {

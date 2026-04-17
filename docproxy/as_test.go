@@ -230,7 +230,7 @@ type asTestConfig struct {
 	Label     string
 	Ignored   string `automerge:"-"`
 	CustomKey string `automerge:"myKey"`
-	hidden    string //nolint unexported
+	hidden    string
 }
 
 func TestAsStruct(t *testing.T) {
