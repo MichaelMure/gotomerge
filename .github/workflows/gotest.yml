@@ -9,9 +9,9 @@ jobs:
       matrix:
         # run against go.mod go version and latest
         include:
-          - name: go.mod
+          - name: go version from go.mod
             go-version-file: go.mod
-          - name: latest
+          - name: go version latest
             go-version: stable
 
     runs-on: ubuntu-latest
