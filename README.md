@@ -20,8 +20,6 @@
   </p>
 </div>
 
-# gotomerge
-
 A Go implementation of the [Automerge](https://automerge.org) CRDT.
 
 Automerge documents can be edited concurrently by multiple peers without coordination. Changes are merged automatically and deterministically — no conflict resolution code required. The binary format is interoperable with other the canonical Automerge implementation (Rust).
