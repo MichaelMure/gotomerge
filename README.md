@@ -1,3 +1,25 @@
+<div align="center">
+  <h1 align="center">gotomerge</h1>
+
+  <p>
+    <a href="https://github.com/MichaelMure/gotomerge/tags">
+        <img alt="GitHub Tag" src="https://img.shields.io/github/v/tag/MichaelMure/gotomerge">
+    </a>
+    <a href="https://github.com/MichaelMure/gotomerge/actions?query=">
+      <img src="https://github.com/MichaelMure/gotomerge/actions/workflows/gotest.yml/badge.svg" alt="Build Status">
+    </a>
+    <a href="https://MichaelMure.github.io/gotomerge/dev/bench/">
+        <img alt="Go benchmarks" src="https://img.shields.io/badge/Benchmarks-go-blue">
+    </a>
+    <a href="https://github.com/MichaelMure/gotomerge/blob/v1/LICENSE">
+        <img alt="MIT License" src="https://img.shields.io/badge/License-MIT-green">
+    </a>
+    <a href="https://pkg.go.dev/github.com/MichaelMure/gotomerge">
+      <img src="https://img.shields.io/badge/Docs-godoc-blue" alt="Docs">
+    </a>
+  </p>
+</div>
+
 # gotomerge
 
 A Go implementation of the [Automerge](https://automerge.org) CRDT.
