@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776760611582,
+  "lastUpdate": 1776760998491,
   "repoUrl": "https://github.com/MichaelMure/gotomerge",
   "entries": {
     "Go Benchmark": [
@@ -2424,6 +2424,2430 @@ window.BENCHMARK_DATA = {
             "value": 321,
             "unit": "allocs/op",
             "extra": "1720 times\n4 procs"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "batolettre@gmail.com",
+            "name": "Michael Muré",
+            "username": "MichaelMure"
+          },
+          "committer": {
+            "email": "batolettre@gmail.com",
+            "name": "Michael Muré",
+            "username": "MichaelMure"
+          },
+          "distinct": true,
+          "id": "a18a3070bbc19e440bb7acd5e7d83244394db039",
+          "message": "ci: update actions",
+          "timestamp": "2026-04-21T10:37:37+02:00",
+          "tree_id": "de60b4b1d81997080d6275ef86d6b6ba7307cd61",
+          "url": "https://github.com/MichaelMure/gotomerge/commit/a18a3070bbc19e440bb7acd5e7d83244394db039"
+        },
+        "date": 1776760997994,
+        "tool": "go",
+        "benches": [
+          {
+            "name": "BenchmarkReadMetadata (github.com/MichaelMure/gotomerge/column)",
+            "value": 179.5,
+            "unit": "ns/op\t      80 B/op\t       2 allocs/op",
+            "extra": "6632394 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadMetadata (github.com/MichaelMure/gotomerge/column) - ns/op",
+            "value": 179.5,
+            "unit": "ns/op",
+            "extra": "6632394 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadMetadata (github.com/MichaelMure/gotomerge/column) - B/op",
+            "value": 80,
+            "unit": "B/op",
+            "extra": "6632394 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadMetadata (github.com/MichaelMure/gotomerge/column) - allocs/op",
+            "value": 2,
+            "unit": "allocs/op",
+            "extra": "6632394 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteMetadata (github.com/MichaelMure/gotomerge/column)",
+            "value": 84.11,
+            "unit": "ns/op\t      40 B/op\t       5 allocs/op",
+            "extra": "13942390 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteMetadata (github.com/MichaelMure/gotomerge/column) - ns/op",
+            "value": 84.11,
+            "unit": "ns/op",
+            "extra": "13942390 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteMetadata (github.com/MichaelMure/gotomerge/column) - B/op",
+            "value": 40,
+            "unit": "B/op",
+            "extra": "13942390 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteMetadata (github.com/MichaelMure/gotomerge/column) - allocs/op",
+            "value": 5,
+            "unit": "allocs/op",
+            "extra": "13942390 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadSpecification (github.com/MichaelMure/gotomerge/column)",
+            "value": 177.7,
+            "unit": "ns/op\t      80 B/op\t       2 allocs/op",
+            "extra": "6948130 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadSpecification (github.com/MichaelMure/gotomerge/column) - ns/op",
+            "value": 177.7,
+            "unit": "ns/op",
+            "extra": "6948130 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadSpecification (github.com/MichaelMure/gotomerge/column) - B/op",
+            "value": 80,
+            "unit": "B/op",
+            "extra": "6948130 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadSpecification (github.com/MichaelMure/gotomerge/column) - allocs/op",
+            "value": 2,
+            "unit": "allocs/op",
+            "extra": "6948130 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteSpecification (github.com/MichaelMure/gotomerge/column)",
+            "value": 39.67,
+            "unit": "ns/op\t      16 B/op\t       2 allocs/op",
+            "extra": "29552283 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteSpecification (github.com/MichaelMure/gotomerge/column) - ns/op",
+            "value": 39.67,
+            "unit": "ns/op",
+            "extra": "29552283 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteSpecification (github.com/MichaelMure/gotomerge/column) - B/op",
+            "value": 16,
+            "unit": "B/op",
+            "extra": "29552283 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteSpecification (github.com/MichaelMure/gotomerge/column) - allocs/op",
+            "value": 2,
+            "unit": "allocs/op",
+            "extra": "29552283 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkUint64Reader (github.com/MichaelMure/gotomerge/column/rle)",
+            "value": 126.6,
+            "unit": "ns/op\t      80 B/op\t       1 allocs/op",
+            "extra": "9525066 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkUint64Reader (github.com/MichaelMure/gotomerge/column/rle) - ns/op",
+            "value": 126.6,
+            "unit": "ns/op",
+            "extra": "9525066 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkUint64Reader (github.com/MichaelMure/gotomerge/column/rle) - B/op",
+            "value": 80,
+            "unit": "B/op",
+            "extra": "9525066 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkUint64Reader (github.com/MichaelMure/gotomerge/column/rle) - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "9525066 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInt64Reader (github.com/MichaelMure/gotomerge/column/rle)",
+            "value": 121.6,
+            "unit": "ns/op\t      80 B/op\t       1 allocs/op",
+            "extra": "9694692 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInt64Reader (github.com/MichaelMure/gotomerge/column/rle) - ns/op",
+            "value": 121.6,
+            "unit": "ns/op",
+            "extra": "9694692 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInt64Reader (github.com/MichaelMure/gotomerge/column/rle) - B/op",
+            "value": 80,
+            "unit": "B/op",
+            "extra": "9694692 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInt64Reader (github.com/MichaelMure/gotomerge/column/rle) - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "9694692 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStringReader (github.com/MichaelMure/gotomerge/column/rle)",
+            "value": 194.7,
+            "unit": "ns/op\t     104 B/op\t       4 allocs/op",
+            "extra": "6149227 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStringReader (github.com/MichaelMure/gotomerge/column/rle) - ns/op",
+            "value": 194.7,
+            "unit": "ns/op",
+            "extra": "6149227 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStringReader (github.com/MichaelMure/gotomerge/column/rle) - B/op",
+            "value": 104,
+            "unit": "B/op",
+            "extra": "6149227 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStringReader (github.com/MichaelMure/gotomerge/column/rle) - allocs/op",
+            "value": 4,
+            "unit": "allocs/op",
+            "extra": "6149227 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 47657,
+            "unit": "ns/op\t   61600 B/op\t     354 allocs/op",
+            "extra": "26905 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 47657,
+            "unit": "ns/op",
+            "extra": "26905 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 61600,
+            "unit": "B/op",
+            "extra": "26905 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 354,
+            "unit": "allocs/op",
+            "extra": "26905 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 608533,
+            "unit": "ns/op\t  699705 B/op\t    2967 allocs/op",
+            "extra": "2037 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 608533,
+            "unit": "ns/op",
+            "extra": "2037 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 699705,
+            "unit": "B/op",
+            "extra": "2037 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 2967,
+            "unit": "allocs/op",
+            "extra": "2037 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 9209980,
+            "unit": "ns/op\t 9102246 B/op\t   30069 allocs/op",
+            "extra": "134 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 9209980,
+            "unit": "ns/op",
+            "extra": "134 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 9102246,
+            "unit": "B/op",
+            "extra": "134 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 30069,
+            "unit": "allocs/op",
+            "extra": "134 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 155888,
+            "unit": "ns/op\t  160291 B/op\t     479 allocs/op",
+            "extra": "8161 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 155888,
+            "unit": "ns/op",
+            "extra": "8161 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 160291,
+            "unit": "B/op",
+            "extra": "8161 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 479,
+            "unit": "allocs/op",
+            "extra": "8161 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 1023496,
+            "unit": "ns/op\t 1091993 B/op\t    4946 allocs/op",
+            "extra": "1158 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 1023496,
+            "unit": "ns/op",
+            "extra": "1158 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 1091993,
+            "unit": "B/op",
+            "extra": "1158 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 4946,
+            "unit": "allocs/op",
+            "extra": "1158 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 12768524,
+            "unit": "ns/op\t11785122 B/op\t   50067 allocs/op",
+            "extra": "97 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 12768524,
+            "unit": "ns/op",
+            "extra": "97 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 11785122,
+            "unit": "B/op",
+            "extra": "97 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 50067,
+            "unit": "allocs/op",
+            "extra": "97 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 157350,
+            "unit": "ns/op\t  162084 B/op\t     479 allocs/op",
+            "extra": "8336 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 157350,
+            "unit": "ns/op",
+            "extra": "8336 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 162084,
+            "unit": "B/op",
+            "extra": "8336 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 479,
+            "unit": "allocs/op",
+            "extra": "8336 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 1047275,
+            "unit": "ns/op\t 1137925 B/op\t    4947 allocs/op",
+            "extra": "1124 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 1047275,
+            "unit": "ns/op",
+            "extra": "1124 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 1137925,
+            "unit": "B/op",
+            "extra": "1124 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 4947,
+            "unit": "allocs/op",
+            "extra": "1124 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 13759895,
+            "unit": "ns/op\t11785301 B/op\t   50072 allocs/op",
+            "extra": "84 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 13759895,
+            "unit": "ns/op",
+            "extra": "84 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 11785301,
+            "unit": "B/op",
+            "extra": "84 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/build/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 50072,
+            "unit": "allocs/op",
+            "extra": "84 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 25178,
+            "unit": "ns/op\t   9.53 MB/s\t    5952 B/op\t     167 allocs/op",
+            "extra": "48921 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 25178,
+            "unit": "ns/op",
+            "extra": "48921 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 9.53,
+            "unit": "MB/s",
+            "extra": "48921 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 5952,
+            "unit": "B/op",
+            "extra": "48921 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 167,
+            "unit": "allocs/op",
+            "extra": "48921 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 254633,
+            "unit": "ns/op\t   6.41 MB/s\t  226130 B/op\t    1079 allocs/op",
+            "extra": "4797 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 254633,
+            "unit": "ns/op",
+            "extra": "4797 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 6.41,
+            "unit": "MB/s",
+            "extra": "4797 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 226130,
+            "unit": "B/op",
+            "extra": "4797 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 1079,
+            "unit": "allocs/op",
+            "extra": "4797 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 1675562,
+            "unit": "ns/op\t  11.30 MB/s\t 1069243 B/op\t   10100 allocs/op",
+            "extra": "715 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 1675562,
+            "unit": "ns/op",
+            "extra": "715 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 11.3,
+            "unit": "MB/s",
+            "extra": "715 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 1069243,
+            "unit": "B/op",
+            "extra": "715 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 10100,
+            "unit": "allocs/op",
+            "extra": "715 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 81151,
+            "unit": "ns/op\t   4.73 MB/s\t   67386 B/op\t     181 allocs/op",
+            "extra": "15247 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 81151,
+            "unit": "ns/op",
+            "extra": "15247 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 4.73,
+            "unit": "MB/s",
+            "extra": "15247 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 67386,
+            "unit": "B/op",
+            "extra": "15247 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 181,
+            "unit": "allocs/op",
+            "extra": "15247 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 397404,
+            "unit": "ns/op\t   8.43 MB/s\t  431777 B/op\t    1104 allocs/op",
+            "extra": "2799 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 397404,
+            "unit": "ns/op",
+            "extra": "2799 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 8.43,
+            "unit": "MB/s",
+            "extra": "2799 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 431777,
+            "unit": "B/op",
+            "extra": "2799 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 1104,
+            "unit": "allocs/op",
+            "extra": "2799 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 2927686,
+            "unit": "ns/op\t  12.33 MB/s\t 2032545 B/op\t   10137 allocs/op",
+            "extra": "415 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 2927686,
+            "unit": "ns/op",
+            "extra": "415 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 12.33,
+            "unit": "MB/s",
+            "extra": "415 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 2032545,
+            "unit": "B/op",
+            "extra": "415 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 10137,
+            "unit": "allocs/op",
+            "extra": "415 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 83130,
+            "unit": "ns/op\t   4.62 MB/s\t   68408 B/op\t     181 allocs/op",
+            "extra": "14244 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 83130,
+            "unit": "ns/op",
+            "extra": "14244 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 4.62,
+            "unit": "MB/s",
+            "extra": "14244 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 68408,
+            "unit": "B/op",
+            "extra": "14244 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 181,
+            "unit": "allocs/op",
+            "extra": "14244 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 406922,
+            "unit": "ns/op\t   8.23 MB/s\t  425260 B/op\t    1103 allocs/op",
+            "extra": "2972 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 406922,
+            "unit": "ns/op",
+            "extra": "2972 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 8.23,
+            "unit": "MB/s",
+            "extra": "2972 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 425260,
+            "unit": "B/op",
+            "extra": "2972 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 1103,
+            "unit": "allocs/op",
+            "extra": "2972 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 2991139,
+            "unit": "ns/op\t  11.97 MB/s\t 2032556 B/op\t   10137 allocs/op",
+            "extra": "404 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 2991139,
+            "unit": "ns/op",
+            "extra": "404 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 11.97,
+            "unit": "MB/s",
+            "extra": "404 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 2032556,
+            "unit": "B/op",
+            "extra": "404 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/save/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 10137,
+            "unit": "allocs/op",
+            "extra": "404 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 30738,
+            "unit": "ns/op\t   7.81 MB/s\t   13048 B/op\t     208 allocs/op",
+            "extra": "38871 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 30738,
+            "unit": "ns/op",
+            "extra": "38871 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 7.81,
+            "unit": "MB/s",
+            "extra": "38871 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 13048,
+            "unit": "B/op",
+            "extra": "38871 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 208,
+            "unit": "allocs/op",
+            "extra": "38871 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 334544,
+            "unit": "ns/op\t   4.88 MB/s\t  166360 B/op\t    2062 allocs/op",
+            "extra": "3548 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 334544,
+            "unit": "ns/op",
+            "extra": "3548 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 4.88,
+            "unit": "MB/s",
+            "extra": "3548 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 166360,
+            "unit": "B/op",
+            "extra": "3548 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 2062,
+            "unit": "allocs/op",
+            "extra": "3548 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 3259301,
+            "unit": "ns/op\t   5.81 MB/s\t 1205668 B/op\t   21690 allocs/op",
+            "extra": "370 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 3259301,
+            "unit": "ns/op",
+            "extra": "370 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 5.81,
+            "unit": "MB/s",
+            "extra": "370 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 1205668,
+            "unit": "B/op",
+            "extra": "370 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 21690,
+            "unit": "allocs/op",
+            "extra": "370 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 57679,
+            "unit": "ns/op\t   6.66 MB/s\t   65024 B/op\t     506 allocs/op",
+            "extra": "20838 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 57679,
+            "unit": "ns/op",
+            "extra": "20838 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 6.66,
+            "unit": "MB/s",
+            "extra": "20838 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 65024,
+            "unit": "B/op",
+            "extra": "20838 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 506,
+            "unit": "allocs/op",
+            "extra": "20838 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 554992,
+            "unit": "ns/op\t   6.04 MB/s\t  413073 B/op\t    5077 allocs/op",
+            "extra": "2125 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 554992,
+            "unit": "ns/op",
+            "extra": "2125 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 6.04,
+            "unit": "MB/s",
+            "extra": "2125 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 413073,
+            "unit": "B/op",
+            "extra": "2125 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 5077,
+            "unit": "allocs/op",
+            "extra": "2125 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 5320605,
+            "unit": "ns/op\t   6.79 MB/s\t 3003305 B/op\t   51767 allocs/op",
+            "extra": "225 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 5320605,
+            "unit": "ns/op",
+            "extra": "225 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 6.79,
+            "unit": "MB/s",
+            "extra": "225 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 3003305,
+            "unit": "B/op",
+            "extra": "225 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 51767,
+            "unit": "allocs/op",
+            "extra": "225 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 57263,
+            "unit": "ns/op\t   6.71 MB/s\t   65024 B/op\t     506 allocs/op",
+            "extra": "21148 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 57263,
+            "unit": "ns/op",
+            "extra": "21148 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 6.71,
+            "unit": "MB/s",
+            "extra": "21148 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 65024,
+            "unit": "B/op",
+            "extra": "21148 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 506,
+            "unit": "allocs/op",
+            "extra": "21148 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 548906,
+            "unit": "ns/op\t   6.10 MB/s\t  413073 B/op\t    5077 allocs/op",
+            "extra": "2200 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 548906,
+            "unit": "ns/op",
+            "extra": "2200 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 6.1,
+            "unit": "MB/s",
+            "extra": "2200 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 413073,
+            "unit": "B/op",
+            "extra": "2200 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 5077,
+            "unit": "allocs/op",
+            "extra": "2200 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 5301680,
+            "unit": "ns/op\t   6.76 MB/s\t 3003508 B/op\t   51767 allocs/op",
+            "extra": "224 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 5301680,
+            "unit": "ns/op",
+            "extra": "224 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 6.76,
+            "unit": "MB/s",
+            "extra": "224 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 3003508,
+            "unit": "B/op",
+            "extra": "224 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/load/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 51767,
+            "unit": "allocs/op",
+            "extra": "224 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 32785,
+            "unit": "ns/op\t   6.10 MB/s\t   33984 B/op\t     197 allocs/op",
+            "extra": "36525 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 32785,
+            "unit": "ns/op",
+            "extra": "36525 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 6.1,
+            "unit": "MB/s",
+            "extra": "36525 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 33984,
+            "unit": "B/op",
+            "extra": "36525 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 197,
+            "unit": "allocs/op",
+            "extra": "36525 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 335381,
+            "unit": "ns/op\t   4.79 MB/s\t  331266 B/op\t    1900 allocs/op",
+            "extra": "3505 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 335381,
+            "unit": "ns/op",
+            "extra": "3505 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 4.79,
+            "unit": "MB/s",
+            "extra": "3505 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 331266,
+            "unit": "B/op",
+            "extra": "3505 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 1900,
+            "unit": "allocs/op",
+            "extra": "3505 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 4771412,
+            "unit": "ns/op\t   3.96 MB/s\t 4492033 B/op\t   19978 allocs/op",
+            "extra": "244 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 4771412,
+            "unit": "ns/op",
+            "extra": "244 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 3.96,
+            "unit": "MB/s",
+            "extra": "244 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 4492033,
+            "unit": "B/op",
+            "extra": "244 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/repeated_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 19978,
+            "unit": "allocs/op",
+            "extra": "244 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 60155,
+            "unit": "ns/op\t   6.18 MB/s\t   86088 B/op\t     496 allocs/op",
+            "extra": "19687 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 60155,
+            "unit": "ns/op",
+            "extra": "19687 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 6.18,
+            "unit": "MB/s",
+            "extra": "19687 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 86088,
+            "unit": "B/op",
+            "extra": "19687 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 496,
+            "unit": "allocs/op",
+            "extra": "19687 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 540117,
+            "unit": "ns/op\t   7.16 MB/s\t  542571 B/op\t    4949 allocs/op",
+            "extra": "2169 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 540117,
+            "unit": "ns/op",
+            "extra": "2169 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 7.16,
+            "unit": "MB/s",
+            "extra": "2169 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 542571,
+            "unit": "B/op",
+            "extra": "2169 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 4949,
+            "unit": "allocs/op",
+            "extra": "2169 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 7336148,
+            "unit": "ns/op\t   5.16 MB/s\t 6217742 B/op\t   50038 allocs/op",
+            "extra": "159 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 7336148,
+            "unit": "ns/op",
+            "extra": "159 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 5.16,
+            "unit": "MB/s",
+            "extra": "159 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 6217742,
+            "unit": "B/op",
+            "extra": "159 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/increasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 50038,
+            "unit": "allocs/op",
+            "extra": "159 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 61424,
+            "unit": "ns/op\t   6.09 MB/s\t   86088 B/op\t     496 allocs/op",
+            "extra": "20121 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 61424,
+            "unit": "ns/op",
+            "extra": "20121 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 6.09,
+            "unit": "MB/s",
+            "extra": "20121 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 86088,
+            "unit": "B/op",
+            "extra": "20121 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 496,
+            "unit": "allocs/op",
+            "extra": "20121 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 541504,
+            "unit": "ns/op\t   7.13 MB/s\t  542571 B/op\t    4949 allocs/op",
+            "extra": "2180 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 541504,
+            "unit": "ns/op",
+            "extra": "2180 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 7.13,
+            "unit": "MB/s",
+            "extra": "2180 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 542571,
+            "unit": "B/op",
+            "extra": "2180 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 4949,
+            "unit": "allocs/op",
+            "extra": "2180 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 7485226,
+            "unit": "ns/op\t   4.92 MB/s\t 6218001 B/op\t   50046 allocs/op",
+            "extra": "159 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 7485226,
+            "unit": "ns/op",
+            "extra": "159 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 4.92,
+            "unit": "MB/s",
+            "extra": "159 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 6218001,
+            "unit": "B/op",
+            "extra": "159 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMap/apply/decreasing_put/ops=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 50046,
+            "unit": "allocs/op",
+            "extra": "159 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/big_paste (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 52669,
+            "unit": "ns/op\t   76092 B/op\t     162 allocs/op",
+            "extra": "22480 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/big_paste (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 52669,
+            "unit": "ns/op",
+            "extra": "22480 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/big_paste (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 76092,
+            "unit": "B/op",
+            "extra": "22480 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/big_paste (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 162,
+            "unit": "allocs/op",
+            "extra": "22480 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/maps_in_maps (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 1786796,
+            "unit": "ns/op\t 1332229 B/op\t    6493 allocs/op",
+            "extra": "661 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/maps_in_maps (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 1786796,
+            "unit": "ns/op",
+            "extra": "661 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/maps_in_maps (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 1332229,
+            "unit": "B/op",
+            "extra": "661 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/maps_in_maps (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 6493,
+            "unit": "allocs/op",
+            "extra": "661 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/deep_history (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 1512504,
+            "unit": "ns/op\t  856453 B/op\t   10134 allocs/op",
+            "extra": "790 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/deep_history (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 1512504,
+            "unit": "ns/op",
+            "extra": "790 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/deep_history (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 856453,
+            "unit": "B/op",
+            "extra": "790 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/deep_history (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 10134,
+            "unit": "allocs/op",
+            "extra": "790 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/poorly_simulated_typing (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 523054,
+            "unit": "ns/op\t  267377 B/op\t    4434 allocs/op",
+            "extra": "2354 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/poorly_simulated_typing (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 523054,
+            "unit": "ns/op",
+            "extra": "2354 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/poorly_simulated_typing (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 267377,
+            "unit": "B/op",
+            "extra": "2354 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveLoad/poorly_simulated_typing (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 4434,
+            "unit": "allocs/op",
+            "extra": "2354 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/apply (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 924871333,
+            "unit": "ns/op\t  31.63 MB/s\t1072416688 B/op\t12966370 allocs/op",
+            "extra": "2 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/apply (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 924871333,
+            "unit": "ns/op",
+            "extra": "2 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/apply (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 31.63,
+            "unit": "MB/s",
+            "extra": "2 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/apply (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 1072416688,
+            "unit": "B/op",
+            "extra": "2 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/apply (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 12966370,
+            "unit": "allocs/op",
+            "extra": "2 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/save (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 1091015467,
+            "unit": "ns/op\t   0.13 MB/s\t1109294032 B/op\t13346972 allocs/op",
+            "extra": "1 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/save (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 1091015467,
+            "unit": "ns/op",
+            "extra": "1 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/save (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 0.13,
+            "unit": "MB/s",
+            "extra": "1 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/save (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 1109294032,
+            "unit": "B/op",
+            "extra": "1 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/save (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 13346972,
+            "unit": "allocs/op",
+            "extra": "1 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/load (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 85650593,
+            "unit": "ns/op\t   1.65 MB/s\t31288001 B/op\t  761472 allocs/op",
+            "extra": "13 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/load (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 85650593,
+            "unit": "ns/op",
+            "extra": "13 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/load (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 1.65,
+            "unit": "MB/s",
+            "extra": "13 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/load (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 31288001,
+            "unit": "B/op",
+            "extra": "13 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkEditTrace/load (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 761472,
+            "unit": "allocs/op",
+            "extra": "13 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRange (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 36749216,
+            "unit": "ns/op\t48200968 B/op\t  100559 allocs/op",
+            "extra": "39 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRange (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 36749216,
+            "unit": "ns/op",
+            "extra": "39 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRange (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 48200968,
+            "unit": "B/op",
+            "extra": "39 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkRange (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 100559,
+            "unit": "allocs/op",
+            "extra": "39 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/scalar/keys=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 93.47,
+            "unit": "ns/op\t      48 B/op\t       1 allocs/op",
+            "extra": "12848571 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/scalar/keys=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 93.47,
+            "unit": "ns/op",
+            "extra": "12848571 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/scalar/keys=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 48,
+            "unit": "B/op",
+            "extra": "12848571 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/scalar/keys=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "12848571 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/scalar/keys=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 97.35,
+            "unit": "ns/op\t      48 B/op\t       1 allocs/op",
+            "extra": "12799750 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/scalar/keys=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 97.35,
+            "unit": "ns/op",
+            "extra": "12799750 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/scalar/keys=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 48,
+            "unit": "B/op",
+            "extra": "12799750 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/scalar/keys=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "12799750 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/scalar/keys=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 95.49,
+            "unit": "ns/op\t      48 B/op\t       1 allocs/op",
+            "extra": "12953419 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/scalar/keys=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 95.49,
+            "unit": "ns/op",
+            "extra": "12953419 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/scalar/keys=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 48,
+            "unit": "B/op",
+            "extra": "12953419 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/scalar/keys=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "12953419 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/nested/keys=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 90.93,
+            "unit": "ns/op\t      48 B/op\t       1 allocs/op",
+            "extra": "13530848 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/nested/keys=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 90.93,
+            "unit": "ns/op",
+            "extra": "13530848 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/nested/keys=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 48,
+            "unit": "B/op",
+            "extra": "13530848 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/nested/keys=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "13530848 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/nested/keys=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 93.77,
+            "unit": "ns/op\t      48 B/op\t       1 allocs/op",
+            "extra": "13080481 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/nested/keys=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 93.77,
+            "unit": "ns/op",
+            "extra": "13080481 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/nested/keys=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 48,
+            "unit": "B/op",
+            "extra": "13080481 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/nested/keys=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "13080481 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/nested/keys=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 93.51,
+            "unit": "ns/op\t      48 B/op\t       1 allocs/op",
+            "extra": "13089325 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/nested/keys=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 93.51,
+            "unit": "ns/op",
+            "extra": "13089325 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/nested/keys=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 48,
+            "unit": "B/op",
+            "extra": "13089325 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkGet/nested/keys=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "13089325 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/int64 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 148.8,
+            "unit": "ns/op\t      64 B/op\t       3 allocs/op",
+            "extra": "8265404 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/int64 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 148.8,
+            "unit": "ns/op",
+            "extra": "8265404 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/int64 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 64,
+            "unit": "B/op",
+            "extra": "8265404 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/int64 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 3,
+            "unit": "allocs/op",
+            "extra": "8265404 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/string (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 120.5,
+            "unit": "ns/op\t      80 B/op\t       2 allocs/op",
+            "extra": "9953690 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/string (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 120.5,
+            "unit": "ns/op",
+            "extra": "9953690 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/string (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 80,
+            "unit": "B/op",
+            "extra": "9953690 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/string (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 2,
+            "unit": "allocs/op",
+            "extra": "9953690 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/struct (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 861.1,
+            "unit": "ns/op\t     320 B/op\t      14 allocs/op",
+            "extra": "1389361 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/struct (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 861.1,
+            "unit": "ns/op",
+            "extra": "1389361 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/struct (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 320,
+            "unit": "B/op",
+            "extra": "1389361 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/struct (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 14,
+            "unit": "allocs/op",
+            "extra": "1389361 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/slice_string/len=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 16534,
+            "unit": "ns/op\t   20432 B/op\t     304 allocs/op",
+            "extra": "69652 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/slice_string/len=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 16534,
+            "unit": "ns/op",
+            "extra": "69652 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/slice_string/len=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 20432,
+            "unit": "B/op",
+            "extra": "69652 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAs/slice_string/len=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 304,
+            "unit": "allocs/op",
+            "extra": "69652 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMerge/changes=10 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 44971,
+            "unit": "ns/op\t   33808 B/op\t     442 allocs/op",
+            "extra": "27092 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMerge/changes=10 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 44971,
+            "unit": "ns/op",
+            "extra": "27092 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMerge/changes=10 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 33808,
+            "unit": "B/op",
+            "extra": "27092 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMerge/changes=10 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 442,
+            "unit": "allocs/op",
+            "extra": "27092 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMerge/changes=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 309687,
+            "unit": "ns/op\t  320624 B/op\t    4312 allocs/op",
+            "extra": "4058 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMerge/changes=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 309687,
+            "unit": "ns/op",
+            "extra": "4058 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMerge/changes=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 320624,
+            "unit": "B/op",
+            "extra": "4058 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMerge/changes=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 4312,
+            "unit": "allocs/op",
+            "extra": "4058 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMerge/changes=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 3192693,
+            "unit": "ns/op\t 3533105 B/op\t   43780 allocs/op",
+            "extra": "379 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMerge/changes=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 3192693,
+            "unit": "ns/op",
+            "extra": "379 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMerge/changes=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 3533105,
+            "unit": "B/op",
+            "extra": "379 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkMerge/changes=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 43780,
+            "unit": "allocs/op",
+            "extra": "379 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/build/len=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 68544,
+            "unit": "ns/op\t   78912 B/op\t     488 allocs/op",
+            "extra": "17422 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/build/len=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 68544,
+            "unit": "ns/op",
+            "extra": "17422 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/build/len=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 78912,
+            "unit": "B/op",
+            "extra": "17422 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/build/len=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 488,
+            "unit": "allocs/op",
+            "extra": "17422 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/build/len=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 784469,
+            "unit": "ns/op\t  718097 B/op\t    4007 allocs/op",
+            "extra": "1610 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/build/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 784469,
+            "unit": "ns/op",
+            "extra": "1610 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/build/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 718097,
+            "unit": "B/op",
+            "extra": "1610 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/build/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 4007,
+            "unit": "allocs/op",
+            "extra": "1610 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/build/len=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 8011291,
+            "unit": "ns/op\t10012423 B/op\t   40146 allocs/op",
+            "extra": "146 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/build/len=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 8011291,
+            "unit": "ns/op",
+            "extra": "146 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/build/len=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 10012423,
+            "unit": "B/op",
+            "extra": "146 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/build/len=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 40146,
+            "unit": "allocs/op",
+            "extra": "146 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 25893,
+            "unit": "ns/op\t  10.85 MB/s\t    6976 B/op\t     179 allocs/op",
+            "extra": "43467 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 25893,
+            "unit": "ns/op",
+            "extra": "43467 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=100 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 10.85,
+            "unit": "MB/s",
+            "extra": "43467 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 6976,
+            "unit": "B/op",
+            "extra": "43467 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 179,
+            "unit": "allocs/op",
+            "extra": "43467 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 192353,
+            "unit": "ns/op\t   8.70 MB/s\t   29264 B/op\t    1087 allocs/op",
+            "extra": "6128 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 192353,
+            "unit": "ns/op",
+            "extra": "6128 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 8.7,
+            "unit": "MB/s",
+            "extra": "6128 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 29264,
+            "unit": "B/op",
+            "extra": "6128 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 1087,
+            "unit": "allocs/op",
+            "extra": "6128 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 1349947,
+            "unit": "ns/op\t  14.06 MB/s\t  305252 B/op\t   10096 allocs/op",
+            "extra": "885 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 1349947,
+            "unit": "ns/op",
+            "extra": "885 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=10000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 14.06,
+            "unit": "MB/s",
+            "extra": "885 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 305252,
+            "unit": "B/op",
+            "extra": "885 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/save/len=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 10096,
+            "unit": "allocs/op",
+            "extra": "885 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 29431,
+            "unit": "ns/op\t   9.55 MB/s\t   12336 B/op\t     221 allocs/op",
+            "extra": "40015 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 29431,
+            "unit": "ns/op",
+            "extra": "40015 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=100 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 9.55,
+            "unit": "MB/s",
+            "extra": "40015 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 12336,
+            "unit": "B/op",
+            "extra": "40015 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 221,
+            "unit": "allocs/op",
+            "extra": "40015 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 287282,
+            "unit": "ns/op\t   5.82 MB/s\t  149232 B/op\t    2116 allocs/op",
+            "extra": "4146 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 287282,
+            "unit": "ns/op",
+            "extra": "4146 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 5.82,
+            "unit": "MB/s",
+            "extra": "4146 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 149232,
+            "unit": "B/op",
+            "extra": "4146 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 2116,
+            "unit": "allocs/op",
+            "extra": "4146 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 2698405,
+            "unit": "ns/op\t   7.04 MB/s\t 1016936 B/op\t   22165 allocs/op",
+            "extra": "428 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 2698405,
+            "unit": "ns/op",
+            "extra": "428 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=10000 (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 7.04,
+            "unit": "MB/s",
+            "extra": "428 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 1016936,
+            "unit": "B/op",
+            "extra": "428 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/load/len=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 22165,
+            "unit": "allocs/op",
+            "extra": "428 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/iterate/len=100 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 7284,
+            "unit": "ns/op\t   12992 B/op\t     101 allocs/op",
+            "extra": "149740 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/iterate/len=100 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 7284,
+            "unit": "ns/op",
+            "extra": "149740 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/iterate/len=100 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 12992,
+            "unit": "B/op",
+            "extra": "149740 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/iterate/len=100 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 101,
+            "unit": "allocs/op",
+            "extra": "149740 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/iterate/len=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 71430,
+            "unit": "ns/op\t  121796 B/op\t    1001 allocs/op",
+            "extra": "16629 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/iterate/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 71430,
+            "unit": "ns/op",
+            "extra": "16629 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/iterate/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 121796,
+            "unit": "B/op",
+            "extra": "16629 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/iterate/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 1001,
+            "unit": "allocs/op",
+            "extra": "16629 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/iterate/len=10000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 755003,
+            "unit": "ns/op\t 1207942 B/op\t   10023 allocs/op",
+            "extra": "1330 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/iterate/len=10000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 755003,
+            "unit": "ns/op",
+            "extra": "1330 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/iterate/len=10000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 1207942,
+            "unit": "B/op",
+            "extra": "1330 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/iterate/len=10000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 10023,
+            "unit": "allocs/op",
+            "extra": "1330 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/as_slice/len=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 190127,
+            "unit": "ns/op\t  170149 B/op\t    4004 allocs/op",
+            "extra": "6246 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/as_slice/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 190127,
+            "unit": "ns/op",
+            "extra": "6246 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/as_slice/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 170149,
+            "unit": "B/op",
+            "extra": "6246 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkList/as_slice/len=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 4004,
+            "unit": "allocs/op",
+            "extra": "6246 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkTextRead/poorly_simulated_typing/n=1000 (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 4198,
+            "unit": "ns/op\t    1064 B/op\t       3 allocs/op",
+            "extra": "295255 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkTextRead/poorly_simulated_typing/n=1000 (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 4198,
+            "unit": "ns/op",
+            "extra": "295255 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkTextRead/poorly_simulated_typing/n=1000 (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 1064,
+            "unit": "B/op",
+            "extra": "295255 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkTextRead/poorly_simulated_typing/n=1000 (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 3,
+            "unit": "allocs/op",
+            "extra": "295255 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkTextRead/edit_trace (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 486303,
+            "unit": "ns/op\t  106520 B/op\t       2 allocs/op",
+            "extra": "2454 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkTextRead/edit_trace (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 486303,
+            "unit": "ns/op",
+            "extra": "2454 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkTextRead/edit_trace (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 106520,
+            "unit": "B/op",
+            "extra": "2454 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkTextRead/edit_trace (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 2,
+            "unit": "allocs/op",
+            "extra": "2454 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveIncremental/incremental (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 3176,
+            "unit": "ns/op\t 304.82 MB/s\t    2512 B/op\t       6 allocs/op",
+            "extra": "405868 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveIncremental/incremental (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 3176,
+            "unit": "ns/op",
+            "extra": "405868 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveIncremental/incremental (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 304.82,
+            "unit": "MB/s",
+            "extra": "405868 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveIncremental/incremental (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 2512,
+            "unit": "B/op",
+            "extra": "405868 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveIncremental/incremental (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 6,
+            "unit": "allocs/op",
+            "extra": "405868 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveIncremental/full (github.com/MichaelMure/gotomerge/docproxy)",
+            "value": 17605,
+            "unit": "ns/op\t   9.49 MB/s\t    6480 B/op\t      94 allocs/op",
+            "extra": "73194 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveIncremental/full (github.com/MichaelMure/gotomerge/docproxy) - ns/op",
+            "value": 17605,
+            "unit": "ns/op",
+            "extra": "73194 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveIncremental/full (github.com/MichaelMure/gotomerge/docproxy) - MB/s",
+            "value": 9.49,
+            "unit": "MB/s",
+            "extra": "73194 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveIncremental/full (github.com/MichaelMure/gotomerge/docproxy) - B/op",
+            "value": 6480,
+            "unit": "B/op",
+            "extra": "73194 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkSaveIncremental/full (github.com/MichaelMure/gotomerge/docproxy) - allocs/op",
+            "value": 94,
+            "unit": "allocs/op",
+            "extra": "73194 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=100 (github.com/MichaelMure/gotomerge/format)",
+            "value": 67666,
+            "unit": "ns/op\t   5.44 MB/s\t   15032 B/op\t     181 allocs/op",
+            "extra": "17917 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=100 (github.com/MichaelMure/gotomerge/format) - ns/op",
+            "value": 67666,
+            "unit": "ns/op",
+            "extra": "17917 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=100 (github.com/MichaelMure/gotomerge/format) - MB/s",
+            "value": 5.44,
+            "unit": "MB/s",
+            "extra": "17917 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=100 (github.com/MichaelMure/gotomerge/format) - B/op",
+            "value": 15032,
+            "unit": "B/op",
+            "extra": "17917 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=100 (github.com/MichaelMure/gotomerge/format) - allocs/op",
+            "value": 181,
+            "unit": "allocs/op",
+            "extra": "17917 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=1000 (github.com/MichaelMure/gotomerge/format)",
+            "value": 427517,
+            "unit": "ns/op\t   9.05 MB/s\t  116620 B/op\t    1094 allocs/op",
+            "extra": "2770 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=1000 (github.com/MichaelMure/gotomerge/format) - ns/op",
+            "value": 427517,
+            "unit": "ns/op",
+            "extra": "2770 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=1000 (github.com/MichaelMure/gotomerge/format) - MB/s",
+            "value": 9.05,
+            "unit": "MB/s",
+            "extra": "2770 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=1000 (github.com/MichaelMure/gotomerge/format) - B/op",
+            "value": 116620,
+            "unit": "B/op",
+            "extra": "2770 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=1000 (github.com/MichaelMure/gotomerge/format) - allocs/op",
+            "value": 1094,
+            "unit": "allocs/op",
+            "extra": "2770 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=10000 (github.com/MichaelMure/gotomerge/format)",
+            "value": 4185362,
+            "unit": "ns/op\t   9.89 MB/s\t 1901531 B/op\t   10226 allocs/op",
+            "extra": "285 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=10000 (github.com/MichaelMure/gotomerge/format) - ns/op",
+            "value": 4185362,
+            "unit": "ns/op",
+            "extra": "285 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=10000 (github.com/MichaelMure/gotomerge/format) - MB/s",
+            "value": 9.89,
+            "unit": "MB/s",
+            "extra": "285 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=10000 (github.com/MichaelMure/gotomerge/format) - B/op",
+            "value": 1901531,
+            "unit": "B/op",
+            "extra": "285 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkWriteChange/ops=10000 (github.com/MichaelMure/gotomerge/format) - allocs/op",
+            "value": 10226,
+            "unit": "allocs/op",
+            "extra": "285 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadExamplar (github.com/MichaelMure/gotomerge/format)",
+            "value": 9444,
+            "unit": "ns/op\t  42.99 MB/s\t         1.000 chunks\t    2888 B/op\t      46 allocs/op",
+            "extra": "124832 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadExamplar (github.com/MichaelMure/gotomerge/format) - ns/op",
+            "value": 9444,
+            "unit": "ns/op",
+            "extra": "124832 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadExamplar (github.com/MichaelMure/gotomerge/format) - MB/s",
+            "value": 42.99,
+            "unit": "MB/s",
+            "extra": "124832 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadExamplar (github.com/MichaelMure/gotomerge/format) - chunks",
+            "value": 1,
+            "unit": "chunks",
+            "extra": "124832 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadExamplar (github.com/MichaelMure/gotomerge/format) - B/op",
+            "value": 2888,
+            "unit": "B/op",
+            "extra": "124832 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadExamplar (github.com/MichaelMure/gotomerge/format) - allocs/op",
+            "value": 46,
+            "unit": "allocs/op",
+            "extra": "124832 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadLarge (github.com/MichaelMure/gotomerge/format)",
+            "value": 388110045,
+            "unit": "ns/op\t  75.36 MB/s\t    259779 chunks\t462359632 B/op\t 5792673 allocs/op",
+            "extra": "3 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadLarge (github.com/MichaelMure/gotomerge/format) - ns/op",
+            "value": 388110045,
+            "unit": "ns/op",
+            "extra": "3 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadLarge (github.com/MichaelMure/gotomerge/format) - MB/s",
+            "value": 75.36,
+            "unit": "MB/s",
+            "extra": "3 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadLarge (github.com/MichaelMure/gotomerge/format) - chunks",
+            "value": 259779,
+            "unit": "chunks",
+            "extra": "3 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadLarge (github.com/MichaelMure/gotomerge/format) - B/op",
+            "value": 462359632,
+            "unit": "B/op",
+            "extra": "3 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkReadLarge (github.com/MichaelMure/gotomerge/format) - allocs/op",
+            "value": 5792673,
+            "unit": "allocs/op",
+            "extra": "3 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCompressed (github.com/MichaelMure/gotomerge/format)",
+            "value": 27452,
+            "unit": "ns/op\t   6.99 MB/s\t         2.000 chunks\t   85768 B/op\t      66 allocs/op",
+            "extra": "42775 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCompressed (github.com/MichaelMure/gotomerge/format) - ns/op",
+            "value": 27452,
+            "unit": "ns/op",
+            "extra": "42775 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCompressed (github.com/MichaelMure/gotomerge/format) - MB/s",
+            "value": 6.99,
+            "unit": "MB/s",
+            "extra": "42775 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCompressed (github.com/MichaelMure/gotomerge/format) - chunks",
+            "value": 2,
+            "unit": "chunks",
+            "extra": "42775 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCompressed (github.com/MichaelMure/gotomerge/format) - B/op",
+            "value": 85768,
+            "unit": "B/op",
+            "extra": "42775 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCompressed (github.com/MichaelMure/gotomerge/format) - allocs/op",
+            "value": 66,
+            "unit": "allocs/op",
+            "extra": "42775 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkTextEdits (github.com/MichaelMure/gotomerge/opset)",
+            "value": 652392,
+            "unit": "ns/op\t    104852 chars\t  177154 B/op\t     295 allocs/op",
+            "extra": "1870 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkTextEdits (github.com/MichaelMure/gotomerge/opset) - ns/op",
+            "value": 652392,
+            "unit": "ns/op",
+            "extra": "1870 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkTextEdits (github.com/MichaelMure/gotomerge/opset) - chars",
+            "value": 104852,
+            "unit": "chars",
+            "extra": "1870 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkTextEdits (github.com/MichaelMure/gotomerge/opset) - B/op",
+            "value": 177154,
+            "unit": "B/op",
+            "extra": "1870 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkTextEdits (github.com/MichaelMure/gotomerge/opset) - allocs/op",
+            "value": 295,
+            "unit": "allocs/op",
+            "extra": "1870 times\n4 procs"
           }
         ]
       }
